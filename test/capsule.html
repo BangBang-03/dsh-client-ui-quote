@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>dsh-client-ui-quote · capsule probe</title>
+<style>
+	body{margin:0;padding:16px;font:13px/1.6 system-ui,"Segoe UI",sans-serif;background:#fff;color:#1f2328}
+	[data-conversation-content]{max-width:560px}
+	.bubble{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;background:#f2f3f5}
+	.sent{font-size:13px;line-height:1.6;white-space:pre-wrap}
+	#probe-out{margin-top:16px;padding:10px;border-radius:8px;background:#0f1115;color:#d7dae0;
+		font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+	#probe-out[data-status="pass"]{background:#0d2b1b;color:#a7f3c9}
+	#probe-out[data-status="fail"]{background:#3a1418;color:#ffc9d0}
+</style>
+<script>
+	// The DSH client module loader hands the bundle a `require` and keeps the
+	// factory; the probe drives that factory exactly like the app does.
+	window.__Loaded = null;
+	window.__ModuleLoader__ = { load(loaded) { window.__Loaded = loaded; } };
+</script>
+<script src="../lib/client.js"></script>
+<script>
+	window.__probeErrors = [];
+	window.addEventListener("error", (event) => window.__probeErrors.push(String(event.message)));
+	window.addEventListener("unhandledrejection", (event) => window.__probeErrors.push("rejection: " + String(event.reason)));
+	(async () => {
+		const out = document.createElement("pre");
+		out.id = "probe-out";
+		document.body.append(out);
+
+		const checks = [];
+		const check = (name, ok, detail) => {
+			checks.push({ name, ok: ok === true, detail: detail === undefined ? "" : String(detail) });
+			return ok === true;
+		};
+		const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+		// ---- drive the bundle ------------------------------------------------
+		const spec = window.__Loaded;
+		check("bundle registers a module", spec !== null && spec !== undefined && spec.id === "dsh-client-ui-quote", spec && spec.id);
+		const reactStub = { useRef: (value) => ({ current: value }), useEffect() {} };
+		const exports_ = spec.factory((name) => {
+			if (name === "react") return reactStub;
+			throw new Error("unexpected require: " + name);
+		});
+		const sources = [];
+		let effectDisposers = 0;
+		exports_.apply({
+			effect(fn) {
+				const dispose = fn();
+				if (typeof dispose === "function") effectDisposers += 1;
+				return () => {};
+			},
+			get(name) {
+				if (name === "inputTriggers") {
+					return { registerSource(source) { sources.push(source); return () => {}; } };
+				}
+				return undefined;
+			},
+			locale: { register: () => () => {} },
+			slots: { inject: (name, factory) => { factory(); return () => {}; }, register: () => () => {} }
+		});
+		check("apply installs an effect with a disposer", effectDisposers === 1, effectDisposers + " disposer(s)");
+		check("capsule stylesheet is installed", document.getElementById("dsh-quote-capsule-style") !== null);
+
+		const testing = exports_.__testing;
+		const model = testing.quoteBlock("做法（推荐这条）\n我已经编好启动器");
+		check("serialized quote opens with the mark", model.startsWith("> \u275D "), JSON.stringify(model));
+		check("serialized quote keeps the blockquote shape", model.split("\n")[1] === "> 我已经编好启动器");
+
+		// ---- a transcript the way DSH renders it ------------------------------
+		const host = document.createElement("div");
+		host.setAttribute("data-conversation-content", "");
+		host.setAttribute("data-conversation-session", "s1");
+
+		const bubble = (runText, tail) => {
+			const box = document.createElement("div");
+			box.className = "bubble";
+			const run = document.createElement("span");
+			run.className = "sent";
+			run.textContent = runText;
+			box.append(run);
+			if (tail !== undefined) {
+				const after = document.createElement("span");
+				after.className = "sent";
+				after.textContent = tail;
+				box.append(after);
+			}
+			host.append(box);
+			return { box, run };
+		};
+
+		// 1. the plain case: the message is the quote and a trailing comment.
+		const plain = bubble(model + "\n\n" + "这是我的看法", "");
+		// 2. text typed before the chip: the mark lands mid-line.
+		const prefixed = bubble("看这里" + model + "\n\n" + "继续");
+		// 3. a chip splits the message: the quote is its own run.
+		const chipped = bubble(model + "\n\n", "正文在这一段");
+		const chip = document.createElement("button");
+		chip.setAttribute("data-ref-chip", "file");
+		chip.textContent = "x";
+		chipped.box.insertBefore(chip, chipped.box.lastChild);
+		document.body.append(host);
+
+		await wait(200);
+
+		const caps = () => Array.from(document.querySelectorAll(".dshq-cap"));
+		check("every quote run got a capsule", caps().length === 3, caps().length + " capsule(s)");
+		check("quote run is hidden, not removed", plain.run.isConnected && plain.run.style.display === "none", plain.run.style.display);
+		check("the capsule quotes the original text", caps()[0] && caps()[0].querySelector(".dshq-cap-text").textContent === "做法（推荐这条）\n我已经编好启动器");
+		check("the user's own text survives next to it", plain.box.textContent.includes("这是我的看法"), plain.box.textContent);
+		check("text before the chip is kept", prefixed.box.textContent.includes("看这里") && caps()[1].querySelector(".dshq-cap-text").textContent === "做法（推荐这条）\n我已经编好启动器");
+		check("a neighbouring chip is untouched", chipped.box.contains(chip) && caps()[2].querySelector(".dshq-cap-text").textContent.startsWith("做法"));
+		check("label + copy affordance are drawn", caps()[0].querySelector(".dshq-cap-label").textContent.length > 0 && caps()[0].querySelector(".dshq-cap-copy") !== null);
+
+		const styles = getComputedStyle(caps()[0]);
+		check("capsule is a rounded pill", styles.borderRadius !== "0px" && styles.borderTopLeftRadius !== "0px", styles.borderTopLeftRadius);
+		check("capsule has a fill of its own", styles.backgroundColor !== "rgba(0, 0, 0, 0)" && styles.backgroundColor !== "transparent", styles.backgroundColor);
+		check("quote text is clamped until expanded", getComputedStyle(caps()[0].querySelector(".dshq-cap-text")).webkitLineClamp === "2");
+
+		// ---- idempotence, re-render and removal -------------------------------
+		caps()[0].click();
+		check("clicking the pill expands it", caps()[0].dataset.expanded === "true", caps()[0].dataset.expanded);
+
+		plain.run.firstChild.nodeValue = model + "\n\n" + "改过的正文";
+		await wait(120);
+		check("a re-render refreshes the capsule in place", caps().length === 3 && plain.box.textContent.includes("改过的正文"), caps().length + " capsule(s)");
+		check("the earlier capsule was replaced, not duplicated", plain.box.querySelectorAll(".dshq-cap").length === 1);
+
+		const doomed = caps()[2];
+		chipped.run.remove();
+		await wait(120);
+		check("removing the message removes its capsule", !doomed.isConnected && document.querySelectorAll(".dshq-cap").length === 2, document.querySelectorAll(".dshq-cap").length + " left");
+
+		// ---- the codec DSH's send path calls ---------------------------------
+		check("one reference source is registered", sources.length === 1, sources.length + " source(s)");
+		const serialized = await sources[0].codec.serialize(model + "\n\n");
+		check("codec.serialize is what lands in the sent message", serialized === model + "\n\n", JSON.stringify(serialized));
+		check("the model form round-trips back into the pill", testing.splitQuoteBlock(serialized).quote === "做法（推荐这条）\n我已经编好启动器");
+
+		// ---- report -----------------------------------------------------------
+		const failed = checks.filter((entry) => !entry.ok);
+		out.dataset.status = failed.length === 0 ? "pass" : "fail";
+		out.textContent =
+			(failed.length === 0 ? "PASS " : "FAIL ") + (checks.length - failed.length) + "/" + checks.length + " checks\n" +
+			checks.map((entry) => (entry.ok ? "ok   " : "FAIL ") + entry.name + (entry.detail === "" ? "" : "  [" + entry.detail + "]")).join("\n");
+
+		// Beacon: when the page is served by a collector (the work dir's
+		// capsule-server.mjs), POST the report so a headless run is scriptable.
+		try {
+			await fetch("/report", {
+				method: "POST",
+				headers: { "content-type": "text/plain" },
+				body: out.dataset.status + "\n" + out.textContent +
+					(window.__probeErrors.length === 0 ? "" : "\nerrors: " + window.__probeErrors.join(" | ")),
+			});
+		} catch (error) {
+			// file:// or no collector — the report stays in #probe-out
+		}
+	})();
+</script>
+</body>
+</html>
