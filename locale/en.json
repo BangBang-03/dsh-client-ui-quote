@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Quote selection (dsh-client-ui-quote)",
+    "description": "Select any sentence in the chat to quote and comment it, Kimi-Code style: the floating bar offers Comment and Add to conversation, and the quote is inserted as DSH's native reference chip."
+  }
+}

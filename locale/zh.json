@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "选中引用 (dsh-client-ui-quote)",
+    "description": "在聊天里选中任意一句话即可引用并评论：浮层提供「评论」与「添加到对话」，引用以 DSH 原生 reference-chip 插入输入框，发送时按引用块还原。"
+  }
+}

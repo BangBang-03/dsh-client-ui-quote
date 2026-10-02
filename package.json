@@ -1,0 +1,51 @@
+{
+  "name": "dsh-client-ui-quote",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Select text in the DSH transcript to quote it into the composer, Kimi-Code style (comment / add to conversation).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BangBang-03/dsh-client-ui-quote.git"
+  },
+  "homepage": "https://github.com/BangBang-03/dsh-client-ui-quote#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "quote",
+    "selection",
+    "comment",
+    "kimi-code"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/check.mjs"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}
