@@ -18,7 +18,7 @@
 
 ## 安装
 
-要求：DSH ≥ 0.2.0-rc.1 的 **web / 桌面** 客户端（插件运行在渲染进程里，headless profile 没有 UI）。
+要求：DSH ≥ 0.2.0-rc.2 的 **web / 桌面** 客户端（`package.json` 里 `engines.dsh` 声明的就是实测版本；插件运行在渲染进程里，headless profile 没有 UI）。
 
 ### 方式一：link 安装（推荐）
 
@@ -88,10 +88,28 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 （DOM 形如 `span.quote-pill[data-quote-text][data-quote-comment]`）。本插件逐条对应到 DSH：`.sab` → 本文的单例浮层，
 `quote` 节点 → DSH 的 `reference-chip`，`insertComposerQuote` → `registerSource` + `insertReference` + `codec.serialize`。
 
+## 声明（package.json）
+
+| 字段 | 作用 |
+| --- | --- |
+| `dsh.bundle.patch` | 指向 `cordis.patch.yml`：作为**组合包层补丁**插入 `ui-quote` 这一行 loader 条目。 |
+| `dsh.client.platform: "web"` | 声明浏览器侧 bundle。host 还接受 `dsh.client.inject`（声明依赖的客户端包）、`external`（列非基线模块请求，默认 `[]`）、`immediately`（是否随启动立即实例化，默认 `false`）；本插件只用平台基线模块，故都不声明。 |
+| `exports["./client"]` | 必须导出：host 用 `clientExportOf(pkg.exports)` 找 bundle。 |
+| `exports["./package.json"]` | 必须导出：插件页元数据要解析 `<pkg>/package.json`。 |
+| `exports["./locale/*.json"]` | 必须导出：host 通过 ESM 解析器逐个读语言文件。 |
+| `icon` | 卡片图标。**相对路径**（不能绝对路径、不能带协议）、SVG/PNG/JPEG/WebP、≤ 256 KiB、realpath 后必须留在包目录内；host 读成 `data:` URL 交给插件页。 |
+| `locale/<lang>.json` | `{"meta": {"title": …, "description": …}}`。`locale/en.json` 是英文锚点（host 以它所在目录为准扫描同目录 `*.json`，语言名取自文件名）；缺 `en.json` 就没词条，`en` 回退到 `package.json` 的 `name` / `description`。 |
+| `engines.dsh`（清单根） | 声明兼容的 DSH 版本范围。当前 host 不校验它（声明式）。 |
+| `dsh.manifestVersion: 1` | 清单格式号，同样只作文档。 |
+| `peerDependencies` | **故意留空**：`@deepseek-ai/dsh*` 的 peer 范围是唯一被强制校验的兼容性字段，范围不满足时 preflight 会在组合期把该行 `disabled`（需要 `dsh plugin allow-version` 或 profile 的 `compatibility.json` 豁免）。本插件只 require 平台基线模块 `react`，不需要 peer。 |
+
+`npm test` 会逐条复核上面这些：补丁文件、三个导出、图标类型与体积、中英词条、以及「没有会被强制校验的 peer」。
+
 ## 结构
 
 ```
-package.json          DSH 插件清单（bundle patch + client 半 + locale 导出）
+package.json          DSH 插件清单（bundle patch + client 半 + icon + locale 导出）
+icon.svg              插件页卡片图标（相对路径、≤ 256 KiB 的 SVG）
 cordis.patch.yml      组合包层补丁：插入 ui-quote 这个 loader 条目
 lib/index.js          host 半：只声明 apply()，不提供服务
 lib/client.js         全部功能：vendor-CJS 工厂 + conversation.input.overlay 槽位组件
@@ -113,6 +131,9 @@ npm test
 `test/check.mjs` 用桩 `window.__ModuleLoader__` / 桩 `react` / 桩 host ctx 加载 bundle，断言模块 id、服务声明、
 槽位注册（`conversation.input.overlay` / `quote-selection` / locale `ui-quote`）、两套词条、「组件渲染 null」，
 以及 reference source 只注册一次、`codec.serialize` 原样返回模型形态、菜单候选保持为空。
+它还会按 host 读取清单的方式复核 `package.json`：`dsh.manifestVersion` / `dsh.client.platform` / `engines.dsh` 的位置、
+`dsh.bundle.patch` 指向的补丁文件确实插入了 `ui-quote`、四个 `exports`、图标（相对路径 + 类型 + ≤ 256 KiB）、
+`locale/*.json` 的 `meta.title` / `meta.description`，以及「没有会被 preflight 拒绝的 `@deepseek-ai/dsh*` peer」。
 
 ## 已知限制
 
@@ -132,4 +153,4 @@ npm test
 **dsh-client-ui-quote** — select any sentence in a DSH conversation and quote it into the composer, Kimi-Code style.
 A floating bar offers **Comment** and **Add to conversation**; the quote is inserted as DSH's native inline `reference-chip`
 and is serialized back into a `> ` blockquote when you send. Install with `dsh plugin --profile desktop add link:<clone-path>`
-(DSH >= 0.2.0-rc.1, web/desktop client). Test with `npm test`. MIT licensed.
+(DSH >= 0.2.0-rc.2, web/desktop client). Test with `npm test`. MIT licensed.
