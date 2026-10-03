@@ -4,7 +4,8 @@
  * The sent message is plain text in DSH (there is no per-message render slot and
  * native `@…` chips are neither capsule-shaped nor safe), so the plugin hides
  * the run that carries a serialized quote and draws Kimi's pill beside it. This
- * file drives that machinery end to end: a quote run becomes one capsule, a
+ * file drives that machinery end to end: a quote run becomes one capsule (and a
+ * run with several quotes becomes several, with the wording between them kept), a
  * re-render refreshes it in place, deleting the message takes the capsule with
  * it, and a plain message is never touched.
  *
@@ -170,11 +171,82 @@ check(
 	dom.document.querySelectorAll(".dshq-body").length + " run(s) of loose text"
 );
 
+// ---- several quotes in one message (chip, wording, chip, wording) ---------
+// The shape of a real send: each chip splices its `> ❝ …` block into the draft,
+// so the transcript run is loose text and quote blocks alternating.
+const chip = (text) => "\n" + testing.quoteBlock(text) + "\n\n";
+const bubble3 = dom.document.createElement("div");
+host.append(bubble3);
+const run3 = dom.document.createElement("span");
+run3.className = "plainRun";
+run3.textContent =
+	chip("但那是目标，现在 CNN 还没转正，实盘跑的是规则检测器独唱。") +
+	"我记得现在已经让 cnn+规则检测器完全取代单独的规则检测器了" +
+	chip('第二处：CNN 和规则检测器根本不是"对面"。它们不是同一个层级上的两半，而是两条线：') +
+	"错了，有问题，我们的实验线上的 cnn+规则检测器是并行的，但是你现在是按照主线和实验线来划分了，所以有问题";
+bubble3.append(run3);
+dom.document.deliver();
+await wait(120);
+
+const capsIn = (scope) => scope.querySelectorAll(".dshq-cap");
+const textIn = (scope, selector) => [...scope.querySelectorAll(selector)].map((node) => node.textContent);
+check("two quotes in one message become two capsules", capsIn(bubble3).length === 2, capsIn(bubble3).length + " capsule(s)");
+check("the run is hidden once", run3.style.display === "none" && run3.isConnected);
+const capTexts = textIn(bubble3, ".dshq-cap-text");
+check(
+	"each capsule keeps its own quote",
+	JSON.stringify(capTexts) ===
+		JSON.stringify([
+			"但那是目标，现在 CNN 还没转正，实盘跑的是规则检测器独唱。",
+			'第二处：CNN 和规则检测器根本不是"对面"。它们不是同一个层级上的两半，而是两条线：'
+		]),
+	JSON.stringify(capTexts)
+);
+const bodyTexts = textIn(bubble3, ".dshq-body");
+check(
+	"the wording between the quotes stays where it was",
+	JSON.stringify(bodyTexts) ===
+		JSON.stringify([
+			"我记得现在已经让 cnn+规则检测器完全取代单独的规则检测器了",
+			"错了，有问题，我们的实验线上的 cnn+规则检测器是并行的，但是你现在是按照主线和实验线来划分了，所以有问题"
+		]),
+	JSON.stringify(bodyTexts)
+);
+const order = bubble3.childNodes
+	.filter((node) => node.nodeType === 1)
+	.map((node) => node.getAttribute("data-dshq"))
+	.filter((value) => value !== null);
+check("capsules and loose text interleave in send order", JSON.stringify(order) === JSON.stringify(["capsule", "body", "capsule", "body"]), JSON.stringify(order));
+const copies = [...bubble3.querySelectorAll(".dshq-cap-copy")];
+copies[1].dispatch("click", { target: null, stopPropagation() {} });
+check("the second pill copies its own quote", dom.clipboard[dom.clipboard.length - 1] === capTexts[1], JSON.stringify(dom.clipboard[dom.clipboard.length - 1]));
+check(
+	"the first pill keeps its own line count",
+	String(bubble3.querySelector(".dshq-cap-meta")?.textContent).includes("1 行"),
+	JSON.stringify(bubble3.querySelector(".dshq-cap-meta")?.textContent)
+);
+
+// ---- two quotes with nothing typed in between ----------------------------
+const bubble4 = dom.document.createElement("div");
+host.append(bubble4);
+const run4 = dom.document.createElement("span");
+run4.className = "plainRun";
+run4.textContent = chip("甲") + chip("乙");
+bubble4.append(run4);
+dom.document.deliver();
+await wait(120);
+check(
+	"back-to-back quotes still get a pill each",
+	capsIn(bubble4).length === 2 && bubble4.querySelectorAll(".dshq-body").length === 0,
+	capsIn(bubble4).length + " capsule(s), " + bubble4.querySelectorAll(".dshq-body").length + " loose run(s)"
+);
+check("both back-to-back pills show their own text", JSON.stringify(textIn(bubble4, ".dshq-cap-text")) === JSON.stringify(["甲", "乙"]), JSON.stringify(textIn(bubble4, ".dshq-cap-text")));
+
 // ---- uninstall -----------------------------------------------------------
 capsuleEffect.dispose();
 check("uninstall removes the pill and restores the run", caps().length === 0 && run2.style.display === "");
 check("uninstall removes the stylesheet", dom.document.getElementById("dsh-quote-capsule-style") === null);
-check("a hand-written blockquote stays plain text", testing.splitQuoteBlock("> 只是引用格式\n> 第二行") === null);
+check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
 console.log(
 	failures.length === 0
