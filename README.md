@@ -114,6 +114,8 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
     左右按视口夹取、鼠标从锚点移到卡片上不会把它关掉）：读全文不必先点开。**输入框里的芯片也接同一张卡片** ——
     芯片标签本来就被 `chipLabel` 截断过（引用 30 字 + 评论 22 字），插件按「标签 → 引用 / 评论」建索引，在 `[data-composer-card]`
     下认出这颗芯片后给它挂上同一张卡片，并打上 `data-dshq-chip="1"` 记账，卸载时摘掉钩子与索引。
+    芯片标签在**每次悬停时重新解析**：React 下一条引用常常复用同一个芯片节点（节点没变、标签变了），
+    所以卡片不会拿着挂载那一刻的旧内容；标签也对不上索引时宁可不出卡片，绝不显示别的引用的内容（芯片自带的 `❝` 前缀会被忽略）。
     卡片跟着锚点活：锚点一旦离开文档（发消息会把芯片拿走，而被移除的节点不会再发 `mouseleave`）卡片立刻收起，
     React 重渲染换掉胶囊时同理 —— 不会留下一张浮在空处的卡片。
 
@@ -158,7 +160,7 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片，59 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片，67 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（可选）
 ```
 
@@ -185,8 +187,9 @@ npm test          # = node test/check.mjs && node test/capsule.mjs
 用户自己的话另起 `span.dshq-body`、胶囊里是引用原文（有评论时评论在同一颗胶囊里且不会多出一颗）、`复制` 写出 `引用 · 评论`、
 React 重渲染不会出现第二颗、引用变了就地重建、消息被删胶囊一起消失、卸载后 run 与样式表都恢复、手写的 `> ` 引用块不被误伤；
 悬停胶囊或输入框芯片时浮出卡片（两段全文都在、贴底自动翻到上方、左右夹取不越界、离开后收起、锚点被移除 / 发出去后卡片跟着收起、
-卸载后卡片消失且芯片钩子摘除）；菜单纵向位置（默认在选区下方、贴底改到上方、比视口还高时仍留在视口内）；
-一条消息里引用两处时，两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉（共 59 项）。
+卸载后卡片消失且芯片钩子摘除、输入框里两颗芯片各显示自己的引用、节点被复用后显示当前那一条、标签对不上时不出卡片）；
+菜单纵向位置（默认在选区下方、贴底改到上方、比视口还高时仍留在视口内）；
+一条消息里引用两处时，两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉（共 67 项）。
 `test/capsule.html` 是同一套断言的真浏览器版，用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。
 
 ## 已知限制
@@ -215,6 +218,7 @@ chip the way Kimi keeps both halves in one composer node — becomes DSH's nativ
 back into a `> ❝ …` / `> ❞ …` blockquote when you send, and is then drawn as a single rounded **capsule** in the
 transcript (`quote │ comment`, hover for the full text, click to expand, copy button), so a quote never floods the message with `>` lines —
 the model still receives the full text. The same hover card opens over the composer chip, whose label has to be clipped,
-and it closes with the chip as soon as the message is sent.
+and it closes with the chip as soon as the message is sent. Each chip resolves its own quote at hover time — React
+reuses a chip node for the next quote, so a card can never show the previous one's text.
 Install with `dsh plugin --profile desktop add link:<clone-path>` (DSH >= 0.2.0-rc.2, web/desktop client).
 Test with `npm test`. MIT licensed.

@@ -197,6 +197,39 @@
 		await wait(150);
 		check("sending the message closes the card with the chip", pop.dataset.visible === "false", pop.dataset.visible);
 
+		// ---- two chips, and a chip node reused for the next quote --------------
+		const composer2 = document.createElement("div");
+		composer2.setAttribute("data-composer-card", "");
+		const chipA = document.createElement("span");
+		chipA.className = "refChip";
+		chipA.textContent = testing.chipLabel("第一处引用", "第一处评论");
+		const chipB = document.createElement("span");
+		chipB.className = "refChip";
+		chipB.textContent = testing.chipLabel("第二处引用", "第二处评论");
+		composer2.append(chipA, chipB);
+		document.body.append(composer2);
+		testing.rememberChip("第一处引用", "第一处评论", "s1");
+		testing.rememberChip("第二处引用", "第二处评论", "s1");
+		await wait(200);
+		chipB.dispatchEvent(new MouseEvent("mouseenter"));
+		check(
+			"the second chip shows its own quote, not the first one's",
+			pop.querySelector(".dshq-pop-quote").textContent === "第二处引用" && pop.querySelector(".dshq-pop-comment").textContent === "第二处评论",
+			pop.querySelector(".dshq-pop-quote").textContent
+		);
+		chipA.dispatchEvent(new MouseEvent("mouseenter"));
+		check("the first chip still shows its own quote", pop.querySelector(".dshq-pop-quote").textContent === "第一处引用", pop.querySelector(".dshq-pop-quote").textContent);
+
+		chipA.textContent = testing.chipLabel("换成另一处引用", "换成另一条评论");
+		testing.rememberChip("换成另一处引用", "换成另一条评论", "s1");
+		await wait(200);
+		chipA.dispatchEvent(new MouseEvent("mouseenter"));
+		check(
+			"a chip node reused for another quote shows what it holds now",
+			pop.querySelector(".dshq-pop-quote").textContent === "换成另一处引用" && pop.querySelector(".dshq-pop-comment").textContent === "换成另一条评论",
+			pop.querySelector(".dshq-pop-quote").textContent
+		);
+
 		// ---- the selection menu sits under the selection ----------------------
 		const paragraph = document.createElement("p");
 		paragraph.style.margin = "24px 0";

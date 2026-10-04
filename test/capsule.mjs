@@ -388,6 +388,50 @@ chipElement.dispatch("mouseleave", {});
 await wait(200);
 check("leaving the chip closes the card", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
 
+// Two chips in one composer, and React reusing a chip node for the next quote:
+// the card must follow the label that is on screen now, not the one that was
+// there when the node got hooked.
+const chipTwo = dom.document.createElement("span");
+chipTwo.className = "refChip";
+chipTwo.textContent = testing.chipLabel("第二处引用", "第二处评论");
+chipHost.append(chipTwo);
+testing.rememberChip("第二处引用", "第二处评论", "session-1");
+dom.document.deliver();
+await wait(120);
+check("the second chip is hooked as well", chipTwo.getAttribute("data-dshq-chip") === "1", JSON.stringify(chipTwo.getAttribute("data-dshq-chip")));
+chipTwo.dispatch("mouseenter", {});
+check("the second chip shows its own quote", textIn(card5, ".dshq-pop-quote")[0] === "第二处引用", JSON.stringify(textIn(card5, ".dshq-pop-quote")));
+chipElement.dispatch("mouseenter", {});
+check("the first chip still shows its own quote", textIn(card5, ".dshq-pop-quote")[0] === "芯片里的原话", JSON.stringify(textIn(card5, ".dshq-pop-quote")));
+
+// Same node, new label: the hook was installed for the old text.
+chipElement.textContent = testing.chipLabel("换了一处引用", "换了一条评论");
+testing.rememberChip("换了一处引用", "换了一条评论", "session-1");
+dom.document.deliver();
+await wait(120);
+chipElement.dispatch("mouseenter", {});
+check("a reused chip node shows the quote it holds now", textIn(card5, ".dshq-pop-quote")[0] === "换了一处引用", JSON.stringify(textIn(card5, ".dshq-pop-quote")));
+check("the reused chip's card carries its own comment", textIn(card5, ".dshq-pop-comment")[0] === "换了一条评论", JSON.stringify(textIn(card5, ".dshq-pop-comment")));
+
+// A chip this plugin never minted (another reference source) inherits nothing.
+chipTwo.textContent = "别的插件的芯片";
+dom.document.deliver();
+await wait(120);
+chipTwo.dispatch("mouseenter", {});
+check("an unknown chip label does not resurrect the old card", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
+
+// Some chips draw their own mark in front of the label; that must not hide it.
+const chipThree = dom.document.createElement("span");
+chipThree.className = "refChip";
+chipThree.textContent = "❝ " + testing.chipLabel("带标记的引用", "");
+chipHost.append(chipThree);
+testing.rememberChip("带标记的引用", "", "session-1");
+dom.document.deliver();
+await wait(120);
+check("a chip that draws its own mark is still recognised", chipThree.getAttribute("data-dshq-chip") === "1", JSON.stringify(chipThree.getAttribute("data-dshq-chip")));
+chipThree.dispatch("mouseenter", {});
+check("that chip shows its own quote without inventing a comment", textIn(card5, ".dshq-pop-quote")[0] === "带标记的引用" && textIn(card5, ".dshq-pop-comment").length === 0, JSON.stringify(textIn(card5, ".dshq-pop-quote")));
+
 // Sending the message throws the chip away, and a node that is simply gone
 // never fires `mouseleave` — the card has to notice that its anchor left.
 chipElement.dispatch("mouseenter", {});
