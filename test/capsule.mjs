@@ -9,7 +9,9 @@
  * one capsule (a run with several quotes becomes several, with the wording
  * between them kept), a comment rides in the same pill, a re-render refreshes it
  * in place, deleting the message takes the capsule with it, and a plain message
- * is never touched.
+ * is never touched. The same run drives the hover card: a collapsed pill and a
+ * clipped composer chip both hide the text the user needs, so hovering either of
+ * them shows the quote and its comment in full.
  *
  * Usage: node test/capsule.mjs      (or: npm test)
  */
@@ -50,6 +52,9 @@ try {
 	Object.defineProperty(globalThis, "navigator", { value: dom.navigator, configurable: true });
 }
 globalThis.window = {
+	// A viewport, so the hover card can be clamped and flipped like in a browser.
+	innerWidth: 1200,
+	innerHeight: 800,
 	__ModuleLoader__: {
 		load(loaded) {
 			spec = loaded;
@@ -139,8 +144,34 @@ check("the original run is hidden, not removed", run.isConnected && run.style.di
 check("the user's own text is still visible beside the pill", dom.document.querySelectorAll(".dshq-body")[0]?.textContent === "我的问题");
 check("the pill shows the quote", dom.document.querySelector(".dshq-cap-quote")?.textContent === quote, JSON.stringify(dom.document.querySelector(".dshq-cap-quote")?.textContent));
 check("the pill is labelled for screen readers", caps()[0]?.getAttribute("aria-label") === "引用", JSON.stringify(caps()[0]?.getAttribute("aria-label")));
-check("the pill counts the lines in its tooltip", String(caps()[0]?.getAttribute("title")).includes("2 行"), JSON.stringify(caps()[0]?.getAttribute("title")));
+check("the pill no longer leans on a native tooltip", caps()[0]?.getAttribute("title") === null, JSON.stringify(caps()[0]?.getAttribute("title")));
 check("a plain message is never touched", plain.style.display === "" && plain.textContent === "一条不含引用的普通消息");
+
+// ---- the hover card: one clipped line cannot be read on its own ----------
+const pop = () => dom.document.getElementById("dsh-quote-popover");
+caps()[0].rect = { left: 120, top: 300, width: 200, height: 22 };
+caps()[0].dispatch("mouseenter", {});
+check("hovering a pill opens the hover card", pop() !== null && pop().dataset.visible === "true", JSON.stringify(pop()?.dataset.visible));
+check("the hover card shows the quote in full", pop()?.querySelector(".dshq-pop-quote")?.textContent === quote, JSON.stringify(pop()?.querySelector(".dshq-pop-quote")?.textContent));
+check(
+	"the hover card keeps the pill's line count",
+	String(pop()?.querySelector(".dshq-pop-meta")?.textContent).includes("2 行"),
+	JSON.stringify(pop()?.querySelector(".dshq-pop-meta")?.textContent)
+);
+check(
+	"the hover card is parked under its pill",
+	pop().style.getPropertyValue("left") === "120px" && pop().style.getPropertyValue("top") === "330px",
+	JSON.stringify([pop().style.getPropertyValue("left"), pop().style.getPropertyValue("top")])
+);
+check("the hover card takes the surface theme", String(pop().style.getPropertyValue("--dshq-bg")) !== "");
+check(
+	"a quote with no comment gets one labelled half",
+	pop().querySelectorAll(".dshq-pop-comment").length === 0 && pop().querySelectorAll(".dshq-pop-label").length === 1,
+	String(pop().querySelectorAll(".dshq-pop-label").length) + " label(s)"
+);
+caps()[0].dispatch("mouseleave", {});
+await wait(200);
+check("leaving the pill closes the hover card", pop().dataset.visible === "false", JSON.stringify(pop().dataset.visible));
 
 // copy + expand
 dom.document.querySelector(".dshq-cap-copy").dispatch("click", { target: null, stopPropagation() {} });
@@ -227,11 +258,13 @@ check("capsules and loose text interleave in send order", JSON.stringify(order) 
 const copies = [...bubble3.querySelectorAll(".dshq-cap-copy")];
 copies[1].dispatch("click", { target: null, stopPropagation() {} });
 check("the second pill copies its own quote", dom.clipboard[dom.clipboard.length - 1] === capTexts[1], JSON.stringify(dom.clipboard[dom.clipboard.length - 1]));
+bubble3.querySelector(".dshq-cap")?.dispatch("mouseenter", {});
 check(
 	"the first pill keeps its own line count",
-	String(bubble3.querySelector(".dshq-cap")?.getAttribute("title")).includes("1 行"),
-	JSON.stringify(bubble3.querySelector(".dshq-cap")?.getAttribute("title"))
+	String(pop()?.querySelector(".dshq-pop-meta")?.textContent).includes("1 行"),
+	JSON.stringify(pop()?.querySelector(".dshq-pop-meta")?.textContent)
 );
+bubble3.querySelector(".dshq-cap")?.dispatch("mouseleave", {});
 
 // ---- a comment rides in the same pill ------------------------------------
 // Kimi keeps quote and comment in ONE composer node, so the transcript gets one
@@ -283,6 +316,59 @@ check(
 	JSON.stringify(testing.chipRef("原话", "我的评论"))
 );
 
+// ---- the hover card on a comment pill ------------------------------------
+const card5 = pop();
+const cap5 = bubble5.querySelector(".dshq-cap");
+card5.rect = { width: 300, height: 120 };
+cap5.rect = { left: 40, top: 700, width: 120, height: 20 };
+cap5.dispatch("mouseenter", {});
+check(
+	"hovering a comment pill shows both halves in full",
+	card5.dataset.visible === "true" &&
+		card5.querySelector(".dshq-pop-quote")?.textContent === "被引用的原话" &&
+		card5.querySelector(".dshq-pop-comment")?.textContent === "我的评论",
+	JSON.stringify([card5.querySelector(".dshq-pop-quote")?.textContent, card5.querySelector(".dshq-pop-comment")?.textContent])
+);
+check(
+	"the hover card labels both halves",
+	JSON.stringify([...card5.querySelectorAll(".dshq-pop-label")].map((node) => node.textContent)) === JSON.stringify(["引用", "评论"]),
+	JSON.stringify([...card5.querySelectorAll(".dshq-pop-label")].map((node) => node.textContent))
+);
+check("a pill near the bottom edge flips the card above it", card5.style.getPropertyValue("top") === "572px", JSON.stringify(card5.style.getPropertyValue("top")));
+cap5.dispatch("mouseleave", {});
+
+// ---- the composer chip: hover reveals what `chipLabel` had to clip --------
+// `chipLabel` cuts the quote at 30 characters, which is what the user saw in the
+// chip; the index is keyed by that same label, so the chip can be recognised.
+const chipHost = dom.document.createElement("div");
+chipHost.setAttribute("data-composer-card", "");
+const chipElement = dom.document.createElement("span");
+chipElement.className = "refChip";
+chipElement.textContent = testing.chipLabel("芯片里的原话", "芯片里的评论");
+chipHost.append(chipElement);
+dom.document.body.append(chipHost);
+testing.rememberChip("芯片里的原话", "芯片里的评论", "session-1");
+dom.document.deliver();
+await wait(120);
+check("the chip in the composer is hooked for hover", chipElement.getAttribute("data-dshq-chip") === "1", JSON.stringify(chipElement.getAttribute("data-dshq-chip")));
+chipElement.rect = { left: 40, top: 120, width: 160, height: 20 };
+chipElement.dispatch("mouseenter", {});
+check(
+	"hovering the composer chip reveals the full pair",
+	card5.dataset.visible === "true" &&
+		card5.querySelector(".dshq-pop-quote")?.textContent === "芯片里的原话" &&
+		card5.querySelector(".dshq-pop-comment")?.textContent === "芯片里的评论",
+	JSON.stringify([card5.querySelector(".dshq-pop-quote")?.textContent, card5.querySelector(".dshq-pop-comment")?.textContent])
+);
+check(
+	"the chip's card sits under the chip",
+	card5.style.getPropertyValue("left") === "40px" && card5.style.getPropertyValue("top") === "148px",
+	JSON.stringify([card5.style.getPropertyValue("left"), card5.style.getPropertyValue("top")])
+);
+chipElement.dispatch("mouseleave", {});
+await wait(200);
+check("leaving the chip closes the card", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
+
 // ---- two quotes with nothing typed in between ----------------------------
 const bubble4 = dom.document.createElement("div");
 host.append(bubble4);
@@ -303,6 +389,8 @@ check("both back-to-back pills show their own text", JSON.stringify(textIn(bubbl
 capsuleEffect.dispose();
 check("uninstall removes the pill and restores the run", caps().length === 0 && run2.style.display === "");
 check("uninstall removes the stylesheet", dom.document.getElementById("dsh-quote-capsule-style") === null);
+check("uninstall removes the hover card", dom.document.getElementById("dsh-quote-popover") === null);
+check("uninstall unhooks the composer chip", chipElement.getAttribute("data-dshq-chip") === null, JSON.stringify(chipElement.getAttribute("data-dshq-chip")));
 check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
 console.log(

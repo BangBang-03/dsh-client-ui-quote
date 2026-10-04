@@ -148,6 +148,33 @@
 		const quoteStyle = getComputedStyle(caps()[0].querySelector(".dshq-cap-quote"));
 		check("the collapsed quote is one ellipsised line", quoteStyle.whiteSpace === "nowrap" && quoteStyle.textOverflow === "ellipsis", quoteStyle.whiteSpace + "/" + quoteStyle.textOverflow);
 
+		// ---- the hover card: what one clipped line cannot show ----------------
+		caps()[0].dispatchEvent(new MouseEvent("mouseenter"));
+		const pop = document.getElementById("dsh-quote-popover");
+		check("hovering a pill opens the hover card", pop !== null && pop.dataset.visible === "true", pop && pop.dataset.visible);
+		check(
+			"the hover card spells the quote out in full",
+			pop.querySelector(".dshq-pop-quote").textContent === "做法（推荐这条）\n我已经编好启动器",
+			pop.querySelector(".dshq-pop-quote").textContent
+		);
+		check("the hover card keeps the line count", pop.querySelector(".dshq-pop-meta").textContent.includes("2 行"), pop.querySelector(".dshq-pop-meta").textContent);
+		check("the hover card is a fixed popover", getComputedStyle(pop).position === "fixed", getComputedStyle(pop).position);
+		check("a quote without a comment gets one labelled half", pop.querySelectorAll(".dshq-pop-comment").length === 0);
+		commentCaps[0].dispatchEvent(new MouseEvent("mouseenter"));
+		check(
+			"hovering a comment pill shows the comment too",
+			pop.querySelector(".dshq-pop-comment") !== null && pop.querySelector(".dshq-pop-comment").textContent === "我的评论",
+			pop.querySelector(".dshq-pop-comment") && pop.querySelector(".dshq-pop-comment").textContent
+		);
+		check(
+			"the hover card labels both halves",
+			Array.from(pop.querySelectorAll(".dshq-pop-label")).map((node) => node.textContent).join("/") === "引用/评论",
+			Array.from(pop.querySelectorAll(".dshq-pop-label")).map((node) => node.textContent).join("/")
+		);
+		commentCaps[0].dispatchEvent(new MouseEvent("mouseleave"));
+		await wait(250);
+		check("leaving the pill closes the hover card", pop.dataset.visible === "false", pop.dataset.visible);
+
 		// ---- idempotence, re-render and removal -------------------------------
 		caps()[0].click();
 		check("clicking the pill expands it", caps()[0].dataset.expanded === "true", caps()[0].dataset.expanded);

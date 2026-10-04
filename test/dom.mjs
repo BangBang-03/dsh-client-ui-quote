@@ -92,10 +92,20 @@ class ShimElement extends ShimNode {
 		this.listeners = new Map();
 		this.style = {
 			display: '',
+			props: new Map(),
+			setProperty(name, value) {
+				this.props.set(String(name), String(value));
+			},
+			getPropertyValue(name) {
+				return this.props.get(String(name)) ?? '';
+			},
 			removeProperty: (name) => {
 				if (name === 'display') this.style.display = '';
+				this.style.props.delete(String(name));
 			},
 		};
+		/** Overridable so tests can place an element inside a fake viewport. */
+		this.rect = null;
 		const attributes = this.attributes;
 		this.dataset = new Proxy(
 			{},
@@ -154,8 +164,27 @@ class ShimElement extends ShimNode {
 		this.listeners.set(type, list);
 	}
 
+	removeEventListener(type, handler) {
+		const list = this.listeners.get(type) ?? [];
+		const index = list.indexOf(handler);
+		if (index !== -1) list.splice(index, 1);
+	}
+
 	dispatch(type, event) {
 		for (const handler of this.listeners.get(type) ?? []) handler(event);
+	}
+
+	/** A zero box unless a test placed this element (`element.rect = {…}`). */
+	getBoundingClientRect() {
+		const rect = this.rect ?? { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+		return {
+			left: rect.left,
+			top: rect.top,
+			right: rect.right ?? rect.left + (rect.width ?? 0),
+			bottom: rect.bottom ?? rect.top + (rect.height ?? 0),
+			width: rect.width ?? 0,
+			height: rect.height ?? 0,
+		};
 	}
 
 	matches(selector) {
@@ -323,7 +352,7 @@ export function createDom() {
 		MutationObserver: ShimMutationObserver,
 		navigator: { clipboard: { writeText: (text) => clipboard.push(text) } },
 		getComputedStyle: () => ({ backgroundColor: 'rgb(20, 21, 24)' }),
-		window: { addEventListener() {}, removeEventListener() {} },
+		window: { innerWidth: 1200, innerHeight: 800, addEventListener() {}, removeEventListener() {} },
 		clipboard,
 	};
 }
