@@ -316,6 +316,25 @@ check(
 	JSON.stringify(testing.chipRef("原话", "我的评论"))
 );
 
+// ---- where the selection menu sits ----------------------------------------
+// The menu used to open above the selection, which hides the line the reader
+// just picked; it goes under the selection now and only flips when it must.
+check(
+	"the menu opens under the selection",
+	testing.barTop({ x: 200, y: 400, bottom: 420 }, 60, 800, 0) === 428,
+	JSON.stringify(testing.barTop({ x: 200, y: 400, bottom: 420 }, 60, 800, 0))
+);
+check(
+	"a selection near the bottom flips the menu above it",
+	testing.barTop({ x: 200, y: 760, bottom: 780 }, 60, 800, 0) === 692,
+	JSON.stringify(testing.barTop({ x: 200, y: 760, bottom: 780 }, 60, 800, 0))
+);
+check(
+	"a menu taller than the viewport still stays inside it",
+	testing.barTop({ x: 200, y: 10, bottom: 30 }, 900, 800, 0) === 8,
+	JSON.stringify(testing.barTop({ x: 200, y: 10, bottom: 30 }, 900, 800, 0))
+);
+
 // ---- the hover card on a comment pill ------------------------------------
 const card5 = pop();
 const cap5 = bubble5.querySelector(".dshq-cap");
@@ -368,6 +387,23 @@ check(
 chipElement.dispatch("mouseleave", {});
 await wait(200);
 check("leaving the chip closes the card", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
+
+// Sending the message throws the chip away, and a node that is simply gone
+// never fires `mouseleave` — the card has to notice that its anchor left.
+chipElement.dispatch("mouseenter", {});
+check("the card is up before the chip is sent", card5.dataset.visible === "true", JSON.stringify(card5.dataset.visible));
+chipElement.remove();
+dom.document.deliver();
+await wait(120);
+check("sending the message closes the card with the chip", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
+
+// The transcript side has the same rule: a re-render that drops the pill must
+// not leave a card hanging over the bubble.
+cap5.dispatch("mouseenter", {});
+cap5.remove();
+dom.document.deliver();
+await wait(120);
+check("a pill that a re-render dropped takes its card with it", card5.dataset.visible === "false", JSON.stringify(card5.dataset.visible));
 
 // ---- two quotes with nothing typed in between ----------------------------
 const bubble4 = dom.document.createElement("div");

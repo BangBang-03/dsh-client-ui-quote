@@ -175,6 +175,52 @@
 		await wait(250);
 		check("leaving the pill closes the hover card", pop.dataset.visible === "false", pop.dataset.visible);
 
+		// ---- the card dies with its anchor ------------------------------------
+		// Sending the message removes the composer chip without any mouseleave.
+		const composer = document.createElement("div");
+		composer.setAttribute("data-composer-card", "");
+		const chipNode = document.createElement("span");
+		chipNode.className = "refChip";
+		chipNode.textContent = testing.chipLabel("芯片里的原话", "芯片里的评论");
+		composer.append(chipNode);
+		document.body.append(composer);
+		testing.rememberChip("芯片里的原话", "芯片里的评论", "s1");
+		await wait(150);
+		check("the composer chip is hooked for hover", chipNode.getAttribute("data-dshq-chip") === "1", chipNode.getAttribute("data-dshq-chip"));
+		chipNode.dispatchEvent(new MouseEvent("mouseenter"));
+		check(
+			"hovering the composer chip opens the card",
+			pop.dataset.visible === "true" && pop.querySelector(".dshq-pop-comment").textContent === "芯片里的评论",
+			pop.dataset.visible + "/" + (pop.querySelector(".dshq-pop-comment") ?? {}).textContent
+		);
+		chipNode.remove();
+		await wait(150);
+		check("sending the message closes the card with the chip", pop.dataset.visible === "false", pop.dataset.visible);
+
+		// ---- the selection menu sits under the selection ----------------------
+		const paragraph = document.createElement("p");
+		paragraph.style.margin = "24px 0";
+		paragraph.textContent = "菜单应该出现在这段话的下方，而不是压在上面。";
+		host.append(paragraph);
+		await wait(60);
+		const range = document.createRange();
+		range.selectNodeContents(paragraph);
+		const selection = window.getSelection();
+		selection.removeAllRanges();
+		selection.addRange(range);
+		document.dispatchEvent(new Event("selectionchange"));
+		await wait(200);
+		const bar = document.getElementById("dsh-quote-bar");
+		const box = bar === null ? null : bar.getBoundingClientRect();
+		const under = paragraph.getBoundingClientRect();
+		check("selecting text opens the menu", bar !== null && bar.dataset.visible === "true", bar === null ? "no bar" : bar.dataset.visible);
+		check(
+			"the menu opens under the selection",
+			box !== null && box.top >= under.bottom - 1 && box.top <= under.bottom + 40,
+			box === null ? "no box" : "bar.top " + Math.round(box.top) + " / text.bottom " + Math.round(under.bottom)
+		);
+		check("the menu is not above the selection any more", box !== null && box.top > under.top, box === null ? "no box" : "bar.top " + Math.round(box.top) + " / text.top " + Math.round(under.top));
+
 		// ---- idempotence, re-render and removal -------------------------------
 		caps()[0].click();
 		check("clicking the pill expands it", caps()[0].dataset.expanded === "true", caps()[0].dataset.expanded);
