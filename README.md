@@ -2,7 +2,7 @@
 
 > 在 DSH 里**选中一句话**，浮出「评论 / 添加到对话」，把选区以 DSH 原生**引用芯片**插进输入框 —— 按 Kimi Code 的交互实现的 DSH 客户端插件。
 
-选中正文 → 浮层两个动作 → 引用变成输入框里的行内胶囊（不是纯文本）；发送之后，消息里的引用**依然是胶囊**，不会摊成一屏 `>` 行。
+选中正文 → 浮层两个动作 → 引用变成输入框里的行内胶囊（不是纯文本），评论也放在同一颗芯片里；发送之后，引用和评论**合成一颗胶囊**留在消息里，不会摊成一屏 `>` 行。
 
 ## 功能
 
@@ -11,11 +11,11 @@
 | **评论** | 浮层就地变成评论框（`写一句评论…` + `取消` / `添加到对话`）。`Enter` 提交、`Esc` 关闭、空评论时确认按钮禁用；输入法组合输入不会误触发。 |
 | **添加到对话** | 直接把引用加进输入框，不弹评论框。 |
 
-- 引用以 DSH 原生行内原子节点 `reference-chip` 插入（带图标的胶囊），走「评论」时评论正文作为普通文本紧跟其后，可继续编辑。
-- 发送时由 DSH 回调本插件取「模型形态」，落到消息里是 `> ❝ …` 引用块；有评论时接在引用块之后。**消息里那段引用会被就地换成胶囊**
-  （`❝` + `引用` + 行数 + 两行截断的正文，点击展开、可复制），你自己写的话保持原样，模型收到的仍是完整引用文本。
+- 引用以 DSH 原生行内原子节点 `reference-chip` 插入（带图标的胶囊）；走「评论」时评论一起放进这颗芯片（芯片标签显示为 `引用摘要 · 评论摘要`），引用与评论始终是一体，草稿里不会散成两段。
+- 发送时由 DSH 回调本插件取「模型形态」：**`> ❝ …` 引用行 + 同一个块里的 `> ❞ …` 评论行**。消息里那段块会被就地换成 Kimi 那样的一颗胶囊
+  （`❝ 引用摘要 │ 评论摘要`，点开看两段全文、悬停出现 `复制`），你自己写的话保持原样，模型收到的仍是完整引用文本。
 - 浮层位置贴着选区上方（上方放不下时挪到下方），配色在运行时从输入卡片 / 正文取样，深浅色主题都适配；中文/英文词条随界面语言切换。
-- 芯片通路不可用时（拿不到 DSH 的输入触发服务或会话输入服务）自动退回纯文本形态：`引用：` + `> ` 引用块，评论以 `评论：` 追加。
+- 芯片通路不可用时（拿不到 DSH 的输入触发服务或会话输入服务）自动退回纯文本形态：直接写入 `> ❝ …`（评论接 `> ❞ …`）引用块。
 
 ## 安装
 
@@ -54,10 +54,10 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
 
 1. 在会话正文里**拖动选中**一段文字。选区必须落在会话正文区域里；输入框内的选区属于改稿，不触发。
 2. 选区上方浮出浮层，选择 **评论** 或 **添加到对话**。
-3. 引用进入输入框（评论模式下评论正文跟在后面），页面选区被清除、焦点交给输入框，可以接着写正式提问。
+3. 引用进入输入框（评论模式下评论与引用在同一颗芯片里），页面选区被清除、焦点交给输入框，可以接着写正式提问。
 4. 浮层收起条件：单击别处、选区清空、按 `Esc`、滚动会话、窗口尺寸变化，以及动作完成之后。双击选词不会把浮层关掉。
-5. 发送出去以后，消息里那段引用会显示成一颗**胶囊**（`❝ 引用 · N 行` + 两行截断的正文，点击展开、可复制），你自己写的话照旧显示在它下面。
-   一条消息里引用了几处，就会出现几颗胶囊，中间的原话留在原来的位置。
+5. 发送出去以后，消息里那段块会显示成一颗**胶囊**：收起时是单行 `❝ 引用摘要 │ 评论摘要`，点一下展开成全文，鼠标移上去出现 `复制`。
+   你自己写的话照旧显示在它下面；一条消息里引用了几处，就会出现几颗胶囊，中间的原话留在原来的位置。
 
 ## 工作原理
 
@@ -98,24 +98,29 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 - **插件自己画**（本插件采用）：`conversation.chat.node` 是按节点类型路由的 keyed 槽（`user` / `steering` / `context` … 由核心拥有），
   没有「每条消息一个钩子」的位置，所以胶囊画在 transcript 之上：
 
-  - 序列化时在引用块首行留一个**固有标记** `❝`（`> ❝ 第一行`、`> 后续行`），它是刷新/重开之后唯一还能认出「这段是引用」的东西；
+  - 序列化时在块首留**固有标记** `❝`（引用）与 `❞`（评论）：`> ❝ 第一行` / `> 后续行` / `> ❞ 评论` 共用一个块 —— 它是刷新、重开之后
+    唯一还能认出「这段是引用 + 评论」的东西；一个块只对应一颗胶囊，所以芯片后面打的字不会被卷进评论里；
   - 客户端插件用 `MutationObserver` 找「只含一个文本子节点、内部有 `❝`、位于 `[data-conversation-content]` 里」的那个 run，
     把整条消息拆成 `前文 / 引用 / 中间文字 / 引用 / 后文` 这样一串分段（`splitQuoteRuns`），给原 run 加 `display:none`，
     在它**前面**按顺序插入自己的元素：每段引用一颗胶囊，每段用户自己的话一个 `span.dshq-body`（保持 `pre-wrap`）——
     所以一条消息里引用了几处，就会出现几颗胶囊，中间的原话留在原来的位置；
   - 全程只隐藏、绝不搬移或删除 React 的节点；胶囊按 run 记账（`Map<run, {text, nodes}>`），文本没变就复用、变了就地重建、
     消息被删就把胶囊一起撤掉，React 重渲染不会出现第二颗胶囊；
-  - 胶囊点击展开/收起（有选区时不触发），`复制` 按钮把纯引用正文写进剪贴板；样式用 `data-plugin="dsh-client-ui-quote"` 的
-    `<style>` 注入，配色取 `currentColor` 的 `color-mix`，深浅主题都不用额外适配。
+  - 胶囊点击展开/收起（有选区时不触发），悬停出现 `复制`：收起时是单行 `❝ 引用… │ 评论…`（两端超出都省略），展开后两段各自换行；
+    复制的是 Kimi 存 `display_text` 时的同一写法 `引用 · 评论`。样式用 `data-plugin="dsh-client-ui-quote"` 的 `<style>` 注入，
+    配色取 `currentColor` 的 `color-mix`，无边框无阴影，深浅主题都不用额外适配。
 
 ### 与 Kimi Code 的对应关系
 
 参照物是 Kimi Code 1.0.4 桌面端 bundle。Kimi 的浮层是 teleport 到 body 的 `.sab`（selection action bar），**一个元素两种模式**：
 `menu` 模式两行（`评论` 切到评论模式、`添加到对话` 直接出引用），`comment` 模式为文本域 + `取消` / `添加到对话 ⏎`；
 动作经 `onAction` → `insertComposerQuote(quote, comment, source)` 写入 composer，而 Kimi 的引用是 composer schema 里的行内原子节点 `quote`
-（DOM 形如 `span.quote-pill[data-quote-text][data-quote-comment]`）。本插件逐条对应到 DSH：`.sab` → 本文的单例浮层，
-`quote` 节点 → DSH 的 `reference-chip`，`insertComposerQuote` → `registerSource` + `insertReference` + `codec.serialize`，
-发送后留在消息里的 `quote-pill` → transcript 侧的 `.dshq-cap` 胶囊（见上一节）。
+（DOM 形如 `span.quote-pill[data-quote-text][data-quote-comment]`）。对照 Kimi Code 自己的会话记录能看到这个节点的真实形状：
+**引用与评论是同一个 Tiptap 节点的 `attrs.text` / `attrs.comment`**（`{"type":"quote","attrs":{"text":…,"comment":…}}`，引用和评论从不拆成两段），
+发给模型时展开成「`> 引用` + 空行 + 评论」，而它在会话里显示、存储用的 `display_text` 就是 `引用 · 评论`。
+本插件逐条对应到 DSH：`.sab` → 本文的单例浮层，`quote` 节点 → DSH 的 `reference-chip`（两半都放进同一颗芯片的 `ref` 与标签），
+`insertComposerQuote` → `registerSource` + `insertReference` + `codec.serialize`，发送后留在消息里的 `quote-pill` →
+transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`复制` 出来的也是 `引用 · 评论`（见上一节）。
 
 ## 声明（package.json）
 
@@ -146,7 +151,7 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊，29 项断言）
+test/capsule.mjs      离线自检（发送后胶囊，37 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（可选）
 ```
 
@@ -170,9 +175,9 @@ npm test          # = node test/check.mjs && node test/capsule.mjs
 
 `test/capsule.mjs` 在 `test/dom.mjs` 的最小 DOM 上真跑一遍胶囊：把 `check.mjs` 那套桩 ctx 换成会记账的版本，塞进一条
 「用户文字 + 序列化引用」的 `span.plainRun`，然后断言 —— 每个引用 run 恰好一颗胶囊、原 run 只是 `display:none` 且仍在文档里、
-用户自己的话另起 `span.dshq-body`、胶囊正文等于引用、`复制` 写进剪贴板、React 重渲染不会出现第二颗、引用变了就地重建、
-消息被删胶囊一起消失、卸载后 run 与样式表都恢复、手写的 `> ` 引用块不被误伤；一条消息里引用两处时，
-两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉（共 29 项）。
+用户自己的话另起 `span.dshq-body`、胶囊里是引用原文（有评论时评论在同一颗胶囊里且不会多出一颗）、`复制` 写出 `引用 · 评论`、
+React 重渲染不会出现第二颗、引用变了就地重建、消息被删胶囊一起消失、卸载后 run 与样式表都恢复、手写的 `> ` 引用块不被误伤；
+一条消息里引用两处时，两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉（共 37 项）。
 `test/capsule.html` 是同一套断言的真浏览器版，用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。
 
 ## 已知限制
@@ -183,6 +188,7 @@ npm test          # = node test/check.mjs && node test/capsule.mjs
 - 引用在输入框里显示为胶囊，编辑器中复制粘贴出去的是它的模型形态文本。
 - transcript 胶囊是在 DSH 渲染结果之上做的覆盖层：它只隐藏原节点、不搬移 React 的节点，但若 DSH 改了消息的 DOM 结构
   （`[data-conversation-content]`、纯文本 run 的形态），需要跟着改 `isQuoteRun` / `capsuleFor`。
+- 收起状态的胶囊是**单行**：很长或分段的引用与评论会被省略号截断，点一下展开看全文（鼠标悬停的 `title` 里给出行数）。
 - 更新**之前**发出的老消息不会被变成胶囊：它们的文本里没有 `❝` 标记，插件无从辨认（重新引用一次即可）。
 
 ## License
@@ -194,8 +200,10 @@ npm test          # = node test/check.mjs && node test/capsule.mjs
 ### English
 
 **dsh-client-ui-quote** — select any sentence in a DSH conversation and quote it into the composer, Kimi-Code style.
-A floating bar offers **Comment** and **Add to conversation**; the quote becomes DSH's native inline `reference-chip`,
-is serialized back into a `> ❝ …` blockquote when you send, and is then drawn as a rounded **capsule** in the transcript
-(click to expand, copy button), so a quote never floods the message with `>` lines — the model still receives the full text.
+A floating bar offers **Comment** and **Add to conversation**; the quote — and the comment, kept together in the same
+chip the way Kimi keeps both halves in one composer node — becomes DSH's native inline `reference-chip`, is serialized
+back into a `> ❝ …` / `> ❞ …` blockquote when you send, and is then drawn as a single rounded **capsule** in the
+transcript (`quote │ comment`, click to expand, copy button), so a quote never floods the message with `>` lines —
+the model still receives the full text.
 Install with `dsh plugin --profile desktop add link:<clone-path>` (DSH >= 0.2.0-rc.2, web/desktop client).
 Test with `npm test`. MIT licensed.

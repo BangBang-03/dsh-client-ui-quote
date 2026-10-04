@@ -1,6 +1,6 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Select text in the DSH transcript to quote it into the composer, Kimi-Code style (comment / add to conversation).",
   "icon": "icon.svg",

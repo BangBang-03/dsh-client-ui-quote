@@ -105,25 +105,35 @@
 		const double = bubble(
 			"第一段" + "\n" + model + "\n\n" + "中间的话" + "\n" + testing.quoteBlock("第二处引用") + "\n\n" + "收尾"
 		);
+		// 5. a comment rides in the same pill: Kimi keeps quote + comment in one node.
+		const commented = bubble("\n" + testing.quoteBlock("被引用的原话", "我的评论") + "\n\n" + "写在后面的话");
 		document.body.append(host);
 
 		await wait(200);
 
 		const caps = () => Array.from(document.querySelectorAll(".dshq-cap"));
-		check("every quote run got a capsule", caps().length === 5, caps().length + " capsule(s)");
+		check("every quote run got a capsule", caps().length === 6, caps().length + " capsule(s)");
 		check("quote run is hidden, not removed", plain.run.isConnected && plain.run.style.display === "none", plain.run.style.display);
-		check("the capsule quotes the original text", caps()[0] && caps()[0].querySelector(".dshq-cap-text").textContent === "做法（推荐这条）\n我已经编好启动器");
+		check("the capsule quotes the original text", caps()[0] && caps()[0].querySelector(".dshq-cap-quote").textContent === "做法（推荐这条）\n我已经编好启动器");
 		check("the user's own text survives next to it", plain.box.textContent.includes("这是我的看法"), plain.box.textContent);
-		check("text before the chip is kept", prefixed.box.textContent.includes("看这里") && caps()[1].querySelector(".dshq-cap-text").textContent === "做法（推荐这条）\n我已经编好启动器");
-		check("a neighbouring chip is untouched", chipped.box.contains(chip) && caps()[2].querySelector(".dshq-cap-text").textContent.startsWith("做法"));
-		check("label + copy affordance are drawn", caps()[0].querySelector(".dshq-cap-label").textContent.length > 0 && caps()[0].querySelector(".dshq-cap-copy") !== null);
+		check("text before the chip is kept", prefixed.box.textContent.includes("看这里") && caps()[1].querySelector(".dshq-cap-quote").textContent === "做法（推荐这条）\n我已经编好启动器");
+		check("a neighbouring chip is untouched", chipped.box.contains(chip) && caps()[2].querySelector(".dshq-cap-quote").textContent.startsWith("做法"));
+		check("the pill is labelled and offers copy", caps()[0].getAttribute("aria-label") === "引用" && caps()[0].querySelector(".dshq-cap-copy") !== null);
+		const commentCaps = commented.box.querySelectorAll(".dshq-cap");
+		check("a comment does not become a second capsule", commentCaps.length === 1, commentCaps.length + " capsule(s)");
+		check(
+			"the pill carries the quote and the comment",
+			commentCaps[0].querySelector(".dshq-cap-quote").textContent === "被引用的原话" &&
+				commentCaps[0].querySelector(".dshq-cap-comment").textContent === "我的评论"
+		);
+		check("the wording typed after the chip stays outside the pill", commented.box.textContent.includes("写在后面的话"), commented.box.textContent);
 
 		const doubleCaps = double.box.querySelectorAll(".dshq-cap");
 		check("a message with two quotes gets two capsules", doubleCaps.length === 2, doubleCaps.length + " capsule(s)");
 		check(
 			"each capsule keeps its own quote",
-			doubleCaps[0].querySelector(".dshq-cap-text").textContent === "做法（推荐这条）\n我已经编好启动器" &&
-				doubleCaps[1].querySelector(".dshq-cap-text").textContent === "第二处引用"
+			doubleCaps[0].querySelector(".dshq-cap-quote").textContent === "做法（推荐这条）\n我已经编好启动器" &&
+				doubleCaps[1].querySelector(".dshq-cap-quote").textContent === "第二处引用"
 		);
 		check(
 			"the wording between the quotes stays put",
@@ -134,7 +144,9 @@
 		const styles = getComputedStyle(caps()[0]);
 		check("capsule is a rounded pill", styles.borderRadius !== "0px" && styles.borderTopLeftRadius !== "0px", styles.borderTopLeftRadius);
 		check("capsule has a fill of its own", styles.backgroundColor !== "rgba(0, 0, 0, 0)" && styles.backgroundColor !== "transparent", styles.backgroundColor);
-		check("quote text is clamped until expanded", getComputedStyle(caps()[0].querySelector(".dshq-cap-text")).webkitLineClamp === "2");
+		check("capsule has no border of its own", styles.borderTopWidth === "0px", styles.borderTopWidth);
+		const quoteStyle = getComputedStyle(caps()[0].querySelector(".dshq-cap-quote"));
+		check("the collapsed quote is one ellipsised line", quoteStyle.whiteSpace === "nowrap" && quoteStyle.textOverflow === "ellipsis", quoteStyle.whiteSpace + "/" + quoteStyle.textOverflow);
 
 		// ---- idempotence, re-render and removal -------------------------------
 		caps()[0].click();
@@ -142,13 +154,13 @@
 
 		plain.run.firstChild.nodeValue = model + "\n\n" + "改过的正文";
 		await wait(120);
-		check("a re-render refreshes the capsule in place", caps().length === 5 && plain.box.textContent.includes("改过的正文"), caps().length + " capsule(s)");
+		check("a re-render refreshes the capsule in place", caps().length === 6 && plain.box.textContent.includes("改过的正文"), caps().length + " capsule(s)");
 		check("the earlier capsule was replaced, not duplicated", plain.box.querySelectorAll(".dshq-cap").length === 1);
 
 		const doomed = caps()[2];
 		chipped.run.remove();
 		await wait(120);
-		check("removing the message removes its capsule", !doomed.isConnected && document.querySelectorAll(".dshq-cap").length === 4, document.querySelectorAll(".dshq-cap").length + " left");
+		check("removing the message removes its capsule", !doomed.isConnected && document.querySelectorAll(".dshq-cap").length === 5, document.querySelectorAll(".dshq-cap").length + " left");
 
 		// ---- the codec DSH's send path calls ---------------------------------
 		check("one reference source is registered", sources.length === 1, sources.length + " source(s)");

@@ -3,11 +3,13 @@
  *
  * The sent message is plain text in DSH (there is no per-message render slot and
  * native `@…` chips are neither capsule-shaped nor safe), so the plugin hides
- * the run that carries a serialized quote and draws Kimi's pill beside it. This
- * file drives that machinery end to end: a quote run becomes one capsule (and a
- * run with several quotes becomes several, with the wording between them kept), a
- * re-render refreshes it in place, deleting the message takes the capsule with
- * it, and a plain message is never touched.
+ * the run that carries a serialized quote and draws Kimi's pill beside it — the
+ * quote and its comment inside one pill, the way Kimi keeps them in a single
+ * composer node. This file drives that machinery end to end: a quote run becomes
+ * one capsule (a run with several quotes becomes several, with the wording
+ * between them kept), a comment rides in the same pill, a re-render refreshes it
+ * in place, deleting the message takes the capsule with it, and a plain message
+ * is never touched.
  *
  * Usage: node test/capsule.mjs      (or: npm test)
  */
@@ -91,9 +93,14 @@ const testing = exports_.__testing;
 const capsuleEffect = effects.find((entry) => String(entry.label).includes("capsules"));
 check("the capsule effect is installed with the plugin", capsuleEffect !== undefined && typeof capsuleEffect.dispose === "function");
 check("the capsule stylesheet is installed", dom.document.getElementById("dsh-quote-capsule-style") !== null);
+const capsuleCss = String(dom.document.getElementById("dsh-quote-capsule-style")?.textContent);
 check(
-	"the stylesheet clamps the quote to two lines",
-	/-webkit-line-clamp:\s*2/.test(String(dom.document.getElementById("dsh-quote-capsule-style")?.textContent))
+	"the stylesheet draws a borderless inline pill",
+	/\.dshq-cap\{[^}]*border-radius:10px/.test(capsuleCss) && /\.dshq-cap\{[^}]*display:inline-flex/.test(capsuleCss)
+);
+check(
+	"the collapsed quote and comment are ellipsised",
+	/\.dshq-cap-quote\{[^}]*text-overflow:ellipsis/.test(capsuleCss) && /\.dshq-cap-comment\{[^}]*text-overflow:ellipsis/.test(capsuleCss)
 );
 
 // ---- a transcript, built the way the client renders one -------------------
@@ -130,9 +137,9 @@ const caps = () => dom.document.querySelectorAll(".dshq-cap");
 check("the quote run turns into one capsule", caps().length === 1, caps().length + " capsule(s)");
 check("the original run is hidden, not removed", run.isConnected && run.style.display === "none", "display=" + JSON.stringify(run.style.display));
 check("the user's own text is still visible beside the pill", dom.document.querySelectorAll(".dshq-body")[0]?.textContent === "我的问题");
-check("the pill shows the quote", dom.document.querySelector(".dshq-cap-text")?.textContent === quote, JSON.stringify(dom.document.querySelector(".dshq-cap-text")?.textContent));
-check("the pill is labelled", dom.document.querySelector(".dshq-cap-label")?.textContent === "引用");
-check("the pill counts the lines", String(dom.document.querySelector(".dshq-cap-meta")?.textContent).includes("2 行"), JSON.stringify(dom.document.querySelector(".dshq-cap-meta")?.textContent));
+check("the pill shows the quote", dom.document.querySelector(".dshq-cap-quote")?.textContent === quote, JSON.stringify(dom.document.querySelector(".dshq-cap-quote")?.textContent));
+check("the pill is labelled for screen readers", caps()[0]?.getAttribute("aria-label") === "引用", JSON.stringify(caps()[0]?.getAttribute("aria-label")));
+check("the pill counts the lines in its tooltip", String(caps()[0]?.getAttribute("title")).includes("2 行"), JSON.stringify(caps()[0]?.getAttribute("title")));
 check("a plain message is never touched", plain.style.display === "" && plain.textContent === "一条不含引用的普通消息");
 
 // copy + expand
@@ -148,7 +155,7 @@ check("an unrelated re-render does not duplicate the pill", caps().length === 1,
 run.textContent = "改过的问题" + testing.quoteBlock("新的引用") + "\n\n";
 dom.document.deliver();
 await wait(120);
-check("a changed quote refreshes in place", caps().length === 1 && dom.document.querySelector(".dshq-cap-text")?.textContent === "新的引用", JSON.stringify(dom.document.querySelector(".dshq-cap-text")?.textContent));
+check("a changed quote refreshes in place", caps().length === 1 && dom.document.querySelector(".dshq-cap-quote")?.textContent === "新的引用", JSON.stringify(dom.document.querySelector(".dshq-cap-quote")?.textContent));
 check("the refreshed pill still shows the new message text", dom.document.querySelectorAll(".dshq-body")[0]?.textContent === "改过的问题");
 
 // ---- the message goes away ----------------------------------------------
@@ -192,7 +199,7 @@ const capsIn = (scope) => scope.querySelectorAll(".dshq-cap");
 const textIn = (scope, selector) => [...scope.querySelectorAll(selector)].map((node) => node.textContent);
 check("two quotes in one message become two capsules", capsIn(bubble3).length === 2, capsIn(bubble3).length + " capsule(s)");
 check("the run is hidden once", run3.style.display === "none" && run3.isConnected);
-const capTexts = textIn(bubble3, ".dshq-cap-text");
+const capTexts = textIn(bubble3, ".dshq-cap-quote");
 check(
 	"each capsule keeps its own quote",
 	JSON.stringify(capTexts) ===
@@ -222,8 +229,58 @@ copies[1].dispatch("click", { target: null, stopPropagation() {} });
 check("the second pill copies its own quote", dom.clipboard[dom.clipboard.length - 1] === capTexts[1], JSON.stringify(dom.clipboard[dom.clipboard.length - 1]));
 check(
 	"the first pill keeps its own line count",
-	String(bubble3.querySelector(".dshq-cap-meta")?.textContent).includes("1 行"),
-	JSON.stringify(bubble3.querySelector(".dshq-cap-meta")?.textContent)
+	String(bubble3.querySelector(".dshq-cap")?.getAttribute("title")).includes("1 行"),
+	JSON.stringify(bubble3.querySelector(".dshq-cap")?.getAttribute("title"))
+);
+
+// ---- a comment rides in the same pill ------------------------------------
+// Kimi keeps quote and comment in ONE composer node, so the transcript gets one
+// pill carrying both halves (`quote · comment`) rather than two loose pieces.
+const bubble5 = dom.document.createElement("div");
+host.append(bubble5);
+const run5 = dom.document.createElement("span");
+run5.className = "plainRun";
+run5.textContent = "\n" + testing.quoteBlock("被引用的原话", "我的评论") + "\n\n写在后面的话";
+bubble5.append(run5);
+dom.document.deliver();
+await wait(120);
+check("a comment does not become a second pill", capsIn(bubble5).length === 1, capsIn(bubble5).length + " capsule(s)");
+check(
+	"the pill carries the quote and the comment",
+	textIn(bubble5, ".dshq-cap-quote")[0] === "被引用的原话" && textIn(bubble5, ".dshq-cap-comment")[0] === "我的评论",
+	JSON.stringify([textIn(bubble5, ".dshq-cap-quote"), textIn(bubble5, ".dshq-cap-comment")])
+);
+check(
+	"the wording typed after the chip stays outside the pill",
+	textIn(bubble5, ".dshq-body")[0] === "写在后面的话",
+	JSON.stringify(textIn(bubble5, ".dshq-body"))
+);
+bubble5.querySelector(".dshq-cap-copy").dispatch("click", { target: null, stopPropagation() {} });
+check(
+	"copy takes the pair the way Kimi spells it",
+	dom.clipboard[dom.clipboard.length - 1] === "被引用的原话 · 我的评论",
+	JSON.stringify(dom.clipboard[dom.clipboard.length - 1])
+);
+
+// A multi-line comment stays in the same block (and therefore the same pill).
+const paired = testing.splitQuoteRuns(testing.quoteBlock("原话", "第一行评论\n第二行评论"));
+check(
+	"a multi-line comment stays in the quote block",
+	paired !== null &&
+		paired.length === 1 &&
+		paired[0].quote === "原话" &&
+		paired[0].comment === "第一行评论\n第二行评论",
+	JSON.stringify(paired)
+);
+check(
+	"the composer chip spells the pair out too",
+	testing.chipLabel("被引用的原话", "我的评论") === "被引用的原话 · 我的评论" && testing.chipLabel("只有引用", "") === "只有引用",
+	JSON.stringify([testing.chipLabel("被引用的原话", "我的评论"), testing.chipLabel("只有引用", "")])
+);
+check(
+	"the chip's ref carries both halves",
+	/^\n> ❝ 原话\n> ❞ 我的评论\n\n$/u.test(testing.chipRef("原话", "我的评论")),
+	JSON.stringify(testing.chipRef("原话", "我的评论"))
 );
 
 // ---- two quotes with nothing typed in between ----------------------------
@@ -240,7 +297,7 @@ check(
 	capsIn(bubble4).length === 2 && bubble4.querySelectorAll(".dshq-body").length === 0,
 	capsIn(bubble4).length + " capsule(s), " + bubble4.querySelectorAll(".dshq-body").length + " loose run(s)"
 );
-check("both back-to-back pills show their own text", JSON.stringify(textIn(bubble4, ".dshq-cap-text")) === JSON.stringify(["甲", "乙"]), JSON.stringify(textIn(bubble4, ".dshq-cap-text")));
+check("both back-to-back pills show their own text", JSON.stringify(textIn(bubble4, ".dshq-cap-quote")) === JSON.stringify(["甲", "乙"]), JSON.stringify(textIn(bubble4, ".dshq-cap-quote")));
 
 // ---- uninstall -----------------------------------------------------------
 capsuleEffect.dispose();
