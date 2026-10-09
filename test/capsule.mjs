@@ -473,6 +473,98 @@ check("uninstall removes the hover card", dom.document.getElementById("dsh-quote
 check("uninstall unhooks the composer chip", chipElement.getAttribute("data-dshq-chip") === null, JSON.stringify(chipElement.getAttribute("data-dshq-chip")));
 check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
+// ---- 侧边对话: the wire, driven end to end --------------------------------
+// The third row's action is sideChatRequest(service, sessionId, text): POST
+// the quote to better-sidebar's sidechat.start, then open the returned thread
+// through the service (meta.threadId binds the tab). A second request for the
+// same session folds into the first, and every failure lands in the toast.
+const openTabs = [];
+const sideService = {
+	openTab(seed, scope) {
+		openTabs.push({ seed, scope });
+	}
+};
+const realFetch = globalThis.fetch;
+const toastNode = () => dom.document.getElementById("dsh-quote-toast");
+try {
+	// Happy path: the route's envelope becomes an openTab with the thread id.
+	const fetches = [];
+	globalThis.fetch = async (url, options) => {
+		fetches.push({ url, options });
+		return {
+			ok: true,
+			json: async () => ({ ok: true, value: { childId: "session-side-1" } })
+		};
+	};
+	testing.sideChatRequest(sideService, "session-q", "第一段引用\n第二段引用");
+	await wait(20);
+	check("the side thread is created on better-sidebar's route", fetches.length === 1 && fetches[0].url === "/sidebar/api/sidechat.start", JSON.stringify(fetches.map((f) => f.url)));
+	check(
+		"the request carries the session and the quote as a blockquote",
+		JSON.stringify(fetches[0]?.options?.body) === JSON.stringify(JSON.stringify({ sessionId: "session-q", question: "> 第一段引用\n> 第二段引用" })),
+		JSON.stringify(fetches[0]?.options?.body)
+	);
+	check("the request is a JSON POST", fetches[0]?.options?.method === "POST" && fetches[0]?.options?.headers?.["content-type"] === "application/json");
+	check("the created thread's tab opens once", openTabs.length === 1, openTabs.length + " open(s)");
+	check(
+		"the opened tab binds to the new thread",
+		JSON.stringify(openTabs[0]?.seed) === JSON.stringify({ type: "sidechat", id: "sidechat:session-side-1", title: "第一段引用", meta: { threadId: "session-side-1" } }),
+		JSON.stringify(openTabs[0]?.seed)
+	);
+	check("the tab opens in the quoting session", JSON.stringify(openTabs[0]?.scope) === JSON.stringify({ sessionId: "session-q" }));
+
+	// A second click while the thread is being created folds into the first.
+	const release = [];
+	fetches.length = 0;
+	globalThis.fetch = (url, options) => new Promise((resolve) => {
+		fetches.push({ url, options, resolve });
+		release.push(resolve);
+	});
+	testing.sideChatRequest(sideService, "session-q2", "另一段引用");
+	testing.sideChatRequest(sideService, "session-q2", "另一段引用");
+	check("a concurrent second request folds into the first", fetches.length === 1 && openTabs.length === 1, fetches.length + " fetch(es)");
+	release[0]({
+		ok: true,
+		json: async () => ({ ok: true, value: { childId: "session-side-2" } })
+	});
+	await wait(20);
+	check("the folded request still opens exactly one tab", fetches.length === 1 && openTabs.length === 2, openTabs.length + " open(s)");
+
+	// The route refusing (better-sidebar absent, parent not running…) is a toast.
+	fetches.length = 0;
+	globalThis.fetch = async (url, options) => {
+		fetches.push({ url, options });
+		return {
+			ok: false,
+			status: 409,
+			json: async () => ({ ok: false, error: { code: "sidechat-error", message: "parent session is not running" } })
+		};
+	};
+	testing.sideChatRequest(sideService, "session-q3", "会失败的引用");
+	await wait(20);
+	check("a refused thread creation never opens a tab", fetches.length === 1 && openTabs.length === 2, openTabs.length + " open(s)");
+	check("the refusal lands in the toast", toastNode()?.dataset.visible === "true" && toastNode()?.textContent === "侧边对话没有打开，请重试", JSON.stringify(toastNode()?.textContent));
+
+	// A service that throws while opening degrades to the same toast.
+	fetches.length = 0;
+	globalThis.fetch = async () => ({
+		ok: true,
+		json: async () => ({ ok: true, value: { childId: "session-side-3" } })
+	});
+	const throwingService = { openTab() { throw new Error("tab type disabled"); } };
+	testing.sideChatRequest(throwingService, "session-q4", "也会失败的引用");
+	await wait(20);
+	check("a throwing openTab never breaks the page", openTabs.length === 2);
+	check("the failed open lands in the toast too", toastNode()?.dataset.visible === "true" && toastNode()?.textContent === "侧边对话没有打开，请重试", JSON.stringify(toastNode()?.textContent));
+
+	// Empty text is a no-op, not a request.
+	fetches.length = 0;
+	testing.sideChatRequest(sideService, "session-q5", "   ");
+	check("a blank quote never reaches the wire", fetches.length === 0);
+} finally {
+	globalThis.fetch = realFetch;
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote capsule: " + passed + " checks passed"

@@ -119,6 +119,9 @@ if (entry.Component({ sessionId: "s1", inputActions: {}, t: (k) => k }) !== null
 if (dictionaries.length !== 2) throw new Error("locale dictionary not registered per apply");
 const dict = dictionaries[0].dict;
 if (!dict.zh || !dict.en || !dict.zh.comment || !dict.en.comment) throw new Error("bad dictionaries");
+if (!dict.zh.sideChat || !dict.en.sideChat || !dict.zh.sideChatFailed || !dict.en.sideChatFailed) {
+	throw new Error("the side-chat row needs its zh/en labels");
+}
 
 // The chip owner: registered once (re-apply must reuse it), and its codec must
 // hand the model form straight back — that is what the send path asks for.
@@ -194,6 +197,65 @@ const locales = ["zh", "en"].map((id) => {
 for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u, "")]) {
 	if (!(manifest.files ?? []).includes(entry)) throw new Error("files must ship " + entry);
 }
+
+// ---- 侧边对话: availability probe + the wire forms --------------------------
+// The third row exists only while dsh-better-sidebar's sidechat tab is
+// registered AND enabled; the quote travels as a plain blockquote (no ❝ marks
+// — those belong to the main transcript's capsules) and the tab title is the
+// quote's first line, clipped like a chip label.
+const testing = exports_.__testing;
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle"]) {
+	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
+}
+if (testing.sideChatService() !== null) {
+	throw new Error("the side chat must be unavailable without betterSidebar");
+}
+if (testing.sideQuestion("第一行\n\n第二行") !== "> 第一行\n>\n> 第二行") {
+	throw new Error("sideQuestion must emit a plain blockquote, blank line included");
+}
+if (testing.sideQuestion("单行") !== "> 单行") throw new Error("sideQuestion must prefix every line");
+if (testing.sideQuestion("a\nb") !== "> a\n> b") throw new Error("sideQuestion must keep interior lines");
+if (testing.sideChatTitle("第一行\n第二行") !== "第一行") throw new Error("sideChatTitle must take the first line");
+const longTitle = "一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯辰";
+if (testing.sideChatTitle(longTitle) !== longTitle.slice(0, 23) + "…") {
+	throw new Error("sideChatTitle must clip like a chip label");
+}
+const probe = { hasTab: true, enabled: true, queried: [] };
+const fakeSidebar = {
+	getTab: (id) => {
+		probe.queried.push(id);
+		return probe.hasTab && id === "sidechat" ? { id: "sidechat" } : undefined;
+	},
+	isTabEnabled: (id) => {
+		probe.queried.push(id);
+		return probe.enabled && id === "sidechat";
+	},
+	openTab: () => {}
+};
+const ctx2 = {
+	effect(fn) {
+		fn();
+		return () => {};
+	},
+	get(name) {
+		if (name === "inputTriggers") return { registerSource: () => () => {} };
+		if (name === "conversation") return { input: { shell: () => ({ insertReference: () => true }) } };
+		if (name === "betterSidebar") return fakeSidebar;
+		return undefined;
+	},
+	locale: { register: () => () => {} },
+	slots: { inject: (name, factory) => { factory(); return () => {}; }, register: () => () => {} }
+};
+exports_.apply(ctx2);
+if (testing.sideChatService() !== fakeSidebar) throw new Error("the probe must return the betterSidebar service");
+if (JSON.stringify(probe.queried) !== JSON.stringify(["sidechat", "sidechat"])) {
+	throw new Error("the probe must check the sidechat tab type, once for getTab and once for isTabEnabled");
+}
+probe.enabled = false;
+if (testing.sideChatService() !== null) throw new Error("a disabled sidechat tab must hide the row");
+probe.enabled = true;
+probe.hasTab = false;
+if (testing.sideChatService() !== null) throw new Error("a missing sidechat tab must hide the row");
 
 console.log("OK  module id          :", spec.id);
 console.log("OK  inject             :", JSON.stringify(exports_.inject));

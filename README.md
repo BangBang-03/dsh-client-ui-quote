@@ -1,8 +1,8 @@
 # dsh-client-ui-quote
 
-> 在 DSH 里**选中一句话**，浮出「评论 / 添加到对话」，把选区以 DSH 原生**引用芯片**插进输入框 —— 按 Kimi Code 的交互实现的 DSH 客户端插件。
+> 在 DSH 里**选中一句话**，浮出「评论 / 添加到对话 / 侧边对话」——把选区以 DSH 原生**引用芯片**插进输入框，或直接开一条独立的侧边对话 —— 按 Kimi Code 的交互实现的 DSH 客户端插件。
 
-选中正文 → 浮层两个动作 → 引用变成输入框里的行内胶囊（不是纯文本），评论也放在同一颗芯片里；发送之后，引用和评论**合成一颗胶囊**留在消息里，不会摊成一屏 `>` 行。
+选中正文 → 浮层动作 → 引用变成输入框里的行内胶囊（不是纯文本），评论也放在同一颗芯片里；发送之后，引用和评论**合成一颗胶囊**留在消息里，不会摊成一屏 `>` 行。第三项「侧边对话」则把引用直接发进右侧栏一条**独立的侧边线程**，主会话一点都不动。
 
 ## 功能
 
@@ -10,6 +10,7 @@
 | --- | --- |
 | **评论** | 浮层就地变成评论框（`写一句评论…` + `取消` / `添加到对话`）。`Enter` 提交、`Esc` 关闭、空评论时确认按钮禁用；输入法组合输入不会误触发。 |
 | **添加到对话** | 直接把引用加进输入框，不弹评论框。 |
+| **侧边对话** | 把引用直接发进一条**独立的侧边对话**（dsh-better-sidebar 的侧边线程）：线程继承主会话完整上下文、独立运行、不污染主会话，引用作为它的**第一条消息**发出，开好的线程自动在右侧栏打开页签。鲸鱼蓝（`#4d6bfe`）的图标是它在浮层里的标识。 |
 
 - 引用以 DSH 原生行内原子节点 `reference-chip` 插入（带图标的胶囊）；走「评论」时评论一起放进这颗芯片（芯片标签显示为 `引用摘要 · 评论摘要`），引用与评论始终是一体，草稿里不会散成两段。
 - 发送时由 DSH 回调本插件取「模型形态」：**`> ❝ …` 引用行 + 同一个块里的 `> ❞ …` 评论行**。消息里那段块会被就地换成 Kimi 那样的一颗胶囊
@@ -53,10 +54,11 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
 ## 使用
 
 1. 在会话正文里**拖动选中**一段文字。选区必须落在会话正文区域里；输入框内的选区属于改稿，不触发。
-2. 选区**下方**浮出浮层（下方空间不够时才改到上方），选择 **评论** 或 **添加到对话**。
-3. 引用进入输入框（评论模式下评论与引用在同一颗芯片里），页面选区被清除、焦点交给输入框，可以接着写正式提问。
-4. 浮层收起条件：单击别处、选区清空、按 `Esc`、滚动会话、窗口尺寸变化，以及动作完成之后。双击选词不会把浮层关掉。
-5. 发送出去以后，消息里那段块会显示成一颗**胶囊**：收起时是单行 `❝ 引用摘要 │ 评论摘要`，**鼠标移上去**会浮出一张卡片显示完整的引用与评论
+2. 选区**下方**浮出浮层（下方空间不够时才改到上方），选择 **评论**、**添加到对话** 或 **侧边对话**。
+3. 前两个动作把引用放进输入框（评论模式下评论与引用在同一颗芯片里），页面选区被清除、焦点交给输入框，可以接着写正式提问。
+4. **侧边对话**不经过输入框：引用作为第一条消息直接发进一条新的侧边线程，右侧栏随即打开该线程的页签（标题取引用首行），可以接着追问；主会话保持原样。同一会话上一次创建还在进行时，再次点击会并入第一次，不会开出两条重复线程。
+5. 浮层收起条件：单击别处、选区清空、按 `Esc`、滚动会话、窗口尺寸变化，以及动作完成之后。双击选词不会把浮层关掉。
+6. 发送出去以后，消息里那段块会显示成一颗**胶囊**：收起时是单行 `❝ 引用摘要 │ 评论摘要`，**鼠标移上去**会浮出一张卡片显示完整的引用与评论
    （输入框里那颗芯片同样可以悬停查看），点一下就在原地展开成全文，胶囊上悬停出现 `复制`。
    你自己写的话照旧显示在它下面；一条消息里引用了几处，就会出现几颗胶囊，中间的原话留在原来的位置。
 
@@ -119,6 +121,16 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
     卡片跟着锚点活：锚点一旦离开文档（发消息会把芯片拿走，而被移除的节点不会再发 `mouseleave`）卡片立刻收起，
     React 重渲染换掉胶囊时同理 —— 不会留下一张浮在空处的卡片。
 
+### 侧边对话（第三项）
+
+第三项是本插件自己的扩展（Kimi 的浮层只有两项），融合了三家 agent 同类组件的优点：**Kimi Code 的 `/btw` 侧边聊天**——一键开聊，选中即发，引用作为侧边对话的第一条消息；**Qoder 的「在侧边任务中提问」**——同一会话进行中的创建请求自动并入第一次，失败只弹一条提示，绝不大张旗鼓；**WorkBuddy 的划选引用**——引用是线程里持久的第一条消息，而不是一次性的草稿附件。样式上第三项用 DeepSeek 的鲸鱼蓝（`#4d6bfe`）画图标与悬停色，白底浅色主题是主基调，深色主题同一色相。
+
+- **可用性探测**：`ctx.get("betterSidebar")` 存在、`getTab("sidechat")` 有注册、`isTabEnabled("sidechat")` 为真，三项齐备才渲染第三项；缺任何一项就整个隐藏——与「芯片通路不可用时退回纯文本」同一个哲学。
+- **开线程**：`POST /sidebar/api/sidechat.start`，载荷 `{ sessionId, question }`。`question` 是引用的**纯块引用**形态（`>` 逐行前缀，不带 `❝` 标记——那两个标记是主会话胶囊增强器的识别符，侧边线程用不上）。better-sidebar 的 host 半边会把主会话的完整事件日志切成子线程种子、附上边界提示，所以线程天生继承主会话上下文，跑在独立子会话里。
+- **开页签**：拿到 `{ childId }` 后调 `betterSidebar.openTab({ type: "sidechat", id: "sidechat:<childId>", title: 引用首行, meta: { threadId: childId } }, { sessionId })`。`meta` 自 0.12.0 起是文档化的种子通道，会一路透传成原生页签的导航参数；`SideChatView` 正是按 `meta.threadId` 绑定线程——页签于是精确落在这条新线程上，而不是又开一个空线程。
+- **防重复**：同一会话的创建请求还在途中时，再次点击直接并入第一次（模块级 `Map<sessionId, Promise>` 记账，结算后自行清除）。
+- **失败路径**：路由拒绝（better-sidebar 未挂载、父会话未运行等）或 `openTab` 抛错，都只弹一条 toast（「侧边对话没有打开，请重试。」）；极端情况下线程已建、页签未开，也能在侧边对话页签的线程菜单里找回。
+
 ### 与 Kimi Code 的对应关系
 
 参照物是 Kimi Code 1.0.4 桌面端 bundle。Kimi 的浮层是 teleport 到 body 的 `.sab`（selection action bar），**一个元素两种模式**：
@@ -130,6 +142,7 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 本插件逐条对应到 DSH：`.sab` → 本文的单例浮层，`quote` 节点 → DSH 的 `reference-chip`（两半都放进同一颗芯片的 `ref` 与标签），
 `insertComposerQuote` → `registerSource` + `insertReference` + `codec.serialize`，发送后留在消息里的 `quote-pill` →
 transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`复制` 出来的也是 `引用 · 评论`（见上一节）。
+浮层的第三项不在对应关系里——`.sab` 的 `menu` 模式只有两行，侧边对话是本插件自己的扩展（见上一节）。
 
 ## 声明（package.json）
 
@@ -155,7 +168,7 @@ package.json          DSH 插件清单（bundle patch + client 半 + icon + loca
 icon.svg              插件页卡片图标（相对路径、≤ 256 KiB 的 SVG）
 cordis.patch.yml      组合包层补丁：插入 ui-quote 这个 loader 条目
 lib/index.js          host 半：只声明 apply()，不提供服务
-lib/client.js         全部功能：vendor-CJS 工厂 + 浮层 + 输入框芯片 + 发送后胶囊
+lib/client.js         全部功能：vendor-CJS 工厂 + 浮层（三项动作）+ 输入框芯片 + 发送后胶囊 + 侧边对话接线
 locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
@@ -176,8 +189,10 @@ npm test          # = node test/check.mjs && node test/capsule.mjs
 ```
 
 `test/check.mjs` 用桩 `window.__ModuleLoader__` / 桩 `react` / 桩 host ctx 加载 bundle，断言模块 id、服务声明、
-槽位注册（`conversation.input.overlay` / `quote-selection` / locale `ui-quote`）、两套词条、「组件渲染 null」，
-以及 reference source 只注册一次、`codec.serialize` 原样返回模型形态、菜单候选保持为空。
+槽位注册（`conversation.input.overlay` / `quote-selection` / locale `ui-quote`）、两套词条（含侧边对话的中英标签）、
+「组件渲染 null」，以及 reference source 只注册一次、`codec.serialize` 原样返回模型形态、菜单候选保持为空。
+它还断言侧边对话的可用性探测：没有 `betterSidebar` 时返回 null、页签未注册或被停用时返回 null、齐备时返回服务本身，
+外加 `sideQuestion`（纯块引用形态）与 `sideChatTitle`（首行 + 芯片式截断）两个纯函数。
 它还会按 host 读取清单的方式复核 `package.json`：`dsh.manifestVersion` / `dsh.client.platform` / `engines.dsh` 的位置、
 `dsh.bundle.patch` 指向的补丁文件确实插入了 `ui-quote`、四个 `exports`、图标（相对路径 + 类型 + ≤ 256 KiB）、
 `locale/*.json` 的 `meta.title` / `meta.description`，以及「没有会被 preflight 拒绝的 `@deepseek-ai/dsh*` peer」。
@@ -189,11 +204,18 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 悬停胶囊或输入框芯片时浮出卡片（两段全文都在、贴底自动翻到上方、左右夹取不越界、离开后收起、锚点被移除 / 发出去后卡片跟着收起、
 卸载后卡片消失且芯片钩子摘除、输入框里两颗芯片各显示自己的引用、节点被复用后显示当前那一条、标签对不上时不出卡片）；
 菜单纵向位置（默认在选区下方、贴底改到上方、比视口还高时仍留在视口内）；
-一条消息里引用两处时，两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉（共 67 项）。
+一条消息里引用两处时，两条引用各得一颗胶囊、两颗之间的原话仍在原位、相邻两条引用也不会被吞掉；
+侧边对话整条链路在桩上真跑一遍——`sidechat.start` 的 URL / POST 形态与载荷（sessionId + 纯块引用 question）、
+返回 `{childId}` 后 `openTab` 恰好一次且 `meta.threadId` 绑对线程、并发第二次点击并入第一次、
+路由拒绝与 `openTab` 抛错都只落一条 toast 且绝不开页签、空引用不发请求（共 80 项）。
 `test/capsule.html` 是同一套断言的真浏览器版，用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。
 
 ## 已知限制
 
+- **侧边对话依赖 dsh-better-sidebar**（实测 0.24.1；`meta` 种子通道自 0.12.0、原生右侧栏承载自 0.19.0 起可用）：
+  未安装、被禁用、或它的「侧边对话」页签在侧边卡片设置里被关掉时，浮层第三项**整个不渲染**；
+  `sidechat.start` 是 better-sidebar 自己的 `/sidebar` 路由（半公开契约），升级后若失效会以 toast 兜底；
+  线程创建要求父会话处于运行态（历史归档会话会收到 409，同样落 toast）。
 - 依赖 DSH 客户端的内部接口（`conversation.input.overlay` 槽位、`inputTriggers.registerSource`、`conversation.input.shell(id).insertReference`、
   `reference-chip` 节点），DSH 升级有可能失效。
 - 仅 web / 桌面 profile；选区必须落在会话正文里。
@@ -212,8 +234,10 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 ### English
 
 **dsh-client-ui-quote** — select any sentence in a DSH conversation and quote it into the composer, Kimi-Code style.
-A floating bar opens **under** the selection (above it only when there is no room below) and offers **Comment** and
-**Add to conversation**; the quote — and the comment, kept together in the same
+A floating bar opens **under** the selection (above it only when there is no room below) and offers **Comment**,
+**Add to conversation**, and — the plugin's own addition — **Side chat**: the quote is sent as the first message of an
+independent side thread (dsh-better-sidebar's side chat), which inherits the main session's full context and opens as a
+tab in DSH's native right sidebar, drawn in DeepSeek's whale blue. The quote — and the comment, kept together in the same
 chip the way Kimi keeps both halves in one composer node — becomes DSH's native inline `reference-chip`, is serialized
 back into a `> ❝ …` / `> ❞ …` blockquote when you send, and is then drawn as a single rounded **capsule** in the
 transcript (`quote │ comment`, hover for the full text, click to expand, copy button), so a quote never floods the message with `>` lines —

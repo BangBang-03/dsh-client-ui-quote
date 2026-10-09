@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Quote selection (dsh-client-ui-quote)",
-    "description": "Select any sentence in the chat to quote and comment it, Kimi-Code style: the floating bar offers Comment and Add to conversation, and the quote is inserted as DSH's native reference chip."
+    "description": "Select any sentence in the chat to quote it, Kimi-Code style: the floating bar offers Comment, Add to conversation, and Side chat — the first two insert a DSH reference chip into the composer, while Side chat sends the quote into an independent side thread in the right sidebar (needs dsh-better-sidebar)."
   }
 }
