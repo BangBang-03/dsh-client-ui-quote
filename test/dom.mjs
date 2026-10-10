@@ -56,6 +56,16 @@ class ShimNode {
 		parent.ownerDocument?.record({ type: 'childList', target: parent, addedNodes: [], removedNodes: [this] });
 	}
 
+	/** Replace every child in one go, the way the bar swaps its modes. */
+	replaceChildren(...children) {
+		for (const child of this.childNodes.slice()) child.parentNode = null;
+		this.childNodes.length = 0;
+		for (const child of children) {
+			if (child === null || child === undefined) continue;
+			this.append(child);
+		}
+	}
+
 	contains(node) {
 		let current = node;
 		while (current !== null && current !== undefined) {
@@ -206,6 +216,17 @@ class ShimElement extends ShimNode {
 		return matchesSelector(this, selector);
 	}
 
+	/** Enough of focus handling that a caller can see where the caret went. */
+	focus() {
+		if (this.ownerDocument !== undefined && this.ownerDocument !== null) this.ownerDocument.activeElement = this;
+	}
+
+	blur() {
+		if (this.ownerDocument !== undefined && this.ownerDocument !== null && this.ownerDocument.activeElement === this) {
+			this.ownerDocument.activeElement = null;
+		}
+	}
+
 	closest(selector) {
 		let node = this;
 		while (node !== null && node.nodeType === ELEMENT_NODE) {
@@ -279,6 +300,8 @@ class ShimDocument extends ShimNode {
 		this.ownerDocument = this;
 		this.mutations = [];
 		this.observers = [];
+		/** Maintained by `ShimElement.focus()` / `blur()`. */
+		this.activeElement = null;
 		this.documentElement = new ShimElement(this, 'html');
 		this.head = new ShimElement(this, 'head');
 		this.body = new ShimElement(this, 'body');
@@ -333,7 +356,8 @@ class ShimDocument extends ShimNode {
 	removeEventListener() {}
 
 	getSelection() {
-		return { isCollapsed: true };
+		// A collapsed selection that can be cleared, which is all the bar asks of it.
+		return { isCollapsed: true, rangeCount: 0, removeAllRanges() {} };
 	}
 }
 

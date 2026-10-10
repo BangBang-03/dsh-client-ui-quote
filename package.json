@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.8.1",
-  "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B, a jump back to the quoted source, a searchable quote list page that exports as Markdown, and one-click back-flow of a side thread's conclusion into the main composer.",
+  "version": "0.9.0",
+  "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B, a jump back to the quoted source, a searchable quote list page that exports as Markdown, one-click back-flow of a side thread's conclusion, and revisions of a sent quote that mark the old capsule as superseded.",
   "icon": "icon.svg",
   "license": "MIT",
   "author": "BangBang-03",

@@ -68,7 +68,14 @@ globalThis.window = {
 new Function(source)();
 if (spec === null) throw new Error("bundle did not register a module");
 
-const reactStub = { useRef: (value) => ({ current: value }), useEffect() {} };
+const reactStub = {
+	useRef: (value) => ({ current: value }),
+	// Mount semantics: the plugin's slot component registers its session here,
+	// which is exactly how the real host hands the plugin a composer.
+	useEffect(fn) {
+		if (typeof fn === "function") fn();
+	}
+};
 const exports_ = spec.factory((name) => {
 	if (name === "react") return reactStub;
 	throw new Error("unexpected require: " + name);
@@ -76,13 +83,16 @@ const exports_ = spec.factory((name) => {
 
 const sources = [];
 const effects = [];
+/** What the plugin registered into the host's slots, so a test can mount it. */
+const registered = [];
 // The composer of every session the plugin may prefill: a session's input shell
 // exists only once its view mounts, so tests install (and remove) them here.
 const shells = new Map();
 exports_.apply({
 	effect(fn, label) {
 		const dispose = fn();
-		effects.push({ label, dispose });
+		// `fn` is kept so a later block can reinstall after the uninstall test.
+		effects.push({ label, dispose, fn });
 		return () => {};
 	},
 	get(name) {
@@ -95,7 +105,16 @@ exports_.apply({
 		return undefined;
 	},
 	locale: { register: () => () => {} },
-	slots: { inject: (name, factory) => { factory(); return () => {}; }, register: () => () => {} }
+	slots: {
+		inject: (name, factory) => {
+			factory();
+			return () => {};
+		},
+		register: (spec, Component) => {
+			registered.push({ spec, Component });
+			return () => {};
+		}
+	}
 });
 
 const testing = exports_.__testing;
@@ -808,6 +827,107 @@ try {
 	);
 	check("with no selection the key falls through", commands[0].resolve().status === "pass", JSON.stringify(commands[0].resolve()));
 	check("registering hands back a disposer each time", disposers.every((dispose) => typeof dispose === "function"));
+}
+
+/* ------------------------------------------------------------------ *
+ * 改这条引用 — the honest revision path (the transcript is append-only)
+ * ------------------------------------------------------------------ */
+
+{
+	const original = "被改的那段原文";
+	const oldComment = "旧的评论";
+	const newComment = "改后的评论";
+
+	// The plugin only knows a composer once the host mounts its slot entry —
+	// exactly what the real client does with `conversation.input.overlay`.
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	check("the overlay slot was registered", overlay !== undefined && typeof overlay.Component === "function");
+	const insertions = [];
+	const span = { draftRev: 7 };
+	shells.set("session-rev", {
+		insertReference(attachment, capturedSpan) {
+			insertions.push({ attachment, capturedSpan });
+			return true;
+		}
+	});
+	if (overlay !== undefined) {
+		// No `t` on purpose: without one the plugin falls back to its own
+		// dictionary, which is what the label assertions below read.
+		overlay.Component({ sessionId: "session-rev", inputActions: { captureInsertion: () => span } });
+	}
+
+	// The uninstall test disposed the capsule effect earlier, so put it back:
+	// this block is about what a mounted enhancer does with a revision.
+	capsuleEffect.fn();
+
+	// A transcript of its own, with a capsule that has a comment.
+	const host2 = dom.document.createElement("div");
+	host2.setAttribute("data-conversation-content", "");
+	host2.setAttribute("data-conversation-session", "session-rev");
+	const bubble2 = dom.document.createElement("div");
+	bubble2.className = "bubble";
+	const run2 = dom.document.createElement("span");
+	run2.className = "plainRun";
+	run2.textContent = testing.chipRef(original, oldComment);
+	bubble2.append(run2);
+	host2.append(bubble2);
+	dom.document.body.append(host2);
+	dom.document.deliver();
+	await wait(120);
+	const revCap = host2.querySelectorAll(".dshq-cap")[0];
+	check("a quoted message with a comment becomes one capsule", revCap !== undefined, host2.querySelectorAll(".dshq-cap").length + " in this pane");
+	revCap.rect = { left: 100, top: 200, width: 180, height: 22 };
+	revCap.dispatch("mouseenter", {});
+	check("its card shows the comment", pop()?.querySelector(".dshq-pop-comment")?.textContent === oldComment, JSON.stringify(pop()?.querySelector(".dshq-pop-comment")?.textContent));
+	check("a quote we watched being selected offers both actions", pop()?.querySelector(".dshq-pop-jump") === null && pop()?.querySelector(".dshq-pop-revise") === null);
+	testing.saveSource(original, "session-rev", { attr: "data-chat-anchor-key", key: "row-rev", turn: "4" });
+	revCap.dispatch("mouseenter", {});
+	const actions = pop()?.querySelector(".dshq-pop-actions");
+	check("with a traced quote the card carries 跳回原文", actions?.querySelector(".dshq-pop-jump")?.textContent === "跳回原文", JSON.stringify(actions?.querySelector(".dshq-pop-jump")?.textContent));
+	check("and 改这条引用", actions?.querySelector(".dshq-pop-revise")?.textContent === "改这条引用", JSON.stringify(actions?.querySelector(".dshq-pop-revise")?.textContent));
+
+	// Clicking it reopens the comment box on the same quote, prefilled.
+	actions.querySelector(".dshq-pop-revise").dispatch("click", { target: null, stopPropagation() {} });
+	const bar = dom.document.getElementById("dsh-quote-bar");
+	check("the card closes and the comment box takes over", pop()?.dataset.visible === "false" && bar?.dataset.visible === "true", JSON.stringify([pop()?.dataset.visible, bar?.dataset.visible]));
+	const input = bar?.querySelector(".dshq-input");
+	check("the box is prefilled with the old comment", input?.value === oldComment, JSON.stringify(input?.value));
+
+	// Correcting it writes a NEW quote (nothing is edited in place) and the old
+	// capsule learns it was superseded.
+	input.value = newComment;
+	input.dispatch("input", {});
+	// The bar handles clicks by delegation, so the click is dispatched on the bar
+	// with the button as its target — the shim has no bubbling of its own.
+	const confirm = bar.querySelector('[data-action="confirm"]');
+	bar.dispatch("click", { target: confirm });
+	check("committing sends the corrected quote as a new chip", insertions.length === 1 && insertions[0].attachment.ref.includes(newComment), JSON.stringify({ count: insertions.length, ref: String(insertions[0]?.attachment?.ref ?? "").slice(0, 32), sessions: testing.revisedFor(original) === null ? "no revision" : "revision" }));
+	check("the old quote is marked revised", testing.revisedFor(original)?.comment === newComment, JSON.stringify(testing.revisedFor(original)));
+	check("the revision is persisted for the next page", JSON.stringify(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-revised")).includes(newComment));
+
+	// A fresh capsule of that quote now says so, and its card shows the correction.
+	const host3 = dom.document.createElement("div");
+	host3.setAttribute("data-conversation-content", "");
+	host3.setAttribute("data-conversation-session", "session-rev");
+	const bubble3 = dom.document.createElement("div");
+	const run3 = dom.document.createElement("span");
+	run3.textContent = testing.chipRef(original, oldComment);
+	bubble3.append(run3);
+	host3.append(bubble3);
+	dom.document.body.append(host3);
+	dom.document.deliver();
+	await wait(120);
+	const badgeCap = host3.querySelectorAll(".dshq-cap")[0];
+	check("a superseded capsule wears a badge", badgeCap?.querySelector(".dshq-cap-revised")?.textContent === "已修订", JSON.stringify(badgeCap?.querySelector(".dshq-cap-revised")?.textContent));
+	badgeCap.rect = { left: 100, top: 260, width: 180, height: 22 };
+	badgeCap.dispatch("mouseenter", {});
+	check("and its card prints the correction", pop()?.querySelector(".dshq-pop-revised")?.textContent === newComment, JSON.stringify(pop()?.querySelector(".dshq-pop-revised")?.textContent));
+
+	// Storage rules: keyed by the quote's own wording, empty ones are not revisions.
+	check("a revision is keyed by the quote's wording", testing.rememberRevision("  第一段\n  引用 ", "新的") === true && testing.revisedFor("第一段 引用")?.comment === "新的");
+	check("an empty correction is not a revision", testing.rememberRevision("另一段原文", "   ") === false && testing.revisedFor("另一段原文") === null);
+	check("a correction never rewrites the quote text itself", testing.revisedFor(original)?.comment === newComment);
+	badgeCap.dispatch("mouseleave", {});
 }
 
 console.log(
