@@ -1,7 +1,6 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.8.0",
-  "private": true,
+  "version": "0.8.1",
   "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B, a jump back to the quoted source, a searchable quote list page that exports as Markdown, and one-click back-flow of a side thread's conclusion into the main composer.",
   "icon": "icon.svg",
   "license": "MIT",
@@ -26,7 +25,11 @@
   "type": "module",
   "main": "lib/index.js",
   "engines": {
-    "dsh": ">=0.2.0-rc.2"
+    "dsh": ">=0.2.0-rc.2",
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": "./lib/index.js",
@@ -44,7 +47,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs"
+    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs",
+    "prepublishOnly": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs"
   },
   "dsh": {
     "manifestVersion": 1,

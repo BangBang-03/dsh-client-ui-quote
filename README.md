@@ -35,7 +35,6 @@ dsh plugin --profile desktop add link:<clone-path>
 DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边栏 **插件** 页能看到「选中引用 (dsh-client-ui-quote)」，可随时开关。
 
 ### 方式二：手工注册为 profile 组合包
-
 1. 把本仓库放到任意目录；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
    - `dependencies` 增加 `"dsh-client-ui-quote": "link:<绝对路径>"`（Windows 上用正斜杠，如 `link:C:/path/to/dsh-client-ui-quote`）；
@@ -49,6 +48,19 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
     - id: ui-quote
       name: dsh-client-ui-quote
 ```
+
+### 方式三：npm 包（包已备好，尚未发布）
+
+`package.json` 已经是可发布状态：`private` 已移除、`files` 白名单只带 `lib` / `locale` / `test` / `icon.svg` / `cordis.patch.yml` / 文档，`prepublishOnly` 会在发布前跑完三套离线断言，`npm pack --dry-run` 可核对内容。
+但**这个包还没有发布到 npm**——本机没有 npm 凭据（`npm whoami` → `ENEEDAUTH`）。谁要发布，只有一步：
+
+```bash
+npm login              # 需要 npm 账号
+npm publish            # prepublishOnly 会先跑 214 项断言
+# 装：dsh plugin --profile desktop add dsh-client-ui-quote
+```
+
+发布后本节会改成「方式三：npm」，在那之前请用方式一或方式二。
 
 ### 卸载
 
@@ -163,6 +175,32 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 `insertComposerQuote` → `registerSource` + `insertReference` + `codec.serialize`，发送后留在消息里的 `quote-pill` →
 transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`复制` 出来的也是 `引用 · 评论`（见上一节）。
 浮层的第三项不在对应关系里——`.sab` 的 `menu` 模式只有两行，侧边对话是本插件自己的扩展（见上一节）。
+
+## 与同类插件的差异
+
+判断依据是市场全量目录（`https://awesome-dsh-plugin.com/plugins.json`，2026-10-10 快照：**4471 条**，字段含 stars / downloads / capabilities），不是印象。**划选/引用/批注这一带一共只有 85 条**——小赛道，但很挤：「划选浮层 + 加进输入框」这个形态本身已经饱和（下面几个邻居都做得到）。
+
+| 同类 | 它做什么 | 本插件多出来的部分 |
+| --- | --- | --- |
+| `tr1v3r/dsh-quote-followup`、`sumomok/quote-message` | 选区 → **原生 reference chip** 进输入框 | 芯片机制不是差异点（它们也用同一个 API）。差异在芯片**之后** |
+| `sunnystarye-ui/dsh-plugin-text-quote`、`choco9527/dsh-add-to-chat` | 选中 → 带注释的引用 → 进输入框；发送后可看注释 | 引用与评论**同一颗胶囊**、悬停卡片、`跳回原文`、清单页、线程回流 |
+| `latte03/dsh-select-quote` | 原文旁虚线高亮 + 序号角标 + 摘要可查看/跳回 | 它把批注挂在下一条消息上；本插件是**胶囊模型**，且坐标按引用原文归一化后跨刷新仍在 |
+| `dsh-sidenote`（11★）、`dsh-side-chat`、`side-chat-plus-plus`、`dsh-side-branch` 等 16 条侧聊 | 划选 → 在侧边线程里**提问/作答** | **只把引用写进线程输入框、不替你发送**：16 条里没有第二条同样语义；线程被记住并复用，`Alt+L` 那一页还能把线程结论带回主会话 |
+
+全库计数里几个**零**（同一份快照的关键词探针）：
+
+- **「引用 + 评论合成单一可交互胶囊」：0 条** —— 本插件的 `❝ 引用摘要 │ 评论摘要` 仍是空位。
+- **「编辑已发送的批注」：0 条** —— 所有人都是「写→发→再看」。DSH 目前**没有**任何编辑已发送消息的 API（侦察确认：`editMessage`/`updateMessage`/`rewriteMessage` 全树 0 命中，只有尚未进入会话的队列条目可改，见「已知限制」），所以这一格本插件也没填，留待宿主开口。
+- **消息内联操作条**仅 2 条、**消息内评论**仅 2 条：发送后还在消息里「就地操作引用」的，几乎没有。
+
+本插件相对同类的**可验证**优势集中在四件事上，都有离线断言兜底：
+
+1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
+2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标不随引用文本发给模型（不污染 prompt）。
+3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在 4471 条里没有对应物。
+4. **工程化**：214 项离线断言（含真跑 `sessions.retain` / `setDraft` / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里多数是一两百行、没有测试的插件。
+
+反过来也要说清楚：**本插件不做的**——不做翻译/解释类选区动作（81 条同类在做）、不做多选合并引用（7 条有）、不做选区折叠/行内 diff 这类渲染花样。它只把「引用」这一件事做穿。
 
 ## 声明（package.json）
 
