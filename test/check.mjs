@@ -132,6 +132,26 @@ if (
 if (!dict.zh.jump || !dict.en.jump || !dict.zh.jumpFailed || !dict.en.jumpFailed) {
 	throw new Error("the jump-back row needs its zh/en labels");
 }
+if (
+	!dict.zh.panelTitle ||
+	!dict.en.panelTitle ||
+	!dict.zh.panelSearch ||
+	!dict.en.panelSearch ||
+	!dict.zh.panelExport ||
+	!dict.en.panelExport ||
+	!dict.zh.panelEmpty ||
+	!dict.en.panelEmpty ||
+	!dict.zh.panelLoadOlder ||
+	!dict.en.panelLoadOlder ||
+	!dict.zh.panelCount ||
+	!dict.en.panelCount ||
+	!dict.zh.panelGuide ||
+	!dict.en.panelGuide ||
+	!dict.zh.panelUnavailable ||
+	!dict.en.panelUnavailable
+) {
+	throw new Error("the quote-list page needs its zh/en labels");
+}
 
 // The chip owner: registered once (re-apply must reuse it), and its codec must
 // hand the model form straight back — that is what the send path asks for.
@@ -216,7 +236,7 @@ for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u
 // a chip label), and the per-session thread memory is what makes the row reuse
 // one thread per main session.
 const testing = exports_.__testing;
-for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "jumpToSource", "registerShortcut"]) {
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "jumpToSource", "registerShortcut", "quoteRowsFromEntries", "filterQuoteRows", "quoteListMarkdown", "readQuoteRows", "loadOlderQuotes", "downloadText", "quoteTabService", "openQuoteList", "quoteRowElement"]) {
 	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
 }
 // The jump-back key folds whitespace, trims and caps: a paragraph must not
