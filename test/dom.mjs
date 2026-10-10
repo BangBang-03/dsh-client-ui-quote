@@ -150,12 +150,27 @@ class ShimElement extends ShimNode {
 		return this.attributes.has(name) ? this.attributes.get(name) : null;
 	}
 
+	hasAttribute(name) {
+		return this.attributes.has(name);
+	}
+
 	setAttribute(name, value) {
 		this.attributes.set(name, String(value));
 	}
 
 	removeAttribute(name) {
 		this.attributes.delete(name);
+	}
+
+	// Reflected the way the real DOM reflects it, so the virtualizer can hide a
+	// row with either `row.hidden = true` or the attribute.
+	get hidden() {
+		return this.attributes.has('hidden');
+	}
+
+	set hidden(value) {
+		if (value === true || value === '') this.attributes.set('hidden', '');
+		else this.attributes.delete('hidden');
 	}
 
 	addEventListener(type, handler) {

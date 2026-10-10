@@ -637,21 +637,45 @@ try {
  * ------------------------------------------------------------------ */
 
 {
-	// A transcript row exactly as DSH renders one: the anchor key is the only
-	// handle a plugin gets — there is no message id and no scroll API.
-	const session = dom.document.createElement("div");
-	session.setAttribute("data-conversation-content", "");
-	session.setAttribute("data-conversation-session", "session-q");
-	const row = dom.document.createElement("div");
-	row.setAttribute("data-chat-anchor-key", "row-1");
-	row.setAttribute("data-chat-turn", "3");
-	row.textContent = "被引用的那一段原文";
-	session.append(row);
-	dom.document.body.append(session);
-	const scrolled = [];
-	row.scrollIntoView = (options) => {
-		scrolled.push(options);
+	// A transcript exactly as DSH renders one: one content pane per session, a
+	// scrollport inside it, rows carrying an anchor key and a turn. The anchor
+	// key is the only handle a plugin gets — there is no message id and no
+	// scroll API — and the jump has to land inside the right pane, because a
+	// document-wide search is how a quote ends up in someone else's session.
+	const pane = (sessionId) => {
+		const root = dom.document.createElement("div");
+		root.setAttribute("data-conversation-content", "");
+		root.setAttribute("data-conversation-session", sessionId);
+		const port = dom.document.createElement("div");
+		port.setAttribute("data-conversation-scroll", "");
+		port.scrollTop = 0;
+		port.clientHeight = 400;
+		port.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 400, width: 800, height: 400 });
+		root.append(port);
+		dom.document.body.append(root);
+		// A row laid out at `top` in transcript coordinates: it moves with the
+		// scrollport, the way a laid-out row does.
+		const put = (key, turn, top) => {
+			const node = dom.document.createElement("div");
+			if (key !== null) node.setAttribute("data-chat-anchor-key", key);
+			if (turn !== null) node.setAttribute("data-chat-turn", turn);
+			node.getBoundingClientRect = () => {
+				const y = top - port.scrollTop;
+				return { left: 0, top: y, right: 800, bottom: y + 40, width: 800, height: 40 };
+			};
+			port.append(node);
+			return node;
+		};
+		return { root, port, put };
 	};
+
+	// The pane that is open next to the one the quote came from, holding a row
+	// under the very same anchor key: a document-wide lookup finds this one.
+	const other = pane("session-other");
+	const intruder = other.put("row-1", "3", 100);
+	const home = pane("session-q");
+	const realRow = home.put("row-1", "3", 1200);
+	home.port.scrollTop = 500;
 
 	// The key is the quote's own wording: folded, trimmed, capped — a paragraph
 	// must not become the key, and a re-wrapped quote must still find its row.
@@ -665,19 +689,76 @@ try {
 	const persisted = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-source"));
 	check("the coordinate is persisted for the next page", persisted?.["被引用的那一段原文"]?.key === "row-1", JSON.stringify(persisted));
 
-	const revealed = testing.jumpToSource("被引用的那一段原文", "session-q");
-	check("the jump scrolls the source row into view", revealed === true && scrolled.length === 1, JSON.stringify(scrolled));
-	check("the scrolled row is flashed", row.getAttribute("data-dshq-flash") === "true");
-	check("the scroll centres the row", scrolled[0]?.block === "center", JSON.stringify(scrolled[0]));
+	check("the jump finds the row in the session's own pane", testing.jumpToSource("被引用的那一段原文", "session-q") === true);
+	check("the row is parked under the top edge, the way the host parks a turn", Math.round(realRow.getBoundingClientRect().top) === 24, String(realRow.getBoundingClientRect().top));
+	check("the scrollport took the row's own offset", home.port.scrollTop === 1176, String(home.port.scrollTop));
+	check("a same-keyed row in the other pane is left alone", other.port.scrollTop === 0 && intruder.getAttribute("data-dshq-flash") === null);
+	check("the landed row is flashed", realRow.getAttribute("data-dshq-flash") === "true");
 
-	// A row the virtualizer has unmounted: the turn is tried next, and when that
-	// fails too the reader is told instead of being left with a dead button.
-	testing.saveSource("被虚拟化丢掉的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-gone", turn: "" });
-	check("a missing source row is reported", testing.jumpToSource("被虚拟化丢掉的原文", "session-q") === false);
+	// A row the virtualizer hides is no target: the turn is what survives, and
+	// like the host, the first shown row at or after that turn is the landing.
+	const hiddenRow = home.put("row-hidden", "7", 1600);
+	hiddenRow.setAttribute("hidden", "");
+	const laterRow = home.put("row-later", "7", 1600);
+	testing.saveSource("被隐藏起来的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-hidden", turn: "7" });
+	check("a hidden row gives way to a shown one at its turn", testing.jumpToSource("被隐藏起来的原文", "session-q") === true);
+	check("the shown row is the one flashed", laterRow.getAttribute("data-dshq-flash") === "true" && hiddenRow.getAttribute("data-dshq-flash") === null, JSON.stringify([laterRow.getAttribute("data-dshq-flash"), hiddenRow.getAttribute("data-dshq-flash")]));
+
+	// Nothing to find and nowhere left to walk: the reader is told why the
+	// button did nothing instead of being left with a dead button.
+	testing.saveSource("被虚拟化丢掉的原文", "session-other", { attr: "data-chat-anchor-key", key: "row-gone", turn: "" });
+	check("a missing source row is reported", testing.jumpToSource("被虚拟化丢掉的原文", "session-other") === false);
 	check("and the toast says why", toastNode()?.textContent === "原文不在当前视图里", JSON.stringify(toastNode()?.textContent));
-	testing.saveSource("只剩轮次可用的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-gone", turn: "3" });
-	scrolled.length = 0;
-	check("a dropped row falls back to its turn", testing.jumpToSource("只剩轮次可用的原文", "session-q") === true && scrolled.length === 1, JSON.stringify(scrolled));
+	testing.saveSource("没有面板的原文", "session-ghost", { attr: "data-chat-anchor-key", key: "row-gone", turn: "" });
+	check("a session that is not on screen is reported too", testing.jumpToSource("没有面板的原文", "session-ghost") === false);
+
+	// A row of an old turn that the virtualizer only mounts once the port comes
+	// near it: the search walks the transcript up a screen at a time until the
+	// row appears, and lands on it rather than past it.
+	const farRow = dom.document.createElement("div");
+	farRow.setAttribute("data-chat-anchor-key", "row-far");
+	farRow.setAttribute("data-chat-turn", "1");
+	farRow.getBoundingClientRect = () => {
+		const y = 300 - home.port.scrollTop;
+		return { left: 0, top: y, right: 800, bottom: y + 40, width: 800, height: 40 };
+	};
+	let offset = 4000;
+	Object.defineProperty(home.port, "scrollTop", {
+		configurable: true,
+		get: () => offset,
+		set: (next) => {
+			offset = next;
+			if (next <= 2000 && farRow.parentNode === null) home.port.append(farRow);
+		}
+	});
+	testing.saveSource("很久以前的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-far", turn: "" });
+	check("a row that is not mounted yet starts a search", testing.jumpToSource("很久以前的原文", "session-q") === false);
+	await wait(240);
+	check("the search walks the transcript until the row appears", farRow.getAttribute("data-dshq-flash") === "true");
+	check("and lands on it, not past it", Math.round(farRow.getBoundingClientRect().top) === 24, String(farRow.getBoundingClientRect().top));
+	Object.defineProperty(home.port, "scrollTop", { configurable: true, writable: true, value: 0 });
+
+	// A reader parked above the source — a capsule in a side thread reads text
+	// from the main transcript, which may sit anywhere: the walk up runs out at
+	// the top, so the search starts over from the bottom of the history instead
+	// of giving up on a row that is simply below.
+	const lowPane = pane("session-low");
+	lowPane.port.scrollHeight = 4000;
+	let lowTop = 0;
+	let lowRow = null;
+	Object.defineProperty(lowPane.port, "scrollTop", {
+		configurable: true,
+		get: () => lowTop,
+		set: (next) => {
+			lowTop = Math.max(0, next);
+			if (lowTop >= 2400 && lowRow === null) lowRow = lowPane.put("row-low", "9", 3000);
+		}
+	});
+	testing.saveSource("在下面那段原文", "session-low", { attr: "data-chat-anchor-key", key: "row-low", turn: "9" });
+	check("a source below the reader starts a search", testing.jumpToSource("在下面那段原文", "session-low") === false);
+	await wait(240);
+	check("the search reaches a row below the reader too", lowRow !== null && lowRow.getAttribute("data-dshq-flash") === "true", JSON.stringify([lowTop, lowRow === null ? null : lowRow.getAttribute("data-dshq-flash")]));
+	check("and lands on it, not past it", lowRow !== null && Math.round(lowRow.getBoundingClientRect().top) === 24, lowRow === null ? "no row" : String(lowRow.getBoundingClientRect().top));
 
 	// The hover card carries the jump: only for quotes we watched being selected.
 	const firstCap = caps()[0];
@@ -689,9 +770,8 @@ try {
 		firstCap.dispatch("mouseenter", {});
 		const jumpRow = pop().querySelector(".dshq-pop-jump");
 		check("a traced quote offers the jump row", jumpRow !== null && jumpRow.textContent === "跳回原文", JSON.stringify(jumpRow?.textContent));
-		scrolled.length = 0;
 		if (jumpRow !== null) jumpRow.dispatch("click", { target: null, stopPropagation() {} });
-		check("the jump row scrolls the source row", scrolled.length === 1, JSON.stringify(scrolled));
+		check("the jump row lands in the source's own pane", home.port.scrollTop === 1176, String(home.port.scrollTop));
 		firstCap.dispatch("mouseleave", {});
 	}
 
