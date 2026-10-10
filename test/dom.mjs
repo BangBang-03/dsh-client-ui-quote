@@ -3,9 +3,9 @@
  *
  * The capsule code touches a narrow slice of the DOM: element and text nodes,
  * class/attribute/dataset/style, insertBefore/remove, closest and the two
- * query selectors, plus a MutationObserver. Implementing that slice keeps the
- * enhancer testable with plain `node` — no browser, no dependencies — while a
- * real browser still gets the real thing.
+ * query selectors, plus a MutationObserver and a Map-backed localStorage.
+ * Implementing that slice keeps the enhancer testable with plain `node` — no
+ * browser, no dependencies — while a real browser still gets the real thing.
  *
  * Supported selectors: tag, `*`, `.class`, `#id`, `[attr]`, `[attr="value"]`,
  * and descendant combinators between them.
@@ -346,6 +346,21 @@ class ShimMutationObserver {
 export function createDom() {
 	const document = new ShimDocument();
 	const clipboard = [];
+	const store = new Map();
+	// The plugin keeps the "side thread of this session" memory in localStorage,
+	// and reads better-sidebar's own map from there too.
+	const localStorage = {
+		getItem: (key) => (store.has(String(key)) ? store.get(String(key)) : null),
+		setItem: (key, value) => {
+			store.set(String(key), String(value));
+		},
+		removeItem: (key) => {
+			store.delete(String(key));
+		},
+		clear: () => {
+			store.clear();
+		},
+	};
 	return {
 		document,
 		Element: ShimElement,
@@ -354,6 +369,7 @@ export function createDom() {
 		getComputedStyle: () => ({ backgroundColor: 'rgb(20, 21, 24)' }),
 		window: { innerWidth: 1200, innerHeight: 800, addEventListener() {}, removeEventListener() {} },
 		clipboard,
+		localStorage,
 	};
 }
 

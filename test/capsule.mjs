@@ -46,6 +46,7 @@ globalThis.document = dom.document;
 globalThis.Element = dom.Element;
 globalThis.MutationObserver = dom.MutationObserver;
 globalThis.getComputedStyle = dom.getComputedStyle;
+globalThis.localStorage = dom.localStorage;
 try {
 	globalThis.navigator = dom.navigator;
 } catch (error) {
@@ -75,6 +76,9 @@ const exports_ = spec.factory((name) => {
 
 const sources = [];
 const effects = [];
+// The composer of every session the plugin may prefill: a session's input shell
+// exists only once its view mounts, so tests install (and remove) them here.
+const shells = new Map();
 exports_.apply({
 	effect(fn, label) {
 		const dispose = fn();
@@ -86,7 +90,7 @@ exports_.apply({
 			return { registerSource(quoteSource) { sources.push(quoteSource); return () => {}; } };
 		}
 		if (name === "conversation") {
-			return { input: { shell: () => ({ insertReference: () => true }) } };
+			return { input: { shell: (sessionId) => shells.get(sessionId) ?? null } };
 		}
 		return undefined;
 	},
@@ -474,10 +478,13 @@ check("uninstall unhooks the composer chip", chipElement.getAttribute("data-dshq
 check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
 // ---- 侧边对话: the wire, driven end to end --------------------------------
-// The third row's action is sideChatRequest(service, sessionId, text): POST
-// the quote to better-sidebar's sidechat.start, then open the returned thread
-// through the service (meta.threadId binds the tab). A second request for the
-// same session folds into the first, and every failure lands in the toast.
+// The third row's action is sideChatRequest(service, sessionId, text): it opens
+// the session's side thread through better-sidebar — created on the first
+// quote, reused afterwards — and then writes the quote into that thread's own
+// composer as a draft. Nothing is ever sent, so the route is asked for an empty
+// question (a non-empty one would be admitted as the thread's first message).
+// A second request for the same session folds into the one in flight, and every
+// refusal lands in the toast.
 const openTabs = [];
 const sideService = {
 	openTab(seed, scope) {
@@ -486,22 +493,46 @@ const sideService = {
 };
 const realFetch = globalThis.fetch;
 const toastNode = () => dom.document.getElementById("dsh-quote-toast");
+const hostThreads = () => {
+	try {
+		return JSON.parse(globalThis.localStorage.getItem("dsh-sidebar:v1:sidechat-thread") ?? "{}") ?? {};
+	} catch (error) {
+		return {};
+	}
+};
+/** better-sidebar records the thread its view binds; that map is read here. */
+const bindHostThread = (sessionId, threadId) => {
+	const map = hostThreads();
+	map[sessionId] = threadId;
+	globalThis.localStorage.setItem("dsh-sidebar:v1:sidechat-thread", JSON.stringify(map));
+};
+/** Install one session's input shell (`draftFace: false` = a version mismatch). */
+const installShell = (sessionId, options = {}) => {
+	const state = { draft: options.draft ?? "" };
+	const shell = { state: { getSnapshot: () => ({ draft: state.draft }) } };
+	if (options.draftFace === "actions") shell.actions = { setDraft: (text) => { state.draft = text; } };
+	else if (options.draftFace !== false) shell.setDraft = (text) => { state.draft = text; };
+	shells.set(sessionId, shell);
+	return state;
+};
 try {
-	// Happy path: the route's envelope becomes an openTab with the thread id.
+	// Happy path: the route's envelope becomes an openTab, and the quote is
+	// written into the opened thread's composer — not sent to it.
 	const fetches = [];
+	const sideState = installShell("session-side-1");
 	globalThis.fetch = async (url, options) => {
 		fetches.push({ url, options });
+		bindHostThread("session-q", "session-side-1");
 		return {
 			ok: true,
 			json: async () => ({ ok: true, value: { childId: "session-side-1" } })
 		};
 	};
-	testing.sideChatRequest(sideService, "session-q", "第一段引用\n第二段引用");
-	await wait(20);
+	await testing.sideChatRequest(sideService, "session-q", "第一段引用\n第二段引用");
 	check("the side thread is created on better-sidebar's route", fetches.length === 1 && fetches[0].url === "/sidebar/api/sidechat.start", JSON.stringify(fetches.map((f) => f.url)));
 	check(
-		"the request carries the session and the quote as a blockquote",
-		JSON.stringify(fetches[0]?.options?.body) === JSON.stringify(JSON.stringify({ sessionId: "session-q", question: "> 第一段引用\n> 第二段引用" })),
+		"the request asks for an empty question, so nothing is sent",
+		JSON.stringify(fetches[0]?.options?.body) === JSON.stringify(JSON.stringify({ sessionId: "session-q", question: "" })),
 		JSON.stringify(fetches[0]?.options?.body)
 	);
 	check("the request is a JSON POST", fetches[0]?.options?.method === "POST" && fetches[0]?.options?.headers?.["content-type"] === "application/json");
@@ -512,6 +543,23 @@ try {
 		JSON.stringify(openTabs[0]?.seed)
 	);
 	check("the tab opens in the quoting session", JSON.stringify(openTabs[0]?.scope) === JSON.stringify({ sessionId: "session-q" }));
+	check("the quote lands in the side thread's composer as a draft", sideState.draft === "> 第一段引用\n> 第二段引用", JSON.stringify(sideState.draft));
+	check("the plugin remembers the session's side thread", testing.storedSideThread("session-q") === "session-side-1");
+
+	// The next quote for the same main session reuses that thread: no second
+	// thread, no second POST, and the quote follows the draft already there.
+	fetches.length = 0;
+	await testing.sideChatRequest(sideService, "session-q", "第二段引用");
+	check("a remembered thread is never created twice", fetches.length === 0, fetches.length + " fetch(es)");
+	check("the reuse opens the same thread's tab again", openTabs.length === 2 && openTabs[1]?.seed?.id === "sidechat:session-side-1", JSON.stringify(openTabs[1]?.seed));
+	check("the quote is appended below what the reader already wrote", sideState.draft === "> 第一段引用\n> 第二段引用\n\n> 第二段引用", JSON.stringify(sideState.draft));
+
+	// A shell that exposes only the action face still takes the draft.
+	const actionState = installShell("session-side-2", { draftFace: "actions" });
+	bindHostThread("session-q2", "session-side-2");
+	fetches.length = 0;
+	await testing.sideChatRequest(sideService, "session-q2", "只走 actions 的引用");
+	check("a shell with only an action face still receives the draft", actionState.draft === "> 只走 actions 的引用", JSON.stringify(actionState.draft));
 
 	// A second click while the thread is being created folds into the first.
 	const release = [];
@@ -520,15 +568,18 @@ try {
 		fetches.push({ url, options, resolve });
 		release.push(resolve);
 	});
-	testing.sideChatRequest(sideService, "session-q2", "另一段引用");
-	testing.sideChatRequest(sideService, "session-q2", "另一段引用");
-	check("a concurrent second request folds into the first", fetches.length === 1 && openTabs.length === 1, fetches.length + " fetch(es)");
+	const foldedState = installShell("session-side-3");
+	const first = testing.sideChatRequest(sideService, "session-q3", "另一段引用");
+	const second = testing.sideChatRequest(sideService, "session-q3", "另一段引用");
+	check("a concurrent second request folds into the first", fetches.length === 1 && second === first, fetches.length + " fetch(es)");
+	bindHostThread("session-q3", "session-side-3");
 	release[0]({
 		ok: true,
-		json: async () => ({ ok: true, value: { childId: "session-side-2" } })
+		json: async () => ({ ok: true, value: { childId: "session-side-3" } })
 	});
-	await wait(20);
-	check("the folded request still opens exactly one tab", fetches.length === 1 && openTabs.length === 2, openTabs.length + " open(s)");
+	await first;
+	check("the folded request still opens exactly one tab", fetches.length === 1 && openTabs.length === 4, openTabs.length + " open(s)");
+	check("the folded request still prefills the one thread", foldedState.draft === "> 另一段引用", JSON.stringify(foldedState.draft));
 
 	// The route refusing (better-sidebar absent, parent not running…) is a toast.
 	fetches.length = 0;
@@ -540,26 +591,42 @@ try {
 			json: async () => ({ ok: false, error: { code: "sidechat-error", message: "parent session is not running" } })
 		};
 	};
-	testing.sideChatRequest(sideService, "session-q3", "会失败的引用");
-	await wait(20);
-	check("a refused thread creation never opens a tab", fetches.length === 1 && openTabs.length === 2, openTabs.length + " open(s)");
+	await testing.sideChatRequest(sideService, "session-q5", "会失败的引用");
+	check("a refused thread creation never opens a tab", fetches.length === 1 && openTabs.length === 4, openTabs.length + " open(s)");
 	check("the refusal lands in the toast", toastNode()?.dataset.visible === "true" && toastNode()?.textContent === "侧边对话没有打开，请重试", JSON.stringify(toastNode()?.textContent));
 
 	// A service that throws while opening degrades to the same toast.
-	fetches.length = 0;
-	globalThis.fetch = async () => ({
-		ok: true,
-		json: async () => ({ ok: true, value: { childId: "session-side-3" } })
-	});
+	bindHostThread("session-q6", "session-side-6");
 	const throwingService = { openTab() { throw new Error("tab type disabled"); } };
-	testing.sideChatRequest(throwingService, "session-q4", "也会失败的引用");
-	await wait(20);
-	check("a throwing openTab never breaks the page", openTabs.length === 2);
+	await testing.sideChatRequest(throwingService, "session-q6", "也会失败的引用");
+	check("a throwing openTab never breaks the page", openTabs.length === 4);
 	check("the failed open lands in the toast too", toastNode()?.dataset.visible === "true" && toastNode()?.textContent === "侧边对话没有打开，请重试", JSON.stringify(toastNode()?.textContent));
+
+	// The tab is open but this shell version exposes no draft: say so.
+	installShell("session-side-7", { draftFace: false });
+	bindHostThread("session-q7", "session-side-7");
+	fetches.length = 0;
+	await testing.sideChatRequest(sideService, "session-q7", "写不进去的引用");
+	check("a draft-less shell still opens the tab", openTabs.length === 5 && openTabs[4]?.seed?.id === "sidechat:session-side-7", JSON.stringify(openTabs[4]?.seed));
+	check(
+		"the unwritable draft gets its own toast",
+		toastNode()?.dataset.visible === "true" && toastNode()?.textContent === "侧边对话已打开，但引用没能写进它的输入框",
+		JSON.stringify(toastNode()?.textContent)
+	);
+
+	// The memory itself: ours is written, the host's binding wins, an empty id
+	// only forgets ours.
+	testing.rememberSideThread("session-q8", "session-side-8");
+	const ownMap = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:sidechat-thread"));
+	check("the plugin keeps its own thread map", ownMap?.["session-q8"] === "session-side-8", JSON.stringify(ownMap));
+	bindHostThread("session-q8", "session-side-8-host");
+	check("the host's binding wins over ours", testing.storedSideThread("session-q8") === "session-side-8-host");
+	testing.rememberSideThread("session-q8", "");
+	check("forgetting a session leaves the host's binding alone", testing.storedSideThread("session-q8") === "session-side-8-host");
 
 	// Empty text is a no-op, not a request.
 	fetches.length = 0;
-	testing.sideChatRequest(sideService, "session-q5", "   ");
+	await testing.sideChatRequest(sideService, "session-q9", "   ");
 	check("a blank quote never reaches the wire", fetches.length === 0);
 } finally {
 	globalThis.fetch = realFetch;

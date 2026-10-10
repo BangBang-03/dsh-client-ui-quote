@@ -119,7 +119,14 @@ if (entry.Component({ sessionId: "s1", inputActions: {}, t: (k) => k }) !== null
 if (dictionaries.length !== 2) throw new Error("locale dictionary not registered per apply");
 const dict = dictionaries[0].dict;
 if (!dict.zh || !dict.en || !dict.zh.comment || !dict.en.comment) throw new Error("bad dictionaries");
-if (!dict.zh.sideChat || !dict.en.sideChat || !dict.zh.sideChatFailed || !dict.en.sideChatFailed) {
+if (
+	!dict.zh.sideChat ||
+	!dict.en.sideChat ||
+	!dict.zh.sideChatFailed ||
+	!dict.en.sideChatFailed ||
+	!dict.zh.sideChatDraftFailed ||
+	!dict.en.sideChatDraftFailed
+) {
 	throw new Error("the side-chat row needs its zh/en labels");
 }
 
@@ -201,10 +208,12 @@ for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u
 // ---- 侧边对话: availability probe + the wire forms --------------------------
 // The third row exists only while dsh-better-sidebar's sidechat tab is
 // registered AND enabled; the quote travels as a plain blockquote (no ❝ marks
-// — those belong to the main transcript's capsules) and the tab title is the
-// quote's first line, clipped like a chip label.
+// — those belong to the main transcript's capsules) that is written into the
+// side thread's composer, the tab title is the quote's first line (clipped like
+// a chip label), and the per-session thread memory is what makes the row reuse
+// one thread per main session.
 const testing = exports_.__testing;
-for (const key of ["sideChatService", "sideQuestion", "sideChatTitle"]) {
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft"]) {
 	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
 }
 if (testing.sideChatService() !== null) {
