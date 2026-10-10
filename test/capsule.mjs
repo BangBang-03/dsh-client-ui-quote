@@ -632,6 +632,104 @@ try {
 	globalThis.fetch = realFetch;
 }
 
+/* ------------------------------------------------------------------ *
+ * Jump back to the source, and the three shortcuts
+ * ------------------------------------------------------------------ */
+
+{
+	// A transcript row exactly as DSH renders one: the anchor key is the only
+	// handle a plugin gets — there is no message id and no scroll API.
+	const session = dom.document.createElement("div");
+	session.setAttribute("data-conversation-content", "");
+	session.setAttribute("data-conversation-session", "session-q");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-1");
+	row.setAttribute("data-chat-turn", "3");
+	row.textContent = "被引用的那一段原文";
+	session.append(row);
+	dom.document.body.append(session);
+	const scrolled = [];
+	row.scrollIntoView = (options) => {
+		scrolled.push(options);
+	};
+
+	// The key is the quote's own wording: folded, trimmed, capped — a paragraph
+	// must not become the key, and a re-wrapped quote must still find its row.
+	check("a quote is keyed by its own wording", testing.sourceKeyOf("  第一段\n  引用 ") === "第一段 引用", JSON.stringify(testing.sourceKeyOf("  第一段\n  引用 ")));
+	check("an over-long quote is capped", testing.sourceKeyOf("字".repeat(400)).length === 120);
+	check("an unknown quote has no source", testing.sourceFor("从没选过的句子") === null);
+
+	testing.saveSource("被引用的那一段原文", "session-q", { attr: "data-chat-anchor-key", key: "row-1", turn: "3" });
+	const stored = testing.sourceFor("被引用的那一段原文");
+	check("the quote finds its row again", stored?.key === "row-1" && stored?.turn === "3", JSON.stringify(stored));
+	const persisted = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-source"));
+	check("the coordinate is persisted for the next page", persisted?.["被引用的那一段原文"]?.key === "row-1", JSON.stringify(persisted));
+
+	const revealed = testing.jumpToSource("被引用的那一段原文", "session-q");
+	check("the jump scrolls the source row into view", revealed === true && scrolled.length === 1, JSON.stringify(scrolled));
+	check("the scrolled row is flashed", row.getAttribute("data-dshq-flash") === "true");
+	check("the scroll centres the row", scrolled[0]?.block === "center", JSON.stringify(scrolled[0]));
+
+	// A row the virtualizer has unmounted: the turn is tried next, and when that
+	// fails too the reader is told instead of being left with a dead button.
+	testing.saveSource("被虚拟化丢掉的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-gone", turn: "" });
+	check("a missing source row is reported", testing.jumpToSource("被虚拟化丢掉的原文", "session-q") === false);
+	check("and the toast says why", toastNode()?.textContent === "原文不在当前视图里", JSON.stringify(toastNode()?.textContent));
+	testing.saveSource("只剩轮次可用的原文", "session-q", { attr: "data-chat-anchor-key", key: "row-gone", turn: "3" });
+	scrolled.length = 0;
+	check("a dropped row falls back to its turn", testing.jumpToSource("只剩轮次可用的原文", "session-q") === true && scrolled.length === 1, JSON.stringify(scrolled));
+
+	// The hover card carries the jump: only for quotes we watched being selected.
+	const firstCap = caps()[0];
+	if (firstCap !== undefined) {
+		firstCap.dispatch("mouseenter", {});
+		check("an untraced quote offers no jump row", pop().querySelector(".dshq-pop-jump") === null);
+		const capQuote = String(pop().querySelector(".dshq-cap-quote")?.textContent ?? "");
+		testing.saveSource(capQuote, "session-q", { attr: "data-chat-anchor-key", key: "row-1", turn: "3" });
+		firstCap.dispatch("mouseenter", {});
+		const jumpRow = pop().querySelector(".dshq-pop-jump");
+		check("a traced quote offers the jump row", jumpRow !== null && jumpRow.textContent === "跳回原文", JSON.stringify(jumpRow?.textContent));
+		scrolled.length = 0;
+		if (jumpRow !== null) jumpRow.dispatch("click", { target: null, stopPropagation() {} });
+		check("the jump row scrolls the source row", scrolled.length === 1, JSON.stringify(scrolled));
+		firstCap.dispatch("mouseleave", {});
+	}
+
+	// Three commands, one per row, all on Alt — Escape belongs to the host.
+	const commands = [];
+	const shortcuts = {
+		register(command) {
+			commands.push(command);
+			return () => {};
+		}
+	};
+	const disposers = [
+		testing.registerShortcut(shortcuts, "quote", "KeyQ", () => {}),
+		testing.registerShortcut(shortcuts, "comment", "KeyC", () => {}),
+		testing.registerShortcut(shortcuts, "sidechat", "KeyB", () => {})
+	];
+	check("three commands are registered", commands.length === 3, commands.map((entry) => entry.id).join(", "));
+	check(
+		"the ids name the three rows",
+		commands.map((entry) => entry.id).join(",") === "ui-quote.quote,ui-quote.comment,ui-quote.sidechat",
+		commands.map((entry) => entry.id).join(",")
+	);
+	check(
+		"every default is alt on every platform",
+		commands.every((entry) => Object.values(entry.defaults).every((binding) => binding.modifiers.length === 1 && binding.modifiers[0] === "alt"))
+	);
+	check("the quote row is Alt+Q", commands[0].defaults["web:windows"].code === "KeyQ", JSON.stringify(commands[0].defaults["web:windows"]));
+	check("the comment row is Alt+C", commands[1].defaults["desktop:macos"].code === "KeyC", JSON.stringify(commands[1].defaults["desktop:macos"]));
+	check("the side chat row is Alt+B", commands[2].defaults["desktop:linux"].code === "KeyB", JSON.stringify(commands[2].defaults["desktop:linux"]));
+	check("Escape is never bound", commands.every((entry) => Object.values(entry.defaults).every((binding) => binding.code !== "Escape")));
+	check(
+		"they work on the page and in the composer",
+		commands.every((entry) => entry.regions.includes("page") && entry.regions.includes("editable"))
+	);
+	check("with no selection the key falls through", commands[0].resolve().status === "pass", JSON.stringify(commands[0].resolve()));
+	check("registering hands back a disposer each time", disposers.every((dispose) => typeof dispose === "function"));
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote capsule: " + passed + " checks passed"

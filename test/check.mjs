@@ -129,6 +129,9 @@ if (
 ) {
 	throw new Error("the side-chat row needs its zh/en labels");
 }
+if (!dict.zh.jump || !dict.en.jump || !dict.zh.jumpFailed || !dict.en.jumpFailed) {
+	throw new Error("the jump-back row needs its zh/en labels");
+}
 
 // The chip owner: registered once (re-apply must reuse it), and its codec must
 // hand the model form straight back — that is what the send path asks for.
@@ -213,9 +216,14 @@ for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u
 // a chip label), and the per-session thread memory is what makes the row reuse
 // one thread per main session.
 const testing = exports_.__testing;
-for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft"]) {
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "jumpToSource", "registerShortcut"]) {
 	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
 }
+// The jump-back key folds whitespace, trims and caps: a paragraph must not
+// become a key, and a re-wrapped quote must still find the row it came from.
+if (testing.sourceKeyOf("  第一段\n  引用 ") !== "第一段 引用") throw new Error("sourceKeyOf must fold whitespace");
+if (testing.sourceKeyOf("字".repeat(400)).length !== 120) throw new Error("sourceKeyOf must cap the key");
+if (testing.sourceFor("从没选过的句子") !== null) throw new Error("an unseen quote has no source");
 if (testing.sideChatService() !== null) {
 	throw new Error("the side chat must be unavailable without betterSidebar");
 }

@@ -1,8 +1,8 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
-  "description": "Select text in the DSH transcript to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat).",
+  "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B and a jump back to the quoted source.",
   "icon": "icon.svg",
   "license": "MIT",
   "author": "BangBang-03",
