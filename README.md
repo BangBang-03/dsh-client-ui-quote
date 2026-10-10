@@ -14,6 +14,7 @@
 | **键盘直达** | `Alt+Q` 引用 / `Alt+C` 评论 / `Alt+B` 侧边对话——同一个浮层的三个动作，不弹浮层直接办。走 DSH 的快捷键服务注册，所以出现在设置里、可改键、与宿主键位冲突会在注册时报错；没有选区时返回 `pass`，按键不会被吞掉。 |
 | **跳回原文** | 悬停卡片底部的 `跳回原文`：把引用当初所在的那条消息**停到视野上方 24px**（和宿主自己跳轮次一样的位置）并闪一下。坐标（消息行锚点 + 轮次）在插入时记下、按引用原文归一化成键存进 `localStorage`，因此跨刷新仍在。只在**引用自己那条会话的面板里**找，不跨会话误跳；被虚拟列表藏起来的行会让位给同轮次的可见行；压根没挂载的行靠滚动搜索一屏一屏地找出来——先往上找（引用总在比它更早的消息里），一路到顶还没找到就从最新处再来一遍；都找不到就明说（`原文不在当前视图里`）。 |
 | **引用清单** | 右侧栏的一个**页面**：本会话发出去的引用与评论的清单。搜索框按引用/评论过滤、点一条跳回原文、`导出 Markdown` 落一个文件、历史没读完时可 `加载更早的消息`。它作为**页面类型**注册进右侧栏（`ctx.sidebarRightTabs.register`），并在指南页留下一个胶囊作入口；`Alt+L` 同样能打开。数据来自会话自己的事件日志（`ctx.sessions.retain` → `session.eventSource`），不依赖屏幕上有没有那条消息。 |
+| **侧边线程回流** | 同一个页面底部是这条会话的**侧边线程**：显示它最后问的那个问题与消息条数，并给两个动作——**`带回主会话`** 把线程最后「问题 + 答案」写成主会话输入框里的草稿（**不发送**，你自己按发送），**`导出 Markdown`** 把整条线程落成一个文件。线程内容同样从它自己的事件日志读；没有线程时这一节只说明「还没有侧边线程」。 |
 - 引用以 DSH 原生行内原子节点 `reference-chip` 插入（带图标的胶囊）；走「评论」时评论一起放进这颗芯片（芯片标签显示为 `引用摘要 · 评论摘要`），引用与评论始终是一体，草稿里不会散成两段。
 - 发送时由 DSH 回调本插件取「模型形态」：**`> ❝ …` 引用行 + 同一个块里的 `> ❞ …` 评论行**。消息里那段块会被就地换成 Kimi 那样的一颗胶囊
   （`❝ 引用摘要 │ 评论摘要`，鼠标移上去就能读到引用与评论的全文、点开可展开、悬停出现 `复制`），你自己写的话保持原样，模型收到的仍是完整引用文本。
@@ -65,7 +66,7 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
    你自己写的话照旧显示在它下面；一条消息里引用了几处，就会出现几颗胶囊，中间的原话留在原来的位置。
 7. 悬停卡片底部有 **`跳回原文`**：只对那些**本插件看着被选中**的引用出现（插入时记下了它所在的消息行 `data-chat-anchor-key` 与轮次），点一下就把那条消息**停到视野上方 24px**——和你用宿主自己的「跳到某一轮」是同一个落点——并闪烁一下。搜索只在这条引用**自己的会话面板**里进行（同一个锚点键在别的会话里也有时不会误跳），被 `hidden` 藏起来的行不算目标、会让位给同轮次的可见行，还没被虚拟列表挂载的行会一屏一屏地滚出来找——**先往上**（引用总在更早的消息里），到顶仍未找到就从最新处**再来一遍**；这套落点是宿主自己的做法：读 `[data-conversation-scroll]` 的 `scrollTop` 再连补几帧（虚拟列表挂载邻居时会改写偏移，一次性的 `scrollIntoView` 会落短）。真找不到时给一条 toast（`原文不在当前视图里`），而不是留一个点了没反应的按钮。
 8. **引用清单**：右侧栏的「引用清单」页把这条会话发出去的所有引用与评论列成一张表——**搜索框**按引用或评论过滤，点某一条就**跳回原文**（和悬停卡片上的按钮同一套落点），右上角**导出 Markdown** 存成文件；历史还没读完时列表上方会出现 **`加载更早的消息`**。入口有两个：右侧栏默认的**指南页**里有它的胶囊（点一下就在当前栏打开），或按 **`Alt+L`**（同样在设置里可改）。
-8. **引用清单**：右侧栏的「引用清单」页把这条会话发出去的所有引用与评论列成一张表——**搜索框**按引用或评论过滤，点某一条就**跳回原文**（和悬停卡片上的按钮同一套落点），右上角**导出 Markdown** 存成文件；历史还没读完时列表上方会出现 **`加载更早的消息`**。入口有两个：右侧栏默认的**指南页**里有它的胶囊（点一下就在当前栏打开），或按 **`Alt+L`**（同样在设置里可改）。
+9. **侧边线程回流**：同一个页面底部是这条会话的侧边线程——显示它最后问的那个问题与消息条数。**`带回主会话`** 把线程最后的「问题 + 答案」写成主会话输入框里的草稿（**不发送**，你自己按发送；输入框里已有的内容会保留，回流内容接在下面）；**`导出 Markdown`** 把整条线程按顺序落成一个文件。没有线程时这一节只说明「这条会话还没有侧边线程」。
 
 ## 工作原理
 
@@ -147,7 +148,8 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 - **跳回原文**复用悬停卡片那一套（同一个 `jumpToSource`）：只有当初被本插件看着选中的引用才有坐标，所以只有那些行可点（`data-dshq-row="jumpable"`），其余行只是可读的文本。
 - **导出**走浏览器：`URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }))` + 一个带 `download` 的 `<a>`——宿主没有给客户端插件任何写盘的接口，这是 DSH 里现成的做法（`dsh-session-log-export` 的客户端半边就是这么下载的）。没有 `Blob` 时退回 `data:` URL。
 - **注册形状**（两侧都必须声明，id 是同一个）：`ctx.sidebarRightTabs.register({ id: "dsh-client-ui-quote/list", kind: "quote-list", title, guide: [{ id: "quotes", commandId: "ui-quote.list", order: 20, title, description }] })` 声明**页面类型**（页面类型不写 `patterns`，按 kind 打开），`ctx.slots.register({ name: "sidebar.right.pane.tab", key: "dsh-client-ui-quote/list" }, Body)` 提供**页体**，标题座位 `sidebar.right.pane.tab.title`（同一个 key）提供页签文字。`guide` 数组是发现入口：右侧栏默认页就是指南页，里面每个 `guide` 条目一个胶囊，点开即 `openTab(kind)`。打开动作是 `ctx.get("sidebarRight").openTab("quote-list")`，`Alt+L` 与指南胶囊都走它。
-- **页体拿到的 props**：座位注入的 `inject: (sessionId) => ({ sessionId, load, loadOlder, jump, save })`，页体本身只负责渲染——解析、过滤、Markdown、单行标签都是可离线断言的纯函数。
+- **页体拿到的 props**：座位注入的 `inject: (sessionId) => ({ sessionId, load, loadOlder, jump, save, loadThread, back, exportThread })`，页体本身只负责渲染——解析、过滤、Markdown、单行标签都是可离线断言的纯函数。
+- **侧边线程回流**（页面底部那一节）：线程 id 从线程记忆里反向查出主会话（本插件的 `dsh-client-ui-quote:v1:sidechat-thread` 与 better-sidebar 的 `dsh-sidebar:v1:sidechat-thread` 都是「主会话 → 线程」的表，这里倒着读）；线程内容用同一个 `withSession` 读取（`retain` → `ready` → `binding.session.eventSource` → `release`）。`带回主会话` 取线程**最后一条提问**与它之后的**最后一条回答**（提问以 `>` 块引用形式带上，超过 4000 字截断并标注），写进主会话的草稿——用的是第三项那条链路同一个 `prefillDraft`，所以也是「**写草稿、不发送**」，草稿里原有内容保留、回流内容空行接在下面。`导出 Markdown` 把整条线程每条消息按顺序落成文件。
 
 ### 与 Kimi Code 的对应关系
 
@@ -192,7 +194,7 @@ locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
 test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位，123 项断言）
-test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册，54 项断言）
+test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 侧边线程回流，91 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（可选）
 ```
 
@@ -235,7 +237,7 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 三个键位的注册形状（id 前缀、Alt 默认值、平台键表、区域 `page` + `editable`、没有选区时 `resolve` 返回 `pass`、注册返回 disposer）（共 123 项）。
 `test/capsule.html` 是同一套断言的真浏览器版，用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。
 
-`test/panel.mjs` 单独跑引用清单页（54 项）：只认**持久**的 `user/message`（`transient`、助手消息、`data: null` 都跳过）、
+`test/panel.mjs` 单独跑引用清单页与侧边线程回流（91 项）：只认**持久**的 `user/message`（`transient`、助手消息、`data: null` 都跳过）、
 引用按原文逐行拆出来而评论跟着同一条记录、最新一条排最前、空查询保持全量、引用与评论都能被搜到且忽略大小写、
 Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超长引用在标题里被截断、非法时间导出为空；
 读取侧用桩 `sessions.retain` 真跑一遍——读出两行且 `hasMore` 透传、**读完必须 release**（记录 `source: "quoteList"`）、
@@ -243,9 +245,15 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 导出断言下载文件名与 blob URL；注册侧断言页面类型（id/kind/title/guide 条目与 `commandId`）、页体的 keyed 座位与 `inject(sessionId)` 的四个能力、
 标题座位、面板样式表真的进了 `<head>`、`openQuoteList()` 用 kind 打开以及宿主拒绝时不抛异常、
 `Alt+L` 那个命令**没有选区也返回 handled**、四个命令的 id 依次是 `ui-quote.quote/comment/sidechat/list`，
-以及单行的 markup（有坐标 → `jumpable` 且点击回调收到整行，无坐标 → `plain`）与页体外壳（标题、搜索框占位符）。
+以及单行的 markup（有坐标 → `jumpable` 且点击回调收到整行，无坐标 → `plain`）与页体外壳（标题、搜索框占位符、底部的侧边线程一节）。
+侧边线程那一节另有 35 项：`sessionMessagesFromEntries` 认两种角色的文本存放位置（用户消息在 `event.data`、助手在 `event.data.message`）、工具结果与空消息不算、
+顺序与 seq/时间透传；`threadConclusion` 取「最后一条提问 + 它之后的最后一条回答」、提问写成 `>` 块引用、只有提问/只有回答/空线程的三种退化、
+超长截断并标注；`threadMarkdown` 的标题/编号/角色/时间与空线程兜底；`mainSessionForThread` 反向查两张线程记忆表（含 better-sidebar 的对象形态）；
+`readSessionMessages` 真读一遍且 release；`loadThreadSummary` 给出问题与条数、没有线程时 `threadId` 为 null；
+`bringThreadBack` 把结论写成**草稿**（原有草稿保留、空行隔开）、外壳没有 `setDraft` 时如实失败、没有线程时不乱写；
+`exportThread` 的文件名与整条线程内容、以及 MIME 是 Markdown。
 
-合计 **177 项**（check.mjs 的契约断言 + capsule 123 + panel 54），`npm test` 全绿。
+合计 **214 项**（check.mjs 的契约断言 + capsule 123 + panel 91），`npm test` 全绿。
 
 ## 已知限制
 

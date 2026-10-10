@@ -99,6 +99,8 @@ const exports_ = spec.factory((name) => {
 	if (name === "react") return reactStub;
 	throw new Error("unexpected require: " + name);
 });
+/** Composer shells by session id: `bringThreadBack` writes a draft into one. */
+const shells = new Map();
 const sidebarRight = {
 	openTab(kind) {
 		if (openTabThrows) throw new Error("sidebarRight: no tab type is registered as " + kind);
@@ -119,7 +121,7 @@ exports_.apply({
 	},
 	get(name) {
 		if (name === "inputTriggers") return { registerSource: () => () => {} };
-		if (name === "conversation") return { input: { shell: () => null } };
+		if (name === "conversation") return { input: { shell: (sessionId) => shells.get(sessionId) ?? null } };
 		if (name === "shortcuts") {
 			return {
 				register(command) {
@@ -146,6 +148,19 @@ exports_.apply({
 });
 
 const testing = exports_.__testing;
+/** The plugin's toast lives in the document the shim hands out. */
+const toastNode = () => dom.document.getElementById("dsh-quote-toast");
+// Downloads are captured: every `<a>` the plugin mints records what it saved.
+const clicks = [];
+dom.document.createElement = ((original) => (tag) => {
+	const node = original.call(dom.document, tag);
+	if (String(tag).toLowerCase() === "a") {
+		node.click = () => {
+			clicks.push({ name: node.download, href: node.href });
+		};
+	}
+	return node;
+})(dom.document.createElement);
 
 // ---- the event log a session hands out ------------------------------------
 const quotes = [
@@ -221,20 +236,90 @@ sessionFixture = null;
 const noBinding = await testing.readQuoteRows("session-far");
 check("a session that resolves no binding is reported", noBinding.ok === false && noBinding.reason === "no-session", JSON.stringify(noBinding.reason));
 
-// ---- export -----------------------------------------------------------------
-const clicks = [];
-dom.document.createElement = ((original) => (tag) => {
-	const node = original.call(dom.document, tag);
-	if (String(tag).toLowerCase() === "a") {
-		node.click = () => {
-			clicks.push({ name: node.download, href: node.href });
-		};
+// ---- the side thread the session opened ------------------------------------
+const threadEntries = [
+	{ type: "event", event: { type: "user/message", seq: 1, time: "2026-10-10T12:00:00.000Z", data: { id: "t-1", content: [{ type: "text", text: "> 被引用的原文\n\n这个函数为什么这么写？" }] } } },
+	{ type: "event", event: { type: "assistant/message", seq: 2, time: "2026-10-10T12:01:00.000Z", data: { message: { id: "t-2", content: [{ type: "text", text: "因为它要处理空输入。" }] } } } },
+	{ type: "event", event: { type: "tool/result", seq: 3, time: "", data: {} } },
+	{ type: "event", event: { type: "user/message", seq: 4, time: "2026-10-10T12:02:00.000Z", data: { id: "t-3", content: [{ type: "text", text: "那改成分支呢？" }] } } },
+	{ type: "event", event: { type: "assistant/message", seq: 5, time: "2026-10-10T12:03:00.000Z", data: { message: { id: "t-4", content: [{ type: "text", text: "分支更清楚，但要多一层。" }] } } } }
+];
+const messages = testing.sessionMessagesFromEntries(threadEntries);
+check("a thread reads both roles, oldest first", messages.length === 4 && messages.map((message) => message.role).join(",") === "user,assistant,user,assistant", JSON.stringify(messages.map((message) => message.role)));
+check("a user message keeps its text on data", messages[0].text.includes("这个函数为什么这么写？"), JSON.stringify(messages[0].text.slice(0, 20)));
+check("an assistant message keeps its text on data.message", messages[1].text === "因为它要处理空输入。", JSON.stringify(messages[1].text));
+check("tool results are not messages", messages.every((message) => message.role === "user" || message.role === "assistant"));
+check("seq and time ride along", messages[3].seq === 5 && messages[3].time === "2026-10-10T12:03:00.000Z");
+
+const conclusion = testing.threadConclusion(messages, 4000);
+check("the conclusion is the last question", conclusion.question === "那改成分支呢？", JSON.stringify(conclusion.question));
+check("and the answer that followed it", conclusion.answer === "分支更清楚，但要多一层。", JSON.stringify(conclusion.answer));
+check("the question is quoted into the draft", conclusion.text.startsWith("> 那改成分支呢？\n\n分支更清楚"), JSON.stringify(conclusion.text.slice(0, 30)));
+check("an unanswered thread carries the question alone", testing.threadConclusion([{ role: "user", text: "只有问题", seq: 1, time: "" }], 4000).text === "> 只有问题");
+check("a questionless thread carries the answer alone", testing.threadConclusion([{ role: "assistant", text: "只有答案", seq: 1, time: "" }], 4000).text === "只有答案");
+check("an empty thread concludes nothing", testing.threadConclusion([], 4000).text === "");
+const long = testing.threadConclusion([{ role: "assistant", text: "字".repeat(200), seq: 1, time: "" }], 40);
+check("a long conclusion is cut, and says so", long.text.endsWith("…（截断）") && long.text.length < 60, String(long.text.length));
+
+const threadMd = testing.threadMarkdown(messages, "侧边线程");
+check("the thread export is titled", threadMd.startsWith("# 侧边线程\n"), JSON.stringify(threadMd.slice(0, 16)));
+check("every message is a numbered section", threadMd.includes("## 1. 我") && threadMd.includes("## 2. 助手"));
+check("the export keeps the assistant's wording", threadMd.includes("分支更清楚，但要多一层。"));
+check("an empty thread still exports", testing.threadMarkdown([], "侧边线程").includes("_（还没有内容）_"));
+
+// ---- which session a thread belongs to -------------------------------------
+globalThis.localStorage.setItem("dsh-client-ui-quote:v1:sidechat-thread", JSON.stringify({ "session-q": "session-side-1" }));
+globalThis.localStorage.setItem("dsh-sidebar:v1:sidechat-thread", JSON.stringify({ "session-h": { threadId: "session-side-9" } }));
+check("a thread is traced back to its main session", testing.mainSessionForThread("session-side-1") === "session-q");
+check("the host's own binding counts too, object-shaped", testing.mainSessionForThread("session-side-9") === "session-h");
+check("an unknown session is not a thread", testing.mainSessionForThread("session-nope") === null);
+check("a missing id is not a thread either", testing.mainSessionForThread(undefined) === null);
+
+sessionFixture = { session: { eventSource: { getSnapshot: () => ({ entries: threadEntries }) }, getSnapshot: () => ({ hasMore: false }) } };
+const threadRead = await testing.readSessionMessages("session-side-1");
+check("a thread's messages are read the way quotes are", threadRead.ok === true && threadRead.messages.length === 4, JSON.stringify(threadRead.messages.length));
+check("that read releases its reference too", releases[releases.length - 1]?.sessionId === "session-side-1");
+
+const summary = await testing.loadThreadSummary("session-q");
+check("the page footer learns the thread's question", summary.ok === true && summary.threadId === "session-side-1" && summary.question === "那改成分支呢？", JSON.stringify(summary));
+check("and how many messages it holds", summary.count === 4, String(summary.count));
+check("a session without a thread says so", (await testing.loadThreadSummary("session-none")).threadId === null);
+
+const drafts = [];
+shells.set("session-q", { state: { getSnapshot: () => ({ draft: "我自己的草稿" }) }, setDraft: (text) => drafts.push(text) });
+const brought = await testing.bringThreadBack("session-q");
+check("bringing the thread back writes a draft", brought === true && drafts.length === 1, JSON.stringify(drafts.length));
+check("the draft is the conclusion, under the question", String(drafts[0]).startsWith("我自己的草稿\n\n> 那改成分支呢？"), JSON.stringify(String(drafts[0]).slice(0, 40)));
+check("and nothing was sent", drafts.length === 1);
+check("the reader is told it is theirs to send", toastNode()?.textContent === "已放进主会话的输入框，自己按发送", JSON.stringify(toastNode()?.textContent));
+
+shells.set("session-q", { state: { getSnapshot: () => ({ draft: "" }) } });
+check("a shell with no draft face fails honestly", (await testing.bringThreadBack("session-q")) === false);
+check("and says so", toastNode()?.textContent === "没读到这个线程的内容", JSON.stringify(toastNode()?.textContent));
+shells.delete("session-q");
+check("a session with no thread cannot bring one back", (await testing.bringThreadBack("session-none")) === false);
+
+const blobs = [];
+const RealBlob = globalThis.Blob;
+const realCreateObjectUrl = URL.createObjectURL;
+globalThis.Blob = class {
+	constructor(parts, options) {
+		blobs.push({ parts, options });
 	}
-	return node;
-})(dom.document.createElement);
+};
+URL.createObjectURL = () => "blob:thread-test";
+sessionFixture = { session: { eventSource: { getSnapshot: () => ({ entries: threadEntries }) }, getSnapshot: () => ({ hasMore: false }) } };
+const exported = await testing.exportThread("session-q");
+globalThis.Blob = RealBlob;
+URL.createObjectURL = realCreateObjectUrl;
+check("the thread exports as a Markdown file", exported === true && clicks[clicks.length - 1]?.name === "thread-session-side-1.md", JSON.stringify(clicks[clicks.length - 1]?.name));
+check("with the whole thread inside", String(blobs[0]?.parts?.[0]).includes("分支更清楚，但要多一层。"), JSON.stringify(String(blobs[0]?.parts?.[0]).slice(0, 24)));
+check("and the file is typed as Markdown", String(blobs[0]?.options?.type).startsWith("text/markdown"), JSON.stringify(blobs[0]?.options?.type));
+
+// ---- export -----------------------------------------------------------------
 const saved = testing.downloadText(dom.document, "quotes-x.md", "# 引用清单\n");
-check("the export turns into a download", saved === true && clicks[0]?.name === "quotes-x.md", JSON.stringify(clicks));
-check("the download carries a blob url, not the file itself", String(clicks[0]?.href).startsWith("blob:") || String(clicks[0]?.href).startsWith("data:"), JSON.stringify(String(clicks[0]?.href).slice(0, 24)));
+check("the export turns into a download", saved === true && clicks[clicks.length - 1]?.name === "quotes-x.md", JSON.stringify(clicks));
+check("the download carries a blob url, not the file itself", String(clicks[clicks.length - 1]?.href).startsWith("blob:") || String(clicks[clicks.length - 1]?.href).startsWith("data:"), JSON.stringify(String(clicks[clicks.length - 1]?.href).slice(0, 24)));
 
 // ---- the page type the host is handed ---------------------------------------
 const page = pageTypes.find((definition) => definition.kind === "quote-list");
@@ -290,6 +375,13 @@ check("the body renders the panel shell", body?.props?.className === "dshq-list"
 const headElement = Array.isArray(body.props.children) ? body.props.children[0] : body.props.children;
 const search = Array.isArray(headElement.props.children) ? headElement.props.children[0] : headElement.props.children;
 check("with a search box in its own language", search?.props?.placeholder === "搜索引用或评论…", JSON.stringify(search?.props?.placeholder));
+const rootChildren = Array.isArray(body.props.children) ? body.props.children : [body.props.children];
+const footer = rootChildren[rootChildren.length - 1];
+const footerBar = Array.isArray(footer?.props?.children) ? footer.props.children[0] : null;
+const footerLabel = Array.isArray(footerBar?.props?.children) ? footerBar.props.children[0] : null;
+const footerNote = Array.isArray(footer?.props?.children) ? footer.props.children[1] : null;
+check("the page ends with the side-thread section", footer?.props?.className === "dshq-list-thread" && footerLabel?.props?.children === "侧边线程", JSON.stringify(footerLabel?.props?.children));
+check("a session with no thread is told so, without buttons", footerNote?.props?.children === "这条会话还没有侧边线程" && footerBar.props.children.filter(Boolean).length === 1, JSON.stringify(footerNote?.props?.children));
 
 console.log(
 	failures.length === 0

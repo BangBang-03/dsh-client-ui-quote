@@ -236,7 +236,7 @@ for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u
 // a chip label), and the per-session thread memory is what makes the row reuse
 // one thread per main session.
 const testing = exports_.__testing;
-for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "jumpToSource", "registerShortcut", "quoteRowsFromEntries", "filterQuoteRows", "quoteListMarkdown", "readQuoteRows", "loadOlderQuotes", "downloadText", "quoteTabService", "openQuoteList", "quoteRowElement"]) {
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "jumpToSource", "registerShortcut", "quoteRowsFromEntries", "filterQuoteRows", "quoteListMarkdown", "readQuoteRows", "loadOlderQuotes", "downloadText", "quoteTabService", "openQuoteList", "quoteRowElement", "sessionMessagesFromEntries", "threadConclusion", "threadMarkdown", "mainSessionForThread", "readSessionMessages", "loadThreadSummary", "bringThreadBack", "exportThread"]) {
 	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
 }
 // The jump-back key folds whitespace, trims and caps: a paragraph must not
