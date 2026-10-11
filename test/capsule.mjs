@@ -1047,6 +1047,253 @@ try {
 	codeCap.dispatch("mouseleave", {});
 }
 
+/* ------------------------------------------------------------------ *
+ * 文件路径 + 逐条回应 — the wire's two new transport-only forms
+ * ------------------------------------------------------------------ */
+
+{
+	// 预览引用: the file rides in the fence's info string, where Markdown keeps
+	// metadata the model reads but renderers never show as content.
+	check(
+		"a preview quote puts its file into the fence info string",
+		testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts" }) === "> ❝ ``` src/app.ts\n> const x = 1;\n> ```",
+		JSON.stringify(testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts" }))
+	);
+	const pathSegments = testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "看一下", true, { path: "src/app.ts" }));
+	check(
+		"the path parses back as the fence's info string",
+		pathSegments?.length === 1 && pathSegments[0].code === "src/app.ts" && pathSegments[0].quote === "const x = 1;" && pathSegments[0].comment === "看一下",
+		JSON.stringify(pathSegments)
+	);
+	check(
+		"a path rides along when the content forces ~~~",
+		testing.quoteBlock("```\nx = 1\n```", "", true, { path: "src/a.ts" }) === "> ❝ ~~~ src/a.ts\n> ```\n> x = 1\n> ```\n> ~~~",
+		JSON.stringify(testing.quoteBlock("```\nx = 1\n```", "", true, { path: "src/a.ts" }))
+	);
+	check(
+		"a path with whitespace is dropped, not smuggled",
+		testing.quoteBlock("x", "", true, { path: "my file.ts" }) === "> ❝ ```\n> x\n> ```",
+		JSON.stringify(testing.quoteBlock("x", "", true, { path: "my file.ts" }))
+	);
+	check(
+		"sanitizePath takes the obvious rejects",
+		testing.sanitizePath(" src/a.ts ") === "src/a.ts" &&
+			testing.sanitizePath("a b") === null &&
+			testing.sanitizePath("a`b") === null &&
+			testing.sanitizePath("a~b") === null &&
+			testing.sanitizePath("") === null,
+		JSON.stringify([testing.sanitizePath(" src/a.ts "), testing.sanitizePath("a b"), testing.sanitizePath("a`b"), testing.sanitizePath("a~b"), testing.sanitizePath("")])
+	);
+
+	// 逐条回应: one instruction line at the block's tail, wire-only.
+	const replyWire = testing.quoteBlock("正文", "看看这里", false, { reply: true });
+	check(
+		"逐条回应 appends one instruction line to the block",
+		replyWire === "> ❝ 正文\n> ❞ 看看这里\n> ※ 指令：请把本条消息里的引用块按出现顺序记为「引用1」「引用2」…，回复时逐条对应回应，每条回应前标注「引用N」。",
+		JSON.stringify(replyWire)
+	);
+	const replySegments = testing.splitQuoteRuns(replyWire);
+	check(
+		"the instruction never reaches the capsule",
+		replySegments?.length === 1 && replySegments[0].comment === "看看这里" && JSON.stringify(replySegments).includes("指令") === false,
+		JSON.stringify(replySegments)
+	);
+	const replyBare = testing.splitQuoteRuns(testing.quoteBlock("正文", "", false, { reply: true }));
+	check(
+		"a reply instruction without a comment leaves the comment half empty",
+		replyBare?.length === 1 && replyBare[0].comment === "" && replyBare[0].quote === "正文",
+		JSON.stringify(replyBare)
+	);
+	const replyCode = testing.splitQuoteRuns(testing.quoteBlock("x=1", "改这里", true, { path: "src/a.ts", reply: true }));
+	check(
+		"path and instruction travel in one code block",
+		replyCode?.length === 1 && replyCode[0].code === "src/a.ts" && replyCode[0].comment === "改这里" && JSON.stringify(replyCode).includes("指令") === false,
+		JSON.stringify(replyCode)
+	);
+	check(
+		"the side thread's fence carries the file too",
+		testing.sideQuestion("x=1", true, "src/app.ts") === "``` src/app.ts\nx=1\n```",
+		JSON.stringify(testing.sideQuestion("x=1", true, "src/app.ts"))
+	);
+	check(
+		"the side thread drops a whitespace path",
+		testing.sideQuestion("x=1", true, "my file.ts") === "```\nx=1\n```",
+		JSON.stringify(testing.sideQuestion("x=1", true, "my file.ts"))
+	);
+
+	// previewPathOf: walk the ancestors, skip values that cannot be a path.
+	const outer = dom.document.createElement("div");
+	outer.setAttribute("data-file-path", "src/app.ts");
+	const mid = dom.document.createElement("div");
+	mid.setAttribute("data-textpreview-body", "");
+	mid.setAttribute("data-path", "bad path");
+	outer.append(mid);
+	check(
+		"previewPathOf finds the ancestor's path and skips a whitespace one",
+		testing.previewPathOf(mid) === "src/app.ts",
+		JSON.stringify(testing.previewPathOf(mid))
+	);
+	check("previewPathOf misses cleanly on a bare host", testing.previewPathOf(dom.document.createElement("div")) === null);
+}
+
+/* ------------------------------------------------------------------ *
+ * 回复徽章 — the model's 「引用N」 labels link back to the quotes
+ * ------------------------------------------------------------------ */
+
+{
+	const badgeHost = dom.document.createElement("div");
+	badgeHost.setAttribute("data-conversation-content", "");
+	badgeHost.setAttribute("data-conversation-session", "session-badge");
+	const userBubble = dom.document.createElement("div");
+	const quoteRun = dom.document.createElement("span");
+	quoteRun.className = "plainRun";
+	const replyValue = "回答一「引用1」；回答二「引用2」；越界「引用9」；结尾";
+	quoteRun.textContent = "问题" + testing.quoteBlock("第一处引用", "注一") + "\n\n中间的话\n\n" + testing.quoteBlock("第二处引用", "注二") + "\n\n";
+	userBubble.append(quoteRun);
+	badgeHost.append(userBubble);
+	const replyParagraph = dom.document.createElement("p");
+	const replyText = dom.document.createTextNode(replyValue);
+	replyParagraph.append(replyText);
+	badgeHost.append(replyParagraph);
+	dom.document.body.append(badgeHost);
+	dom.document.deliver();
+	await wait(120);
+
+	const badges = () => replyParagraph.querySelectorAll(".dshq-ref");
+	check("two quoted messages come back as two capsules", badgeHost.querySelectorAll(".dshq-cap").length === 2, badgeHost.querySelectorAll(".dshq-cap").length + " capsule(s)");
+	check("a reply label becomes a badge", badges().length === 2, badges().length + " badge(s)");
+	check(
+		"the reply reads the same with badges in place",
+		replyParagraph.textContent === replyValue,
+		JSON.stringify(replyParagraph.textContent)
+	);
+	check(
+		"only labels the quotes can answer are badged",
+		JSON.stringify(Array.from(badges()).map((badge) => badge.textContent)) === JSON.stringify(["「引用1」", "「引用2」"]),
+		JSON.stringify(Array.from(badges()).map((badge) => badge.textContent))
+	);
+
+	// An assistant reply in a conversation with no quoted message stays plain.
+	const bareHost = dom.document.createElement("div");
+	bareHost.setAttribute("data-conversation-content", "");
+	bareHost.setAttribute("data-conversation-session", "session-bare");
+	const bareParagraph = dom.document.createElement("p");
+	bareParagraph.textContent = "回应「引用1」但没有先前的引用";
+	bareHost.append(bareParagraph);
+	dom.document.body.append(bareHost);
+	dom.document.deliver();
+	await wait(120);
+	check("a reply without a preceding quote is not badged", bareParagraph.querySelectorAll(".dshq-ref").length === 0, bareParagraph.querySelectorAll(".dshq-ref").length + " badge(s)");
+
+	// The badge reuses the hover card, quote and comment in full.
+	const firstBadge = badges()[0];
+	firstBadge.rect = { left: 80, top: 300, width: 64, height: 20 };
+	firstBadge.dispatch("mouseenter", {});
+	check(
+		"hovering a badge opens the quote's card",
+		pop()?.querySelector(".dshq-pop-quote")?.textContent === "第一处引用",
+		JSON.stringify(pop()?.querySelector(".dshq-pop-quote")?.textContent)
+	);
+	check(
+		"the badge's card shows the comment too",
+		pop()?.querySelector(".dshq-pop-comment")?.textContent === "注一",
+		JSON.stringify(pop()?.querySelector(".dshq-pop-comment")?.textContent)
+	);
+	firstBadge.dispatch("mouseleave", {});
+	await wait(200);
+	check("leaving a badge closes the card", pop()?.dataset.visible === "false", JSON.stringify(pop()?.dataset.visible));
+
+	// A quote the plugin never watched has no coordinates: clicking the badge
+	// must not pretend to jump — no throw, no toast. (An earlier section left a
+	// jump-failure toast mid-display; hide it first so only this click counts.)
+	const leftoverToast = dom.document.getElementById("dsh-quote-toast");
+	if (leftoverToast !== null) leftoverToast.dataset.visible = "false";
+	check("the badge's quote was never traced", testing.sourceFor("第一处引用") === null);
+	firstBadge.dispatch("click", { stopPropagation() {} });
+	check(
+		"a badge without coordinates jumps nowhere quietly",
+		dom.document.getElementById("dsh-quote-toast")?.dataset.visible !== "true",
+		JSON.stringify(dom.document.getElementById("dsh-quote-toast")?.dataset.visible)
+	);
+
+	dom.document.deliver();
+	await wait(120);
+	check("an unrelated flush does not duplicate badges", badges().length === 2, badges().length + " badge(s)");
+
+	// React rewrites the text node: the stale split goes and the fresh value
+	// is re-read, so the badges always match what the reply says now.
+	replyText.textContent = "改写后只提「引用2」一次";
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"a rewritten reply re-badges from the fresh text",
+		badges().length === 1 && badges()[0].textContent === "「引用2」" && replyParagraph.textContent === "改写后只提「引用2」一次",
+		JSON.stringify([badges().length, replyParagraph.textContent])
+	);
+
+	// Uninstall puts the original text back and takes every badge with it.
+	capsuleEffect.dispose();
+	check(
+		"uninstall restores the reply text and drops the badges",
+		replyParagraph.querySelectorAll(".dshq-ref").length === 0 && replyParagraph.textContent === "改写后只提「引用2」一次",
+		JSON.stringify(replyParagraph.textContent)
+	);
+}
+
+/* ------------------------------------------------------------------ *
+ * 逐条回应的开关 — the comment box checkbox drives the wire
+ * ------------------------------------------------------------------ */
+
+{
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	const toggleInsertions = [];
+	shells.set("session-toggle", {
+		insertReference(attachment) {
+			toggleInsertions.push(attachment);
+			return true;
+		}
+	});
+	if (overlay !== undefined) overlay.Component({ sessionId: "session-toggle", inputActions: { captureInsertion: () => ({ draftRev: 1 }) } });
+
+	testing.startRevision("一处引用", "", "session-toggle", null, false);
+	const bar = dom.document.getElementById("dsh-quote-bar");
+	const replyCheck = bar?.querySelector(".dshq-reply-check");
+	check("the comment box carries the per-quote toggle", replyCheck !== null && replyCheck !== undefined);
+	check("the toggle starts off", replyCheck?.checked === false, String(replyCheck?.checked));
+	const quoteBox = bar.querySelector(".dshq-quote-input");
+	const commentBox = bar.querySelector(".dshq-comment-input");
+	const confirmBtn = bar.querySelector('[data-action="confirm"]');
+	quoteBox.value = "一处引用";
+	quoteBox.dispatch("input", {});
+	commentBox.value = "请照着改";
+	commentBox.dispatch("input", {});
+	bar.dispatch("click", { target: confirmBtn });
+	check(
+		"toggle off: the wire carries no instruction",
+		toggleInsertions.length === 1 && String(toggleInsertions[0]?.ref ?? "").includes("指令") === false,
+		JSON.stringify(String(toggleInsertions[0]?.ref ?? "").trim())
+	);
+
+	testing.startRevision("一处引用", "", "session-toggle", null, false);
+	const bar2 = dom.document.getElementById("dsh-quote-bar");
+	const replyCheck2 = bar2.querySelector(".dshq-reply-check");
+	replyCheck2.checked = true;
+	replyCheck2.dispatch("change", {});
+	const quoteBox2 = bar2.querySelector(".dshq-quote-input");
+	const commentBox2 = bar2.querySelector(".dshq-comment-input");
+	const confirmBtn2 = bar2.querySelector('[data-action="confirm"]');
+	quoteBox2.value = "一处引用";
+	quoteBox2.dispatch("input", {});
+	commentBox2.value = "请照着改";
+	commentBox2.dispatch("input", {});
+	bar2.dispatch("click", { target: confirmBtn2 });
+	check(
+		"toggle on: the wire carries the per-quote instruction",
+		toggleInsertions.length === 2 && String(toggleInsertions[1]?.ref ?? "").includes("※ 指令："),
+		JSON.stringify(String(toggleInsertions[1]?.ref ?? "").trim().slice(-40))
+	);
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote capsule: " + passed + " checks passed"

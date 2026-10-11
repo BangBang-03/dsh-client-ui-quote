@@ -35,6 +35,12 @@ class ShimNode {
 		return this.childNodes.length === 0 ? null : this.childNodes[this.childNodes.length - 1];
 	}
 
+	get nextSibling() {
+		if (this.parentNode === null) return null;
+		const siblings = this.parentNode.childNodes;
+		return siblings[siblings.indexOf(this) + 1] ?? null;
+	}
+
 	append(child) {
 		this.insertBefore(child, null);
 	}

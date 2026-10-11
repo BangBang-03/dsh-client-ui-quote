@@ -240,6 +240,28 @@ check(
 	testing.quoteRowsFromEntries(entries).every((row) => row.code === false),
 	JSON.stringify(testing.quoteRowsFromEntries(entries).map((row) => row.code))
 );
+const pathEntries = [
+	{
+		type: "event",
+		event: {
+			type: "user/message",
+			seq: 5,
+			time: "",
+			data: { id: "e6", content: [{ type: "text", text: "> ❝ ``` src/app.ts\n> const x = 1;\n> ```\n> ❞ 看一下" }] }
+		}
+	}
+];
+const pathRows = testing.quoteRowsFromEntries(pathEntries);
+check(
+	"a preview quote's file rides in the row",
+	pathRows.length === 1 && pathRows[0].code === true && pathRows[0].fence === "src/app.ts" && pathRows[0].comment === "看一下",
+	JSON.stringify(pathRows[0])
+);
+check(
+	"the export puts the file on its fence line",
+	testing.quoteListMarkdown(pathRows, "引用清单").includes("``` src/app.ts\nconst x = 1;\n```"),
+	JSON.stringify(testing.quoteListMarkdown(pathRows, "引用清单"))
+);
 
 // ---- reading a session that is not on screen -------------------------------
 sessionFixture = {
