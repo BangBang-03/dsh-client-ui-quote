@@ -52,18 +52,18 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
       name: dsh-client-ui-quote
 ```
 
-### 方式三：npm 包（包已备好，尚未发布）
+### 方式三：npm 包（发布通道已就位，待 NPM_TOKEN）
 
-`package.json` 已经是可发布状态：`private` 已移除、`files` 白名单只带 `lib` / `locale` / `test` / `icon.svg` / `cordis.patch.yml` / 文档，`prepublishOnly` 会在发布前跑完三套离线断言，`npm pack --dry-run` 可核对内容。
-但**这个包还没有发布到 npm**——本机没有 npm 凭据（`npm whoami` → `ENEEDAUTH`）。谁要发布，只有一步：
+`package.json` 已经是可发布状态：`private` 已移除、`files` 白名单只带 `lib` / `locale` / `test` / `icon.svg` / `cordis.patch.yml` / 文档，`prepublishOnly` 会在发布前跑完 253 项离线断言，`npm pack --dry-run` 可核对内容（0.10.0 = 14 个文件 / 97.6 kB）。
 
-```bash
-npm login              # 需要 npm 账号
-npm publish            # prepublishOnly 会先跑 253 项断言
-# 装：dsh plugin --profile desktop add dsh-client-ui-quote
-```
+**发布有两条路**（都只差一个 npm Access Token）：
 
-发布后本节会改成「方式三：npm」，在那之前请用方式一或方式二。
+1. **GitHub Actions（推荐）**：`.github/workflows/publish.yml` 已就位——往仓库里配一个 secret `NPM_TOKEN`（npmjs.com → Access Tokens → Generate New Token，选 **Automation** 类型；或 `gh secret set NPM_TOKEN --repo BangBang-03/dsh-client-ui-quote`），然后推 `v*` 标签或在 Actions 页手动 Run workflow 即发布。之后的版本：改版本号 → 打 `vX.Y.Z` 标签推上去，发布全自动。
+2. **本机 npm**：`npm login && npm publish`——注意本机直连 `registry.npmjs.org` 不可达（系统 DNS 返回污染地址、真实 Cloudflare IP 也握手超时），要挂一个能通 npmjs 的代理再发。
+
+装：`dsh plugin --profile desktop add dsh-client-ui-quote`。npmjs 侧发布后 npmmirror 一般 10 分钟内同步，DSH 若配置了镜像源即可国内直装。
+
+在那之前请用方式一或方式二。
 
 ### 卸载
 

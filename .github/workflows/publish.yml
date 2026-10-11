@@ -1,0 +1,32 @@
+# npm 发布通道：推 v* 标签（或在 Actions 页手动 Run workflow）即发布。
+#
+# 不在本机发布的原因：registry.npmjs.org 从本地直连不可达（系统 DNS 返回污染地址
+# 182.16.62.14，真实 Cloudflare IP 也被握手阻断），而 runner 在 GitHub 机房里，
+# 网络不是问题。发布前唯一的一次性配置——仓库
+# Settings → Secrets and variables → Actions → New repository secret：
+#   Name: NPM_TOKEN    Secret: npmjs.com 的 Access Token（Automation 类型）
+# 或命令行：gh secret set NPM_TOKEN --repo BangBang-03/dsh-client-ui-quote
+# prepublishOnly 会先跑完 253 项离线断言，任何一项失败都不会发出去。
+
+name: publish
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
