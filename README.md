@@ -52,18 +52,23 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
       name: dsh-client-ui-quote
 ```
 
-### 方式三：npm 包（发布通道已就位，待 NPM_TOKEN）
+### 方式三：npm 包（已上架）
 
-`package.json` 已经是可发布状态：`private` 已移除、`files` 白名单只带 `lib` / `locale` / `test` / `icon.svg` / `cordis.patch.yml` / 文档，`prepublishOnly` 会在发布前跑完 253 项离线断言，`npm pack --dry-run` 可核对内容（0.10.0 = 14 个文件 / 97.6 kB）。
+已发布到 npm：`dsh-client-ui-quote@0.10.0`。发布由 GitHub Actions 完成（`.github/workflows/publish.yml`）：推 `v*` 标签或手动 Run `publish` workflow，`prepublishOnly` 的 253 项断言会先在 runner 上跑完，任何一项失败都不会发出去。`npm pack --dry-run` 可核对内容（0.10.0 = 14 个文件 / 97.6 kB）。
 
-**发布有两条路**（都只差一个 npm Access Token）：
+装：
 
-1. **GitHub Actions（推荐）**：`.github/workflows/publish.yml` 已就位——往仓库里配一个 secret `NPM_TOKEN`（npmjs.com → Access Tokens → Generate New Token，选 **Automation** 类型；或 `gh secret set NPM_TOKEN --repo BangBang-03/dsh-client-ui-quote`），然后推 `v*` 标签或在 Actions 页手动 Run workflow 即发布。之后的版本：改版本号 → 打 `vX.Y.Z` 标签推上去，发布全自动。
-2. **本机 npm**：`npm login && npm publish`——注意本机直连 `registry.npmjs.org` 不可达（系统 DNS 返回污染地址、真实 Cloudflare IP 也握手超时），要挂一个能通 npmjs 的代理再发。
+```bash
+dsh plugin --profile desktop add dsh-client-ui-quote
+```
 
-装：`dsh plugin --profile desktop add dsh-client-ui-quote`。npmjs 侧发布后 npmmirror 一般 10 分钟内同步，DSH 若配置了镜像源即可国内直装。
+npmjs 上架后 npmmirror 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。
 
-在那之前请用方式一或方式二。
+**发布运维备忘**（给未来的自己）：
+
+- 发布用的是 90 天期 granular token（勾选 **Bypass 2FA**——npm 2026-08 起强制 CI 直发必须带这个标记），**2027-01-09 到期**。到期前重签：npmjs.com → Access Tokens → Generate New Token → Granular → 勾 Bypass 2FA、Read and write (publish and stage)、All packages、90 days → 生成后 `gh secret set NPM_TOKEN --repo BangBang-03/dsh-client-ui-quote`（gh 需已登录）。
+- npm 对**新账号的首包**有安全审核 hold：发布成功后包页会短暂显示 `0.0.0-stage` 占位，属于正常现象，审核自动放行（本包 0.10.0 实测约 1 小时内过审），无需人工操作。
+- npm 官方的长期方向是 Trusted Publishing（OIDC 直发）：2027-01 废弃 bypass-2FA 直发之前，建议在包 Settings → Trusted Publisher 登记 `BangBang-03/dsh-client-ui-quote` + `publish.yml`，并在 workflow 里加 `id-token: write` 权限与 `--provenance` 参数。
 
 ### 卸载
 
