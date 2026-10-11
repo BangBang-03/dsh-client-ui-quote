@@ -211,6 +211,36 @@ check("an empty list still exports", testing.quoteListMarkdown([], "引用清单
 check("a long quote is clipped into the heading", testing.firstLineOf("甲".repeat(200), 10).length === 10);
 check("an unreadable timestamp exports as nothing", testing.formatQuoteTime("not a date") === "" && testing.formatQuoteTime(undefined) === "");
 
+// ---- code quotes: preview/terminal selections keep their fence --------------
+const codeRow = { seq: 3, time: "", quote: "SELECT 1;", comment: "", code: true };
+check(
+	"a code quote exports as a real fenced block",
+	testing.quoteListMarkdown([codeRow], "引用清单").includes("```\nSELECT 1;\n```"),
+	JSON.stringify(testing.quoteListMarkdown([codeRow], "引用清单"))
+);
+const codeEntries = [
+	{
+		type: "event",
+		event: {
+			type: "user/message",
+			seq: 5,
+			time: "",
+			data: { id: "e5", content: [{ type: "text", text: "> ❝ ```\n> SELECT 1;\n> ```\n> ❞ 跑一下" }] }
+		}
+	}
+];
+const codeRows = testing.quoteRowsFromEntries(codeEntries);
+check(
+	"a fenced quote is listed as code with the fence stripped",
+	codeRows.length === 1 && codeRows[0].code === true && codeRows[0].quote === "SELECT 1;" && codeRows[0].comment === "跑一下",
+	JSON.stringify(codeRows)
+);
+check(
+	"a plain quote is still listed as not-code",
+	testing.quoteRowsFromEntries(entries).every((row) => row.code === false),
+	JSON.stringify(testing.quoteRowsFromEntries(entries).map((row) => row.code))
+);
+
 // ---- reading a session that is not on screen -------------------------------
 sessionFixture = {
 	session: {

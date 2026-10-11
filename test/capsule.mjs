@@ -130,6 +130,60 @@ check(
 	"the collapsed quote and comment are ellipsised",
 	/\.dshq-cap-quote\{[^}]*text-overflow:ellipsis/.test(capsuleCss) && /\.dshq-cap-comment\{[^}]*text-overflow:ellipsis/.test(capsuleCss)
 );
+check(
+	"the code capsule keeps the code's own spacing",
+	/\.dshq-cap\[data-code="true"\] \.dshq-cap-quote\{[^}]*white-space:pre/.test(capsuleCss) && /\.dshq-pop-code\{[^}]*white-space:pre/.test(capsuleCss)
+);
+
+// ---- code quotes: a preview/terminal selection travels as a fenced block ----
+check(
+	"a code quote serializes as a fence inside the block",
+	testing.quoteBlock("const x = 1;\nconst y = 2;", "", true) === "> ❝ ```\n> const x = 1;\n> const y = 2;\n> ```",
+	JSON.stringify(testing.quoteBlock("const x = 1;\nconst y = 2;", "", true))
+);
+check(
+	"a code text that already holds a fence switches to ~~~",
+	testing.quoteBlock("```\nx = 1\n```", "", true) === "> ❝ ~~~\n> ```\n> x = 1\n> ```\n> ~~~",
+	JSON.stringify(testing.quoteBlock("```\nx = 1\n```", "", true))
+);
+check(
+	"a code quote keeps its comment in the same block",
+	testing.quoteBlock("x = 1", "跑一下", true) === "> ❝ ```\n> x = 1\n> ```\n> ❞ 跑一下",
+	JSON.stringify(testing.quoteBlock("x = 1", "跑一下", true))
+);
+const codeSegments = testing.splitQuoteRuns("> ❝ ```\n> const x = 1;\n> ```\n> ❞ 修一下");
+check(
+	"a fenced block parses back as code with the fence stripped",
+	codeSegments !== null && codeSegments.length === 1 && codeSegments[0].type === "quote" && codeSegments[0].code !== null && codeSegments[0].quote === "const x = 1;" && codeSegments[0].comment === "修一下",
+	JSON.stringify(codeSegments)
+);
+const plainSegments = testing.splitQuoteRuns("> ❝ 正文");
+check(
+	"a plain quote parses with code null",
+	plainSegments !== null && plainSegments.length === 1 && plainSegments[0].type === "quote" && plainSegments[0].code === null,
+	JSON.stringify(plainSegments)
+);
+check(
+	"a plain quote round-trips byte for byte",
+	testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", ""))?.[0]?.quote === "第一行\n\n第二行",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", "")))
+);
+check(
+	"a code quote round-trips byte for byte",
+	testing.splitQuoteRuns(testing.quoteBlock("SELECT 1;\nSELECT 2;", "跑一下", true))?.[0] instanceof Object &&
+		JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("SELECT 1;\nSELECT 2;", "跑一下", true))?.[0]) === JSON.stringify({ type: "quote", quote: "SELECT 1;\nSELECT 2;", comment: "跑一下", code: "" }),
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("SELECT 1;\nSELECT 2;", "跑一下", true)))
+);
+check(
+	"the side thread gets a real fence for a code quote",
+	testing.sideQuestion("x = 1", true) === "```\nx = 1\n```",
+	JSON.stringify(testing.sideQuestion("x = 1", true))
+);
+check(
+	"the side thread keeps the plain blockquote for a plain quote",
+	testing.sideQuestion("第一行\n\n第二行") === "> 第一行\n>\n> 第二行",
+	JSON.stringify(testing.sideQuestion("第一行\n\n第二行"))
+);
 
 // ---- a transcript, built the way the client renders one -------------------
 const host = dom.document.createElement("div");
@@ -890,7 +944,9 @@ try {
 	actions.querySelector(".dshq-pop-revise").dispatch("click", { target: null, stopPropagation() {} });
 	const bar = dom.document.getElementById("dsh-quote-bar");
 	check("the card closes and the comment box takes over", pop()?.dataset.visible === "false" && bar?.dataset.visible === "true", JSON.stringify([pop()?.dataset.visible, bar?.dataset.visible]));
-	const input = bar?.querySelector(".dshq-input");
+	const quoteBox = bar?.querySelector(".dshq-quote-input");
+	const input = bar?.querySelector(".dshq-comment-input");
+	check("the box is prefilled with the old quote for editing", quoteBox?.value === original, JSON.stringify(quoteBox?.value));
 	check("the box is prefilled with the old comment", input?.value === oldComment, JSON.stringify(input?.value));
 
 	// Correcting it writes a NEW quote (nothing is edited in place) and the old
@@ -927,7 +983,68 @@ try {
 	check("a revision is keyed by the quote's wording", testing.rememberRevision("  第一段\n  引用 ", "新的") === true && testing.revisedFor("第一段 引用")?.comment === "新的");
 	check("an empty correction is not a revision", testing.rememberRevision("另一段原文", "   ") === false && testing.revisedFor("另一段原文") === null);
 	check("a correction never rewrites the quote text itself", testing.revisedFor(original)?.comment === newComment);
+
+	// 引用正文也可编辑：修订把旧正文回填进自己的输入框，改完随新引用发出，
+	// 旧胶囊的卡片指得出改后的原文。
+	{
+		testing.startRevision(original, oldComment, "session-rev", null, false);
+		const bar2 = dom.document.getElementById("dsh-quote-bar");
+		const quoteBox2 = bar2?.querySelector(".dshq-quote-input");
+		const commentBox2 = bar2?.querySelector(".dshq-comment-input");
+		check("a second revision prefills both halves", quoteBox2?.value === original && commentBox2?.value === oldComment, JSON.stringify([quoteBox2?.value, commentBox2?.value]));
+		const edited = original + "（正文也改了）";
+		quoteBox2.value = edited;
+		quoteBox2.dispatch("input", {});
+		commentBox2.value = newComment;
+		commentBox2.dispatch("input", {});
+		const confirm2 = bar2.querySelector('[data-action="confirm"]');
+		check("both halves filled arms the confirm button", confirm2?.disabled === false, String(confirm2?.disabled));
+		bar2.dispatch("click", { target: confirm2 });
+		check("the edited wording rides in the new chip", insertions.length === 2 && insertions[1].attachment.ref.includes(edited), JSON.stringify({ count: insertions.length, ref: String(insertions[1]?.attachment?.ref ?? "").slice(0, 32) }));
+		check("the revision remembers the corrected wording", testing.revisedFor(original)?.quote === edited, JSON.stringify(testing.revisedFor(original)));
+
+		// Clearing the quote disarms the confirm: an empty quote is nothing to send.
+		testing.startRevision(original, oldComment, "session-rev", null, false);
+		const bar3 = dom.document.getElementById("dsh-quote-bar");
+		const quoteBox3 = bar3?.querySelector(".dshq-quote-input");
+		const confirm3 = bar3.querySelector('[data-action="confirm"]');
+		quoteBox3.value = "   ";
+		quoteBox3.dispatch("input", {});
+		check("an emptied quote disarms the confirm button", confirm3?.disabled === true, String(confirm3?.disabled));
+
+		// The old capsule's card now tells the whole story of the correction.
+		revCap.dispatch("mouseenter", {});
+		check("the old card prints the corrected wording", pop()?.querySelector(".dshq-pop-revised-quote")?.textContent === edited, JSON.stringify(pop()?.querySelector(".dshq-pop-revised-quote")?.textContent));
+		revCap.dispatch("mouseleave", {});
+	}
 	badgeCap.dispatch("mouseleave", {});
+}
+
+/* ------------------------------------------------------------------ *
+ * 代码胶囊 — a code quote renders as a monospace pill whose card keeps
+ * the code's own spacing (the fence never reaches the screen).
+ * ------------------------------------------------------------------ */
+
+{
+	const codeHost = dom.document.createElement("div");
+	codeHost.setAttribute("data-conversation-content", "");
+	codeHost.setAttribute("data-conversation-session", "session-rev");
+	const codeBubble = dom.document.createElement("div");
+	const codeRun = dom.document.createElement("span");
+	codeRun.className = "plainRun";
+	codeRun.textContent = testing.chipRef("SELECT 1;\nSELECT 2;", "", true);
+	codeBubble.append(codeRun);
+	codeHost.append(codeBubble);
+	dom.document.body.append(codeHost);
+	dom.document.deliver();
+	await wait(120);
+	const codeCap = codeHost.querySelectorAll(".dshq-cap")[0];
+	check("a code quote wears the code capsule", codeCap !== undefined && codeCap.getAttribute("data-code") === "true", JSON.stringify([codeCap !== undefined, codeCap?.getAttribute("data-code")]));
+	check("the code capsule shows the fence-stripped text", codeCap?.querySelector(".dshq-cap-quote")?.textContent === "SELECT 1;\nSELECT 2;", JSON.stringify(codeCap?.querySelector(".dshq-cap-quote")?.textContent));
+	codeCap.rect = { left: 100, top: 300, width: 180, height: 22 };
+	codeCap.dispatch("mouseenter", {});
+	check("its card keeps the code spacing", pop()?.querySelector(".dshq-pop-code")?.textContent === "SELECT 1;\nSELECT 2;", JSON.stringify(pop()?.querySelector(".dshq-pop-code")?.textContent));
+	codeCap.dispatch("mouseleave", {});
 }
 
 console.log(
