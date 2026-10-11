@@ -1134,6 +1134,57 @@ try {
 		JSON.stringify(testing.previewPathOf(mid))
 	);
 	check("previewPathOf misses cleanly on a bare host", testing.previewPathOf(dom.document.createElement("div")) === null);
+
+	// The real host shape: the path label lives in a header SIBLING of the body
+	// the selection is in — the probe has to find it through the preview root,
+	// reading the full path from the label's title.
+	const previewRoot = dom.document.createElement("div");
+	previewRoot.setAttribute("data-document-preview", "doc-1");
+	const header = dom.document.createElement("div");
+	const label = dom.document.createElement("span");
+	label.setAttribute("data-textpreview-path", "");
+	label.setAttribute("title", "src/app.ts");
+	header.append(label);
+	const previewBody = dom.document.createElement("div");
+	previewBody.setAttribute("data-textpreview-body", "");
+	previewRoot.append(header);
+	previewRoot.append(previewBody);
+	check(
+		"previewPathOf reads the header's path label through the preview root",
+		testing.previewPathOf(previewBody) === "src/app.ts",
+		JSON.stringify(testing.previewPathOf(previewBody))
+	);
+	const clippedLabel = dom.document.createElement("span");
+	clippedLabel.setAttribute("data-textpreview-path", "");
+	clippedLabel.setAttribute("title", "my file.ts");
+	const clippedRoot = dom.document.createElement("div");
+	clippedRoot.setAttribute("data-document-preview", "doc-2");
+	clippedRoot.append(clippedLabel, dom.document.createElement("div"));
+	check(
+		"a label whose path cannot be a token costs nothing",
+		testing.previewPathOf(clippedRoot.lastChild) === null,
+		JSON.stringify(testing.previewPathOf(clippedRoot.lastChild))
+	);
+
+	// withLineRange: GitHub's #L spelling, normalized, or nothing.
+	check(
+		"withLineRange composes the GitHub line range",
+		testing.withLineRange("src/app.ts", 12, 48) === "src/app.ts#L12-L48" &&
+			testing.withLineRange("src/app.ts", 7, 7) === "src/app.ts#L7" &&
+			testing.withLineRange("src/app.ts", 48, 12) === "src/app.ts#L12-L48",
+		JSON.stringify([testing.withLineRange("src/app.ts", 12, 48), testing.withLineRange("src/app.ts", 7, 7), testing.withLineRange("src/app.ts", 48, 12)])
+	);
+	check(
+		"withLineRange degrades honestly",
+		testing.withLineRange("my file.ts", 1, 2) === null && testing.withLineRange("src/a.ts", null, 4) === "src/a.ts" && testing.withLineRange("src/a.ts", 0, 4) === "src/a.ts",
+		JSON.stringify([testing.withLineRange("my file.ts", 1, 2), testing.withLineRange("src/a.ts", null, 4), testing.withLineRange("src/a.ts", 0, 4)])
+	);
+	check(
+		"a path with a range still parses back as the fence info string",
+		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts#L12-L48" }))?.[0]?.code === "src/app.ts#L12-L48",
+		JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts#L12-L48" }))
+		)
+	);
 }
 
 /* ------------------------------------------------------------------ *
