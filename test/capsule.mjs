@@ -1365,6 +1365,145 @@ try {
 	);
 }
 
+/* ------------------------------------------------------------------ *
+ * 浮层不跟着座位生死 — the bar is document-level, so neither its
+ * listeners nor the action behind one of its rows may depend on an
+ * overlay slot entry still being mounted.
+ *
+ * The listeners used to be reference-counted by the slot component: an
+ * overlapping mount pair (a side thread's composer over a running
+ * parent, a re-registered slot) could drive the count to zero, the
+ * document listeners were then removed for good, and the bar never came
+ * back until a page reload — the "引用插件经常失效" report. A commit
+ * whose slot entry had gone also returned silently.
+ * ------------------------------------------------------------------ */
+
+{
+	const listenersEffect = effects.find((entry) => String(entry.label).includes("selection listeners"));
+	check("the bar's listeners are installed with the plugin, not with a slot", listenersEffect !== undefined);
+	check(
+		"and they are one document-level set, never a slot-scoped count",
+		(dom.document.listeners.get("pointerup") ?? []).length === 1,
+		JSON.stringify((dom.document.listeners.get("pointerup") ?? []).length)
+	);
+
+	const pane = (sessionId, text) => {
+		const node = dom.document.createElement("div");
+		node.setAttribute("data-conversation-content", "");
+		node.setAttribute("data-conversation-session", sessionId);
+		const bubble = dom.document.createElement("div");
+		bubble.className = "bubble";
+		const run = dom.document.createElement("span");
+		run.className = "plainRun";
+		run.textContent = text;
+		bubble.append(run);
+		node.append(bubble);
+		dom.document.body.append(node);
+		return { node, run };
+	};
+	const selectIn = (run, text) => {
+		dom.document.selection = {
+			isCollapsed: false,
+			rangeCount: 1,
+			toString: () => text,
+			removeAllRanges() {
+				dom.document.selection = null;
+			},
+			getRangeAt: () => ({
+				startContainer: run.firstChild,
+				endContainer: run.firstChild,
+				intersectsNode: () => false,
+				getBoundingClientRect: () => ({ left: 100, top: 300, right: 220, bottom: 318, width: 120, height: 18 })
+			})
+		};
+		dom.document.dispatch("pointerdown", { target: run.firstChild });
+		dom.document.dispatch("pointerup", { target: run.firstChild });
+	};
+	const barOf = () => dom.document.getElementById("dsh-quote-bar");
+
+	// 1. The composer slot never mounted for this session at all.
+	const firstPane = pane("session-bar", "浮层要跟着手走的原文");
+	selectIn(firstPane.run, "浮层要跟着手走的原文");
+	check(
+		"a selection opens the bar even with no composer slot mounted for that session",
+		barOf()?.dataset.visible === "true",
+		JSON.stringify(barOf()?.dataset.visible)
+	);
+	check(
+		"the bar offers the actions",
+		barOf()?.querySelector('[data-action="add"]') !== null && barOf()?.querySelector('[data-action="comment"]') !== null
+	);
+
+	// 2. A slot comes and goes — the listeners are not tied to it.
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	check("the overlay slot is registered for mounting", overlay !== undefined);
+	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
+	check("Escape closes the bar", barOf()?.dataset.visible === "false", JSON.stringify(barOf()?.dataset.visible));
+	if (overlay !== undefined) {
+		overlay.Component({ sessionId: "session-bar", inputActions: { captureInsertion: () => ({ draftRev: 1 }) } });
+		overlay.Component({ sessionId: "session-bar-2", inputActions: { captureInsertion: () => ({ draftRev: 2 }) } });
+	}
+	check(
+		"mounting two composers does not stack or drop the listeners",
+		(dom.document.listeners.get("pointerup") ?? []).length === 1,
+		JSON.stringify((dom.document.listeners.get("pointerup") ?? []).length)
+	);
+	selectIn(firstPane.run, "浮层要跟着手走的原文");
+	check("the bar still opens after a slot mounted", barOf()?.dataset.visible === "true", JSON.stringify(barOf()?.dataset.visible));
+
+	// 3. A session with no slot entry still lands its chip: the composer's own
+	//    actions stand in for the entry that is not there.
+	const landed = [];
+	shells.set("session-noslot", {
+		actions: { captureInsertion: () => ({ draftRev: 7 }) },
+		insertReference(attachment) {
+			landed.push(attachment);
+			return true;
+		}
+	});
+	const secondPane = pane("session-noslot", "没有座位的会话也要能引用");
+	selectIn(secondPane.run, "没有座位的会话也要能引用");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	check(
+		"the chip lands through the composer's own actions",
+		landed.length === 1 && String(landed[0]?.ref ?? "").includes("没有座位的会话也要能引用"),
+		JSON.stringify([landed.length, String(landed[0]?.ref ?? "").slice(0, 24)])
+	);
+
+	// 4. With nowhere to insert, the reader is told instead of left wondering.
+	const thirdPane = pane("session-noshell", "没有输入框的会话");
+	selectIn(thirdPane.run, "没有输入框的会话");
+	const staleToast = dom.document.getElementById("dsh-quote-toast");
+	if (staleToast !== null) staleToast.textContent = "";
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	const toastNode = dom.document.getElementById("dsh-quote-toast");
+	check(
+		"a dead end says so instead of doing nothing",
+		String(toastNode?.textContent) === "插入失败，请重试",
+		JSON.stringify(toastNode?.textContent)
+	);
+
+	// 5. Disposal is honest: the effect takes its listeners with it, and
+	//    reinstalling puts exactly one set back.
+	listenersEffect.dispose();
+	check(
+		"disposing the effect removes the listeners",
+		(dom.document.listeners.get("pointerup") ?? []).length === 0,
+		JSON.stringify((dom.document.listeners.get("pointerup") ?? []).length)
+	);
+	listenersEffect.fn();
+	check(
+		"reinstalling brings back exactly one set",
+		(dom.document.listeners.get("pointerup") ?? []).length === 1,
+		JSON.stringify((dom.document.listeners.get("pointerup") ?? []).length)
+	);
+	selectIn(firstPane.run, "浮层要跟着手走的原文");
+	check("the bar works again after a reinstall", barOf()?.dataset.visible === "true", JSON.stringify(barOf()?.dataset.visible));
+
+	dom.document.selection = null;
+	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote capsule: " + passed + " checks passed"

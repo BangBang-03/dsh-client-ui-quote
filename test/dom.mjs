@@ -31,6 +31,10 @@ class ShimNode {
 		return node.nodeType === 9 || node === this.ownerDocument?.documentElement;
 	}
 
+	get firstChild() {
+		return this.childNodes.length === 0 ? null : this.childNodes[0];
+	}
+
 	get lastChild() {
 		return this.childNodes.length === 0 ? null : this.childNodes[this.childNodes.length - 1];
 	}
@@ -306,6 +310,10 @@ class ShimDocument extends ShimNode {
 		this.ownerDocument = this;
 		this.mutations = [];
 		this.observers = [];
+		/** Document-level listeners (the bar's own are installed here). */
+		this.listeners = new Map();
+		/** Set by a test to hand `document.getSelection()` a live selection. */
+		this.selection = null;
 		/** Maintained by `ShimElement.focus()` / `blur()`. */
 		this.activeElement = null;
 		this.documentElement = new ShimElement(this, 'html');
@@ -357,12 +365,28 @@ class ShimDocument extends ShimNode {
 		return found;
 	}
 
-	addEventListener() {}
+	addEventListener(type, handler) {
+		// The bar's listeners are document singletons; the harness has to keep
+		// them so a test can drive a selection the way a browser would.
+		const list = this.listeners.get(type) ?? [];
+		list.push(handler);
+		this.listeners.set(type, list);
+	}
 
-	removeEventListener() {}
+	removeEventListener(type, handler) {
+		const list = this.listeners.get(type) ?? [];
+		const index = list.indexOf(handler);
+		if (index !== -1) list.splice(index, 1);
+	}
+
+	dispatch(type, event) {
+		for (const handler of [...(this.listeners.get(type) ?? [])]) handler(event);
+	}
 
 	getSelection() {
-		// A collapsed selection that can be cleared, which is all the bar asks of it.
+		// A collapsed selection that can be cleared, which is all the bar asks of
+		// it — unless a test installs one with `document.selection = …`.
+		if (this.selection !== null && this.selection !== undefined) return this.selection;
 		return { isCollapsed: true, rangeCount: 0, removeAllRanges() {} };
 	}
 }

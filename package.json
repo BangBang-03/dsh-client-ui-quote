@@ -1,6 +1,6 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B, a jump back to the quoted source, a searchable quote list page that exports as Markdown, one-click back-flow of a side thread's conclusion, and revisions of a sent quote that mark the old capsule as superseded. The quoted text itself is editable in the comment box (trim a selection, correct a revision's wording), a selection from the file preview or the terminal travels to the model as a fenced code block carrying its file path and line range, and a per-quote reply toggle has the model answer quote by quote, each 「引用N」 label in the reply becoming a badge linked back to the quote.",
   "icon": "icon.svg",
   "license": "MIT",
