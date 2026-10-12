@@ -914,6 +914,21 @@ try {
 	// this block is about what a mounted enhancer does with a revision.
 	capsuleEffect.fn();
 
+	// A textarea measures itself from its own text — but only while it is in the
+	// document, the way the real one reads 0 before the bar is laid out. That is
+	// what made the auto-grow collapse the quote field.
+	const makeTextarea = dom.document.createElement.bind(dom.document);
+	dom.document.createElement = (tag) => {
+		const node = makeTextarea(tag);
+		if (String(tag).toLowerCase() === "textarea") {
+			Object.defineProperty(node, "scrollHeight", {
+				configurable: true,
+				get: () => (node.isConnected ? 12 + 12 * String(node.value ?? "").split("\n").length : 0)
+			});
+		}
+		return node;
+	};
+
 	// A transcript of its own, with a capsule that has a comment.
 	const host2 = dom.document.createElement("div");
 	host2.setAttribute("data-conversation-content", "");
@@ -948,11 +963,16 @@ try {
 	const input = bar?.querySelector(".dshq-comment-input");
 	check("the box is prefilled with the old quote for editing", quoteBox?.value === original, JSON.stringify(quoteBox?.value));
 	check("the box is prefilled with the old comment", input?.value === oldComment, JSON.stringify(input?.value));
+	// Regression: the quote half used to be measured before it was attached, so
+	// it was written `height: 0px` and its first line showed up clipped.
+	check("the quote field is grown to its text, not collapsed", quoteBox?.style?.height === "24px", JSON.stringify(quoteBox?.style?.height));
+	check("the comment field is grown too", input?.style?.height === "24px", JSON.stringify(input?.style?.height));
 
 	// Correcting it writes a NEW quote (nothing is edited in place) and the old
 	// capsule learns it was superseded.
 	input.value = newComment;
 	input.dispatch("input", {});
+	check("typing in a field re-measures it", input?.style?.height === "24px", JSON.stringify(input?.style?.height));
 	// The bar handles clicks by delegation, so the click is dispatched on the bar
 	// with the button as its target — the shim has no bubbling of its own.
 	const confirm = bar.querySelector('[data-action="confirm"]');
