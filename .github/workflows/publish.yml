@@ -42,8 +42,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-lab:
-    # lab 分支每推一次就发一个预发布版：版本号取「下一个次版本」+ run_number，
-    # 例如 0.11.4-lab.37。天然唯一，也不会覆盖 latest。
+    # lab 分支每推一次就发一个预发布版：版本号取「下一个补丁版本」+ run_number，
+    # 例如 0.11.4-lab.37。天然唯一，也不会覆盖 latest；正式发 0.11.4 时它就排在
+    # 这些预发布之上，semver 顺序不会拧。
     if: github.ref == 'refs/heads/lab'
     runs-on: ubuntu-latest
     permissions:
@@ -56,7 +57,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
       - name: Stamp the lab version
         run: |
-          NEXT=$(node -e "const v = require('./package.json').version.split('-')[0].split('.').map(Number); console.log(v[0] + '.' + (v[1] + 1) + '.0')")
+          NEXT=$(node -e "const v = require('./package.json').version.split('-')[0].split('.').map(Number); console.log(v[0] + '.' + v[1] + '.' + (v[2] + 1))")
           npm version "$NEXT-lab.${{ github.run_number }}" --no-git-tag-version --allow-same-version
           node -p "'publishing ' + require('./package.json').version"
       - run: npm publish --tag lab
