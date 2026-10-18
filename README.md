@@ -66,13 +66,17 @@ dsh plugin --profile desktop add link:<clone-path>
 
 link 的优点是改完刷新即生效；**日常运行请用方式一**，不要长期挂 link——那样市场/版本号都会绕着走。
 
-### 开发与发布：`lab` / `main` 两条线
+### 开发与发布：`link` / `lab` / `stable` 三种运行模式
 
-- **`lab`**：开发线，日常提交都在这里（本地 checkout 默认在 `lab` 上）。每次 push，CI 会以 `下一个次版本-lab.<run_number>`（例如 `0.11.4-lab.37`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。
-- **`main`**：稳定线，只接受从 `lab` 合并的提交。发版 = `lab` → `main` 合并后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
-- 本地跑开发版：`pnpm install dsh-client-ui-quote@lab`；跑稳定版：`pnpm install dsh-client-ui-quote@latest`。
-- 两条线的断言入口相同：`npm test`（306 项），CI 里 `prepublishOnly` 会先跑完再发。
-- 本机额外限制（只影响这台开发机）：`git push` 到 `github.com:443` 不通，推分支/发版走 GitHub REST API（`.dsh-quote-work/publish-release.mjs`、`push-branch.mjs`），本地对象会按 API 的字节重建，`git status` 保持干净。
+- **`link`——日常开发（最快）**：profile 里依赖写成 `link:C:/…/dsh-client-ui-quote`，窗口直接加载仓库里的文件。改完 `Ctrl+Shift+R` 硬刷新就生效，不必发版。
+- **`lab`——云端预发布线**：`lab` 分支每 push 一次，CI 就把 `下一个补丁版本-lab.<run_number>`（例如 `0.11.4-lab.37`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。装它：`pnpm install dsh-client-ui-quote@lab`——用来验证「打包后的产物」，而不是工作区文件。
+- **`stable`——用户装到的版本**：`main` 只接受从 `lab` 合并过来的提交；发版 = 合并到 `main` 后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
+
+本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
+
+两条线的断言入口相同：`npm test`（306 项），CI 里 `prepublishOnly` 会先跑完再发。
+
+本机额外限制（只影响这台开发机）：`git push` 到 `github.com:443` 不通，推分支/发版走 GitHub REST API（`.dsh-quote-work/publish-release.mjs`、`push-branch.mjs`），本地对象会按 API 的字节重建，`git status` 保持干净。
 
 **发布运维备忘**（给未来的自己）：
 
