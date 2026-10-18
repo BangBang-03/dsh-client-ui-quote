@@ -86,7 +86,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 两条线的断言入口相同：`npm test`（369 项：check + capsule 265 + panel 104），CI 里 `prepublishOnly` 会先跑完再发。
 
-**推送通道**：`git push` 直连（本机 `github.com:443` 2026-10-19 实测可达，fetch/push 都正常）。不通时退回 GitHub REST（工作区根的 `.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`）。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
+**推送通道**：`git push` 优先，但本机 `github.com:443` **时通时不通**（2026-10-19 实测：短时可用、随后连续超时，每次失败等约 21 秒）。日常用工作区根的 `promote.ps1`：先试 git，失败自动转 REST 兜底（`.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`，`-Channel rest` 可跳过探测），并核对远端 SHA。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
 
 两条线的完整流程（含「main 只做快进」、推 lab 与 main 的顺序、分叉事故的复盘）见工作区根目录的 `PLUGIN-WORKFLOW.md`，一键执行用 `pwsh -File promote.ps1 -Repo dsh-client-ui-quote`。
 
