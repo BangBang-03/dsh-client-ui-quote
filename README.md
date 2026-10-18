@@ -29,19 +29,23 @@
 
 要求：DSH ≥ 0.2.0-rc.2 的 **web / 桌面** 客户端（`package.json` 里 `engines.dsh` 声明的就是实测版本；插件运行在渲染进程里，headless profile 没有 UI）。
 
-### 方式一：link 安装（推荐）
+### 方式一：npm 包（推荐）
+
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.11.3**）。
 
 ```bash
-git clone https://github.com/BangBang-03/dsh-client-ui-quote.git
-dsh plugin --profile desktop add link:<clone-path>
+dsh plugin --profile desktop add dsh-client-ui-quote
 ```
 
-DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边栏 **插件** 页能看到「选中引用 (dsh-client-ui-quote)」，可随时开关。
+npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。Electron 托管的 `desktop` profile 也可以在**应用内市场**里搜索本插件安装（`dsh plugin` 对这类 profile 会拒绝管理，这是 DSH 的限制，不是插件的问题）。
 
-### 方式二：手工注册为 profile 组合包
-1. 把本仓库放到任意目录；
+想跟开发线跑：`pnpm install dsh-client-ui-quote@lab`；切回稳定版：`@latest`。
+
+### 方式二：手工注册为 profile 组合包（不用 CLI 时）
+
+1. 把包装进 profile：`cd <DSH_HOME>/profiles/<profile> && pnpm add dsh-client-ui-quote`；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
-   - `dependencies` 增加 `"dsh-client-ui-quote": "link:<绝对路径>"`（Windows 上用正斜杠，如 `link:C:/path/to/dsh-client-ui-quote`）；
+   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.11.3"`（安装器会写）；
    - `dsh.profile.bundles` 追加 `"dsh-client-ui-quote"`；
 3. 重启 DSH（profile 打开 `patchReload` 时也会自动重载）。
 
@@ -53,17 +57,22 @@ DSH 会把包记进 profile 的依赖并加入组合包列表，装完在侧边�
       name: dsh-client-ui-quote
 ```
 
-### 方式三：npm 包（已上架）
-
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；每个 `v*` 标签由下面的 workflow 自动发布，本仓库当前 0.11.3）。发布由 GitHub Actions 完成（`.github/workflows/publish.yml`）：推 `v*` 标签或手动 Run `publish` workflow，`prepublishOnly` 的 306 项断言会先在 runner 上跑完，任何一项失败都不会发出去。`npm pack --dry-run` 可核对内容（0.10.0 = 14 个文件 / 97.6 kB）。
-
-装：
+### 方式三：link 本地仓库（只给开发用）
 
 ```bash
-dsh plugin --profile desktop add dsh-client-ui-quote
+git clone https://github.com/BangBang-03/dsh-client-ui-quote.git
+dsh plugin --profile desktop add link:<clone-path>
 ```
 
-npmjs 上架后 npmmirror 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。
+link 的优点是改完刷新即生效；**日常运行请用方式一**，不要长期挂 link——那样市场/版本号都会绕着走。
+
+### 开发与发布：`lab` / `main` 两条线
+
+- **`lab`**：开发线，日常提交都在这里（本地 checkout 默认在 `lab` 上）。每次 push，CI 会以 `下一个次版本-lab.<run_number>`（例如 `0.11.4-lab.37`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。
+- **`main`**：稳定线，只接受从 `lab` 合并的提交。发版 = `lab` → `main` 合并后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
+- 本地跑开发版：`pnpm install dsh-client-ui-quote@lab`；跑稳定版：`pnpm install dsh-client-ui-quote@latest`。
+- 两条线的断言入口相同：`npm test`（306 项），CI 里 `prepublishOnly` 会先跑完再发。
+- 本机额外限制（只影响这台开发机）：`git push` 到 `github.com:443` 不通，推分支/发版走 GitHub REST API（`.dsh-quote-work/publish-release.mjs`、`push-branch.mjs`），本地对象会按 API 的字节重建，`git status` 保持干净。
 
 **发布运维备忘**（给未来的自己）：
 

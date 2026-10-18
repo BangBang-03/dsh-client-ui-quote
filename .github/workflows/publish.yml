@@ -1,4 +1,10 @@
-# npm 发布通道：推 v* 标签（或在 Actions 页手动 Run workflow）即发布。
+# npm 发布通道 —— 两条线各自发各自的。
+#
+#   lab 分支   开发线。每次 push 都以「下一个次版本-lab.<run_number>」发到 npm 的
+#              `lab` dist-tag，不会碰 latest。本地想跑开发版：
+#                  pnpm install dsh-client-ui-quote@lab
+#              切回稳定版：pnpm install dsh-client-ui-quote@latest
+#   v* 标签    稳定线。在 main 上打 tag，发到 npm 的 `latest`。
 #
 # 不在本机发布的原因：registry.npmjs.org 从本地直连不可达（系统 DNS 返回污染地址
 # 182.16.62.14，真实 Cloudflare IP 也被握手阻断），而 runner 在 GitHub 机房里，
@@ -6,18 +12,22 @@
 # Settings → Secrets and variables → Actions → New repository secret：
 #   Name: NPM_TOKEN    Secret: npmjs.com 的 Access Token（Automation 类型）
 # 或命令行：gh secret set NPM_TOKEN --repo BangBang-03/dsh-client-ui-quote
-# prepublishOnly 会先跑完 253 项离线断言，任何一项失败都不会发出去。
+# prepublishOnly 会先跑完全部离线断言，任何一项失败都不会发出去。
 
 name: publish
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - lab
     tags:
       - "v*"
 
 jobs:
-  publish:
+  publish-stable:
+    # v* 标签，或在 Actions 页手动从 main 触发
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,5 +38,27 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-lab:
+    # lab 分支每推一次就发一个预发布版：版本号取「下一个次版本」+ run_number，
+    # 例如 0.11.4-lab.37。天然唯一，也不会覆盖 latest。
+    if: github.ref == 'refs/heads/lab'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - name: Stamp the lab version
+        run: |
+          NEXT=$(node -e "const v = require('./package.json').version.split('-')[0].split('.').map(Number); console.log(v[0] + '.' + (v[1] + 1) + '.0')")
+          npm version "$NEXT-lab.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+          node -p "'publishing ' + require('./package.json').version"
+      - run: npm publish --tag lab
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
