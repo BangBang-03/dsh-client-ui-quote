@@ -80,13 +80,15 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 - **`link`——日常开发（最快）**：profile 里依赖写成 `link:C:/…/dsh-client-ui-quote`，窗口直接加载仓库里的文件。改完 `Ctrl+Shift+R` 硬刷新就生效，不必发版。
 - **`lab`——云端预发布线**：`lab` 分支每 push 一次，CI 就把 `下一个补丁版本-lab.<run_number>`（例如 `0.11.4-lab.37`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。装它：`pnpm install dsh-client-ui-quote@lab`——用来验证「打包后的产物」，而不是工作区文件。
-- **`stable`——用户装到的版本**：`main` 只接受从 `lab` 合并过来的提交；发版 = 合并到 `main` 后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
+- **`stable`——用户装到的版本**：`main` 只接受从 `lab` 快进的提交（`git merge --ff-only lab`，不在 main 上直接提交）；发版 = 快进到 `main` 后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
 
 本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
-两条线的断言入口相同：`npm test`（306 项），CI 里 `prepublishOnly` 会先跑完再发。
+两条线的断言入口相同：`npm test`（369 项：check + capsule 265 + panel 104），CI 里 `prepublishOnly` 会先跑完再发。
 
-本机额外限制（只影响这台开发机）：`git push` 到 `github.com:443` 不通，推分支/发版走 GitHub REST API（`.dsh-quote-work/publish-release.mjs`、`push-branch.mjs`），本地对象会按 API 的字节重建，`git status` 保持干净。
+**推送通道**：`git push` 直连（本机 `github.com:443` 2026-10-19 实测可达，fetch/push 都正常）。不通时退回 GitHub REST（工作区根的 `.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`）。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
+
+两条线的完整流程（含「main 只做快进」、推 lab 与 main 的顺序、分叉事故的复盘）见工作区根目录的 `PLUGIN-WORKFLOW.md`，一键执行用 `pwsh -File promote.ps1 -Repo dsh-client-ui-quote`。
 
 **发布运维备忘**（给未来的自己）：
 
