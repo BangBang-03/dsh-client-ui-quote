@@ -42,6 +42,7 @@
     "lib",
     "locale",
     "test",
+    "docs",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"

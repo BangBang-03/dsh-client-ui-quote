@@ -14,7 +14,7 @@
  *
  * Usage: node test/check.mjs      (or: npm test)
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join } from "node:path";
 
@@ -233,8 +233,14 @@ const locales = ["zh", "en"].map((id) => {
 	}
 	return `${id}: ${meta.title}`;
 });
-for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u, "")]) {
+for (const entry of ["icon.svg", "locale", "lib", "test", "docs", patch.replace(/^\.\//u, "")]) {
 	if (!(manifest.files ?? []).includes(entry)) throw new Error("files must ship " + entry);
+}
+// The README shows the screenshots; they ride along so npm's copy of the page
+// renders too, and every one of them is referenced from the README.
+const readmeText = readFileSync(join(root, "README.md"), "utf8");
+for (const name of readdirSync(join(root, "docs", "screenshots"))) {
+	if (!readmeText.includes("docs/screenshots/" + name)) throw new Error("README must show docs/screenshots/" + name);
 }
 
 // ---- 侧边对话: availability probe + the wire forms --------------------------

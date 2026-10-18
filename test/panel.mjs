@@ -389,6 +389,18 @@ check("the body is handed its session", injected?.sessionId === "session-far");
 check("and the four things it needs", typeof injected?.load === "function" && typeof injected?.loadOlder === "function" && typeof injected?.jump === "function" && typeof injected?.save === "function");
 check("the title seat is registered too", seats.some((seat) => seat.name === "sidebar.right.pane.tab.title" && seat.entry.spec.key === "dsh-client-ui-quote/list"));
 check("the panel ships its own stylesheet", dom.document.getElementById("dsh-quote-panel-style") !== null);
+{
+	// `.dshq-row` is shared with the floating bar; an unscoped rule here once
+	// turned the bar's rows into a vertical stack as soon as the page registered.
+	const panelCss = String(dom.document.getElementById("dsh-quote-panel-style")?.textContent ?? "");
+	const selectors = (panelCss.match(/[^{}]+\{/g) ?? []).map((rule) => rule.replace(/\{$/, "").trim());
+	const loose = selectors.filter((selector) => selector.includes(".dshq-row") && !selector.includes(".dshq-list .dshq-row"));
+	check(
+		"its row rules are scoped to the page root",
+		loose.length === 0 && /\.dshq-list \.dshq-row\{/.test(panelCss),
+		JSON.stringify(loose.slice(0, 3))
+	);
+}
 
 // ---- opening it -------------------------------------------------------------
 openedKinds = [];
