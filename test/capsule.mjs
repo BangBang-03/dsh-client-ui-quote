@@ -15,7 +15,7 @@
  *
  * Usage: node test/capsule.mjs      (or: npm test)
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createDom } from "./dom.mjs";
@@ -85,6 +85,8 @@ const sources = [];
 const effects = [];
 /** What the plugin registered into the host's slots, so a test can mount it. */
 const registered = [];
+/** The locale dictionaries the plugin registers (zh/en), for the lost-state test. */
+const dictionaries = [];
 // The composer of every session the plugin may prefill: a session's input shell
 // exists only once its view mounts, so tests install (and remove) them here.
 const shells = new Map();
@@ -104,7 +106,7 @@ exports_.apply({
 		}
 		return undefined;
 	},
-	locale: { register: () => () => {} },
+	locale: { register: (ns, dict) => { dictionaries.push(dict); return () => {}; } },
 	slots: {
 		inject: (name, factory) => {
 			factory();
@@ -118,8 +120,8 @@ exports_.apply({
 });
 
 const testing = exports_.__testing;
-const capsuleEffect = effects.find((entry) => String(entry.label).includes("capsules"));
-check("the capsule effect is installed with the plugin", capsuleEffect !== undefined && typeof capsuleEffect.dispose === "function");
+const capsuleEffect = effects.find((entry) => String(entry.label).includes("transcript runtime"));
+check("the transcript runtime is installed with the plugin", capsuleEffect !== undefined && typeof capsuleEffect.dispose === "function");
 check("the capsule stylesheet is installed", dom.document.getElementById("dsh-quote-capsule-style") !== null);
 const capsuleCss = String(dom.document.getElementById("dsh-quote-capsule-style")?.textContent);
 check(
@@ -759,8 +761,10 @@ try {
 	testing.saveSource("被引用的那一段原文", "session-q", { attr: "data-chat-anchor-key", key: "row-1", turn: "3" });
 	const stored = testing.sourceFor("被引用的那一段原文");
 	check("the quote finds its row again", stored?.key === "row-1" && stored?.turn === "3", JSON.stringify(stored));
-	const persisted = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-source"));
-	check("the coordinate is persisted for the next page", persisted?.["被引用的那一段原文"]?.key === "row-1", JSON.stringify(persisted));
+	const persisted = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source"));
+	const persistedBin = persisted?.["session-q::3"];
+	check("the coordinate is persisted as a v2 candidate array", Array.isArray(persistedBin) && persistedBin[0]?.key === "row-1", JSON.stringify(persistedBin));
+	check("the legacy v1 table is no longer written", globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-source") === null);
 
 	check("the jump finds the row in the session's own pane", testing.jumpToSource("被引用的那一段原文", "session-q") === true);
 	check("the row is parked under the top edge, the way the host parks a turn", Math.round(realRow.getBoundingClientRect().top) === 24, String(realRow.getBoundingClientRect().top));
@@ -978,6 +982,15 @@ try {
 	const confirm = bar.querySelector('[data-action="confirm"]');
 	bar.dispatch("click", { target: confirm });
 	check("committing sends the corrected quote as a new chip", insertions.length === 1 && insertions[0].attachment.ref.includes(newComment), JSON.stringify({ count: insertions.length, ref: String(insertions[0]?.attachment?.ref ?? "").slice(0, 32), sessions: testing.revisedFor(original) === null ? "no revision" : "revision" }));
+	// The chip's model form now carries the coordinate too: the sent message can
+	// be traced back from its own text, with no table and no same-session state.
+	const chipRefLine = String(insertions[0]?.attachment?.ref ?? "").split("\n").find((line) => line.startsWith("> ※ │q1:"));
+	const chipRefPayload = chipRefLine === undefined ? null : testing.decodeQuoteRef(chipRefLine.slice("> ※ │q1:".length));
+	check(
+		"the committed chip carries its own coordinate",
+		chipRefPayload !== null && chipRefPayload.k === "row-rev" && chipRefPayload.s === "session-rev" && chipRefPayload.t === "4",
+		JSON.stringify(chipRefPayload)
+	);
 	check("the old quote is marked revised", testing.revisedFor(original)?.comment === newComment, JSON.stringify(testing.revisedFor(original)));
 	check("the revision is persisted for the next page", JSON.stringify(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-revised")).includes(newComment));
 
@@ -1379,8 +1392,18 @@ try {
  * ------------------------------------------------------------------ */
 
 {
-	const listenersEffect = effects.find((entry) => String(entry.label).includes("selection listeners"));
+	// The reply-badge section uninstalled the whole transcript runtime on
+	// purpose (uninstall takes the stylesheet and the listeners with it now);
+	// this block is about the bar still working, so put it back.
+	const capsuleBack = effects.find((entry) => String(entry.label).includes("transcript runtime"));
+	capsuleBack.fn();
+	const listenersEffect = effects.find((entry) => String(entry.label).includes("transcript runtime"));
 	check("the bar's listeners are installed with the plugin, not with a slot", listenersEffect !== undefined);
+	check(
+		"and the runtime is refcounted, so one mount's teardown keeps them",
+		typeof listenersEffect.fn === "function" && typeof listenersEffect.dispose === "function",
+		JSON.stringify(Object.keys(listenersEffect ?? {}))
+	);
 	check(
 		"and they are one document-level set, never a slot-scoped count",
 		(dom.document.listeners.get("pointerup") ?? []).length === 1,
@@ -1502,6 +1525,303 @@ try {
 
 	dom.document.selection = null;
 	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
+}
+
+/* ------------------------------------------------------------------ *
+ * 自带坐标 — the ref rides in the text, the v2 table keeps arrays
+ * ------------------------------------------------------------------ */
+
+{
+	// The reply-badge section uninstalled the enhancer on purpose; this block
+	// renders its own transcripts, so put it back.
+	capsuleEffect.fn();
+	const dict = dictionaries[0];
+	const V2_KEY = "dsh-client-ui-quote:v2:quote-source";
+	const V1_KEY = "dsh-client-ui-quote:v1:quote-source";
+	const MIGRATED_KEY = "dsh-client-ui-quote:v2:quote-source-migrated";
+
+	/** A session pane with a scrollport and rows laid out in transcript space. */
+	const pane = (sessionId) => {
+		const root = dom.document.createElement("div");
+		root.setAttribute("data-conversation-content", "");
+		root.setAttribute("data-conversation-session", sessionId);
+		const port = dom.document.createElement("div");
+		port.setAttribute("data-conversation-scroll", "");
+		port.scrollTop = 0;
+		port.clientHeight = 400;
+		port.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 400, width: 800, height: 400 });
+		root.append(port);
+		dom.document.body.append(root);
+		const put = (key, turn, top) => {
+			const node = dom.document.createElement("div");
+			node.setAttribute("data-chat-anchor-key", key);
+			node.setAttribute("data-chat-turn", turn);
+			node.getBoundingClientRect = () => {
+				const y = top - port.scrollTop;
+				return { left: 0, top: y, right: 800, bottom: y + 40, width: 800, height: 40 };
+			};
+			port.append(node);
+			return node;
+		};
+		return { root, port, put };
+	};
+
+	/** One transcript run, as a sent message would arrive after a reload. */
+	const quoteRun = (host, text, block) => {
+		const bubble = dom.document.createElement("div");
+		const run = dom.document.createElement("span");
+		run.className = "plainRun";
+		run.textContent = text + block + "\n\n";
+		bubble.append(run);
+		host.append(bubble);
+		return bubble;
+	};
+
+	const sourceOf = (sessionId, key, turn) => ({ attr: "data-chat-anchor-key", key, turn, sessionId });
+
+	// ---- the codec: non-ASCII, JSON round-trip, no URL-unsafe characters ----
+	const refSession = "会话 α/β + 空格";
+	const ref = { v: 1, s: refSession, a: "data-chat-anchor-key", k: "row-字-1", t: "3", n: 2 };
+	const encoded = testing.encodeQuoteRef(ref);
+	const decoded = testing.decodeQuoteRef(encoded);
+	check("a ref is base64url with no padding", /^[A-Za-z0-9_-]+$/.test(encoded) && encoded.includes("=") === false, encoded);
+	check("a ref round-trips a non-ASCII session id", JSON.stringify(decoded) === JSON.stringify(ref), JSON.stringify(decoded));
+	check("a ref survives a JSON round-trip", JSON.stringify(testing.decodeQuoteRef(JSON.parse(JSON.stringify(encoded)))) === JSON.stringify(ref));
+	check(
+		"a corrupt ref is null and never throws",
+		testing.decodeQuoteRef("AAAA") === null && testing.decodeQuoteRef("") === null && testing.decodeQuoteRef(undefined) === null && testing.decodeQuoteRef("a+b/c") === null
+	);
+
+	// ---- the wire line: emitted at the tail, stripped on the way out ----
+	const wireBlock = testing.quoteBlock("同一句话", "同一条评论", false, { ref });
+	const wireSegments = testing.splitQuoteRuns(wireBlock);
+	check("the ref is one transport line at the block's tail", wireBlock.endsWith("\n> ※ │q1:" + encoded), JSON.stringify(wireBlock.slice(-48)));
+	check(
+		"the capsule parser hides the ref from quote and comment",
+		wireSegments?.[0]?.quote === "同一句话" && wireSegments?.[0]?.comment === "同一条评论",
+		JSON.stringify(wireSegments?.[0])
+	);
+	check("the parser carries the decoded coordinate", JSON.stringify(wireSegments?.[0]?.ref) === JSON.stringify(ref), JSON.stringify(wireSegments?.[0]?.ref));
+	check("a corrupt ref line is stripped and ignored", (() => {
+		const broken = testing.splitQuoteRuns("> ❝ 正文\n> ※ │q1:AAAA");
+		return broken?.length === 1 && broken[0].quote === "正文" && broken[0].ref === undefined;
+	})());
+	check(
+		"content that merely starts with ※ is left alone",
+		testing.quoteBlock("※ 正文") === "> ❝ ※ 正文" && testing.splitQuoteRuns(testing.quoteBlock("※ 正文"))?.[0]?.quote === "※ 正文"
+	);
+
+	// ---- the same sentence from two rows: two coordinates, two jumps ----
+	const dupQuote = "同一句话在两个地方";
+	const dup = pane("session-ref-dup");
+	const dupRowOne = dup.put("dup-row-1", "1", 100);
+	const dupRowTwo = dup.put("dup-row-2", "2", 500);
+	const savedOne = testing.saveSource(dupQuote, "session-ref-dup", sourceOf("session-ref-dup", "dup-row-1", "1"));
+	const savedTwo = testing.saveSource(dupQuote, "session-ref-dup", sourceOf("session-ref-dup", "dup-row-2", "2"));
+	check(
+		"the same wording from two rows is stored twice",
+		savedOne !== null && savedTwo !== null && savedOne.key === "dup-row-1" && savedTwo.key === "dup-row-2",
+		JSON.stringify([savedOne, savedTwo])
+	);
+	const dupTable = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
+	check(
+		"v2 keeps one bin per source turn",
+		Array.isArray(dupTable["session-ref-dup::1"]) && Array.isArray(dupTable["session-ref-dup::2"]),
+		JSON.stringify(Object.keys(dupTable).filter((key) => key.startsWith("session-ref-dup::")))
+	);
+	const dupRefOne = { v: 1, s: "session-ref-dup", a: "data-chat-anchor-key", k: "dup-row-1", t: "1", n: 1 };
+	const dupRefTwo = { v: 1, s: "session-ref-dup", a: "data-chat-anchor-key", k: "dup-row-2", t: "2", n: 1 };
+	quoteRun(dup.root, "问题一", testing.quoteBlock(dupQuote, "", false, { ref: dupRefOne }));
+	quoteRun(dup.root, "问题二", testing.quoteBlock(dupQuote, "", false, { ref: dupRefTwo }));
+	dom.document.deliver();
+	await wait(120);
+	const dupCaps = dup.root.querySelectorAll(".dshq-cap");
+	check("both messages become their own capsule", dupCaps.length === 2, dupCaps.length + " capsule(s)");
+	dupCaps[0].rect = { left: 100, top: 200, width: 200, height: 22 };
+	dupCaps[0].dispatch("mouseenter", {});
+	const jumpOne = pop().querySelector(".dshq-pop-jump");
+	check("the first repeated quote offers its jump", jumpOne?.textContent === "跳回原文", JSON.stringify(jumpOne?.textContent));
+	if (jumpOne !== null) jumpOne.dispatch("click", { target: null, stopPropagation() {} });
+	check("the first capsule lands on its own row", Math.round(dupRowOne.getBoundingClientRect().top) === 24, String(dupRowOne.getBoundingClientRect().top));
+	dupCaps[1].rect = { left: 100, top: 260, width: 200, height: 22 };
+	dupCaps[1].dispatch("mouseenter", {});
+	const jumpTwo = pop().querySelector(".dshq-pop-jump");
+	if (jumpTwo !== null) jumpTwo.dispatch("click", { target: null, stopPropagation() {} });
+	check(
+		"the second capsule lands on its own row, not the first quote's",
+		Math.round(dupRowTwo.getBoundingClientRect().top) === 24,
+		JSON.stringify([dupRowOne.getBoundingClientRect().top, dupRowTwo.getBoundingClientRect().top])
+	);
+
+	// ---- ref-only: empty storage is a reload / another window ----
+	globalThis.localStorage.clear();
+	const only = pane("session-ref-only");
+	const onlyRow = only.put("only-row", "5", 300);
+	const onlyQuote = "只靠文本里的坐标找回";
+	const onlyRef = { v: 1, s: "session-ref-only", a: "data-chat-anchor-key", k: "only-row", t: "5", n: 1 };
+	quoteRun(only.root, "", testing.quoteBlock(onlyQuote, "", false, { ref: onlyRef }));
+	dom.document.deliver();
+	await wait(120);
+	const onlyCap = only.root.querySelectorAll(".dshq-cap")[0];
+	check("an empty table still has the capsule", onlyCap !== undefined);
+	onlyCap.rect = { left: 100, top: 300, width: 200, height: 22 };
+	onlyCap.dispatch("mouseenter", {});
+	const onlyJump = pop().querySelector(".dshq-pop-jump");
+	check("a ref alone still offers the jump with empty storage", onlyJump?.textContent === "跳回原文", JSON.stringify(onlyJump?.textContent));
+	if (onlyJump !== null) onlyJump.dispatch("click", { target: null, stopPropagation() {} });
+	check(
+		"the ref alone lands on the row",
+		only.port.scrollTop === 276 && Math.round(onlyRow.getBoundingClientRect().top) === 24,
+		JSON.stringify([only.port.scrollTop, onlyRow.getBoundingClientRect().top])
+	);
+
+	// ---- a corrupt ref: ignored, then the table answers ----
+	const brokenQuote = "坏坐标也要能回原文";
+	const broken = pane("session-ref-broken");
+	const brokenRow = broken.put("broken-row", "6", 220);
+	testing.saveSource(brokenQuote, "session-ref-broken", sourceOf("session-ref-broken", "broken-row", "6"));
+	quoteRun(broken.root, "", "> ❝ " + brokenQuote + "\n> ※ │q1:AAAA");
+	dom.document.deliver();
+	await wait(120);
+	const brokenCap = broken.root.querySelectorAll(".dshq-cap")[0];
+	check("a corrupt ref does not stop the capsule", brokenCap !== undefined);
+	brokenCap.rect = { left: 100, top: 300, width: 200, height: 22 };
+	brokenCap.dispatch("mouseenter", {});
+	const brokenJump = pop().querySelector(".dshq-pop-jump");
+	check("a corrupt ref falls back to the table's jump", brokenJump?.textContent === "跳回原文", JSON.stringify(brokenJump?.textContent));
+	let brokenThrew = false;
+	try {
+		if (brokenJump !== null) brokenJump.dispatch("click", { target: null, stopPropagation() {} });
+	} catch (error) {
+		brokenThrew = true;
+	}
+	check("a corrupt ref never throws on the way to the table", brokenThrew === false);
+	check(
+		"the table's coordinate lands the jump",
+		broken.port.scrollTop === 196 && Math.round(brokenRow.getBoundingClientRect().top) === 24,
+		JSON.stringify([broken.port.scrollTop, brokenRow.getBoundingClientRect().top])
+	);
+
+	// ---- drafts and capsules sent before this version ----
+	const legacyQuote = "旧版本发出去的引用";
+	const legacy = pane("session-legacy");
+	const legacyRow = legacy.put("legacy-row", "8", 180);
+	const liveV1 = JSON.parse(globalThis.localStorage.getItem(V1_KEY) ?? "{}");
+	liveV1[testing.sourceKeyOf(legacyQuote)] = { sessionId: "session-legacy", attr: "data-chat-anchor-key", key: "legacy-row", turn: "8" };
+	globalThis.localStorage.setItem(V1_KEY, JSON.stringify(liveV1));
+	check(
+		"a v1-only coordinate is not in v2",
+		testing.sourceCandidatesFor(legacyQuote, "session-legacy", null).length === 1,
+		JSON.stringify(testing.sourceCandidatesFor(legacyQuote, "session-legacy", null))
+	);
+	quoteRun(legacy.root, "", testing.quoteBlock(legacyQuote));
+	dom.document.deliver();
+	await wait(120);
+	const legacyCap = legacy.root.querySelectorAll(".dshq-cap")[0];
+	legacyCap.rect = { left: 100, top: 250, width: 200, height: 22 };
+	legacyCap.dispatch("mouseenter", {});
+	const legacyJump = pop().querySelector(".dshq-pop-jump");
+	check("an old draft still offers the jump", legacyJump?.textContent === "跳回原文", JSON.stringify(legacyJump?.textContent));
+	if (legacyJump !== null) legacyJump.dispatch("click", { target: null, stopPropagation() {} });
+	check(
+		"an old draft still resolves through the v1 table",
+		legacy.port.scrollTop === 156 && Math.round(legacyRow.getBoundingClientRect().top) === 24,
+		JSON.stringify([legacy.port.scrollTop, legacyRow.getBoundingClientRect().top])
+	);
+	check("the v1 table was never rewritten", JSON.parse(globalThis.localStorage.getItem(V1_KEY))[testing.sourceKeyOf(legacyQuote)]?.key === "legacy-row");
+
+	// ---- migration: imported once, marked, v1 untouched ----
+	const migQuote = "迁移进 v2 的旧坐标";
+	const migKey = testing.sourceKeyOf(migQuote);
+	const migV1 = JSON.parse(globalThis.localStorage.getItem(V1_KEY) ?? "{}");
+	migV1[migKey] = { sessionId: "session-migrate", attr: "data-chat-anchor-key", key: "mig-rate-row", turn: "11" };
+	globalThis.localStorage.setItem(V1_KEY, JSON.stringify(migV1));
+	globalThis.localStorage.removeItem(MIGRATED_KEY);
+	const imported = testing.migrateSources();
+	const migratedTable = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
+	check("the v1 table is imported into v2 as candidate arrays", imported >= 2 && migratedTable["session-migrate::11"]?.[0]?.key === "mig-rate-row", JSON.stringify({ imported, bin: migratedTable["session-migrate::11"] }));
+	check("the imported candidate keeps the wording key", migratedTable["session-migrate::11"]?.[0]?.quote === migKey, JSON.stringify(migratedTable["session-migrate::11"]?.[0]));
+	check("v1 is left in place for rollback", JSON.parse(globalThis.localStorage.getItem(V1_KEY))[migKey]?.key === "mig-rate-row");
+	check("the migration is marked", globalThis.localStorage.getItem(MIGRATED_KEY) === "1", JSON.stringify(globalThis.localStorage.getItem(MIGRATED_KEY)));
+	check("a second migration run imports nothing", testing.migrateSources() === 0);
+
+	// ---- two windows: a save merges what is already in storage ----
+	const foreignQuote = "另一个窗口存的引用";
+	const foreignBin = { sessionId: "session-window-b", attr: "data-chat-anchor-key", key: "foreign-row", turn: "12", quote: testing.sourceKeyOf(foreignQuote), at: Date.now(), n: 1 };
+	const beforeMerge = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
+	beforeMerge["session-window-b::12"] = [foreignBin];
+	globalThis.localStorage.setItem(V2_KEY, JSON.stringify(beforeMerge));
+	testing.saveSource("本窗口刚存的引用", "session-window-a", sourceOf("session-window-a", "local-row", "13"));
+	const afterMerge = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
+	check(
+		"a save merges the other window's entries instead of overwriting",
+		Array.isArray(afterMerge["session-window-b::12"]) && Array.isArray(afterMerge["session-window-a::13"]),
+		JSON.stringify({ foreign: afterMerge["session-window-b::12"]?.length, local: afterMerge["session-window-a::13"]?.length })
+	);
+
+	// ---- 原文已变: a lasting, localized state on pill and card, every locale ----
+	const languages = readdirSync(join(root, "locale"))
+		.filter((name) => name.endsWith(".json"))
+		.map((name) => name.slice(0, -5));
+	check("the locale directory is what the strings are checked against", languages.includes("zh") && languages.includes("en"), JSON.stringify(languages));
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	for (const language of languages) {
+		const languageDict = dict?.[language];
+		const expected = languageDict?.sourceLost;
+		check(language + " declares the lost-anchor string in the plugin dictionary", typeof expected === "string" && expected !== "", JSON.stringify(expected));
+		const localeFile = JSON.parse(readFileSync(join(root, "locale", language + ".json"), "utf8"));
+		check(language + " carries the same key in locale/" + language + ".json", localeFile.sourceLost === expected, JSON.stringify(localeFile.sourceLost));
+		const sessionForLang = "session-lost-" + language;
+		if (overlay !== undefined) {
+			overlay.Component({
+				sessionId: sessionForLang,
+				t: (key) => (languageDict[key] === undefined ? key : languageDict[key])
+			});
+		}
+		const lostPane = pane(sessionForLang);
+		const lostQuote = language + " 的失去原文";
+		const lostRef = { v: 1, s: sessionForLang, a: "data-chat-anchor-key", k: "lost-row", t: "1", n: 1 };
+		check(language + " jump with no row fails", testing.jumpToSource(lostQuote, sessionForLang, lostRef) === false);
+		quoteRun(lostPane.root, "", testing.quoteBlock(lostQuote, "还在的评论", false, { ref: lostRef }));
+		dom.document.deliver();
+		await wait(120);
+		const lostCap = lostPane.root.querySelectorAll(".dshq-cap")[0];
+		check(
+			language + " renders 原文已变 on the capsule",
+			lostCap?.querySelector(".dshq-cap-lost")?.textContent === expected,
+			JSON.stringify(lostCap?.querySelector(".dshq-cap-lost")?.textContent)
+		);
+		check(language + " keeps the quote and comment visible", lostCap?.querySelector(".dshq-cap-quote")?.textContent === lostQuote && lostCap?.querySelector(".dshq-cap-comment")?.textContent === "还在的评论");
+		lostCap.rect = { left: 100, top: 320, width: 200, height: 22 };
+		lostCap.dispatch("mouseenter", {});
+		const lostJump = pop().querySelector(".dshq-pop-jump");
+		check(
+			language + " renders 原文已变 on the jump control",
+			lostJump?.textContent === expected && lostJump?.getAttribute("data-lost") === "true",
+			JSON.stringify(lostJump?.textContent)
+		);
+		check(
+			language + " card hides the ref line",
+			String(pop()?.querySelector(".dshq-pop-quote")?.textContent).includes("│q1:") === false,
+			JSON.stringify(pop()?.querySelector(".dshq-pop-quote")?.textContent)
+		);
+		lostCap.dispatch("mouseleave", {});
+	}
+
+	// ---- storage bounds: 20 per source turn, 200 turns overall ----
+	for (let index = 1; index <= 25; index += 1) {
+		testing.saveSource("逐出测试-" + index, "session-evict", sourceOf("session-evict", "evict-row", "77"));
+	}
+	const evictBin = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}")["session-evict::77"];
+	check("one source turn keeps at most 20 candidates", Array.isArray(evictBin) && evictBin.length === 20, String(evictBin?.length));
+	check("the newest candidate survives the eviction", evictBin?.some((entry) => entry.quote === "逐出测试-25"), JSON.stringify(evictBin?.map((entry) => entry.quote).slice(-2)));
+	check("the oldest candidate is evicted first", evictBin?.every((entry) => entry.quote !== "逐出测试-1"), JSON.stringify(evictBin?.map((entry) => entry.quote).slice(0, 2)));
+	for (let index = 1; index <= 205; index += 1) {
+		testing.saveSource("总量测试-" + index, "session-total-" + index, sourceOf("session-total-" + index, "total-" + index, "1"));
+	}
+	const totalTable = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
+	check("the whole table stays bounded at 200 source turns", Object.keys(totalTable).length <= 200, String(Object.keys(totalTable).length));
+	check("the newest source turn is still in the table", Array.isArray(totalTable["session-total-205::1"]), JSON.stringify(Object.keys(totalTable).length));
 }
 
 console.log(

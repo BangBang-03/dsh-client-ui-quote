@@ -270,7 +270,7 @@ sessionFixture = {
 		getSnapshot: () => ({ hasMore: true })
 	}
 };
-const read = await testing.readQuoteRows("session-far");
+const read = await testing.readQuoteRows("session-far"); console.error("DEBUG read=", JSON.stringify(read)); console.error("DEBUG services=", typeof sessions.retain);
 check("the log is read through a retained reference", read.ok === true && read.rows.length === 2, JSON.stringify(read.rows.length));
 check("the reference is released after the read", releases.length === 1 && releases[0].source === "quoteList", JSON.stringify(releases));
 check("the list knows there is more history", read.hasMore === true);
@@ -435,9 +435,53 @@ const footerNote = Array.isArray(footer?.props?.children) ? footer.props.childre
 check("the page ends with the side-thread section", footer?.props?.className === "dshq-list-thread" && footerLabel?.props?.children === "侧边线程", JSON.stringify(footerLabel?.props?.children));
 check("a session with no thread is told so, without buttons", footerNote?.props?.children === "这条会话还没有侧边线程" && footerBar.props.children.filter(Boolean).length === 1, JSON.stringify(footerNote?.props?.children));
 
+// ---- the ref in the text: the list and the export never show it -------------
+const refQuote = "引用清单里的自携带坐标";
+const refPayload = { v: 1, s: "session-far", a: "data-chat-anchor-key", k: "row-ref", t: "12", n: 1 };
+const refEntries = [
+	{
+		type: "event",
+		event: {
+			type: "user/message",
+			seq: 21,
+			time: "",
+			data: { id: "m-ref", content: [{ type: "text", text: testing.quoteBlock(refQuote, "备注", false, { ref: refPayload }) }] }
+		}
+	}
+];
+const refRows = testing.quoteRowsFromEntries(refEntries);
+check("a list row carries the coordinate that rode in the text", JSON.stringify(refRows[0]?.ref) === JSON.stringify(refPayload), JSON.stringify(refRows[0]?.ref));
+check("the ref never leaks into the quoted text", refRows[0]?.quote === refQuote && refRows[0]?.comment === "备注", JSON.stringify(refRows[0]));
+check(
+	"the ref never leaks into the Markdown export",
+	testing.quoteListMarkdown(refRows, "引用清单").includes("│q1:") === false,
+	JSON.stringify(testing.quoteListMarkdown(refRows, "引用清单"))
+);
+globalThis.localStorage.clear();
+const refOnlyRow = testing.quoteRowElement(reactStub, refRows[0], 0, "session-far", () => {});
+check("with an empty table the ref keeps the row jumpable", refOnlyRow.props["data-dshq-row"] === "jumpable", JSON.stringify(refOnlyRow.props["data-dshq-row"]));
+const refOnlyFoot = refOnlyRow.props.children[2];
+check("the ref-only row offers 跳回原文", refOnlyFoot?.props?.children?.[1]?.props?.children === "跳回原文", JSON.stringify(refOnlyFoot?.props?.children?.[1]?.props?.children));
+let refJumped = null;
+const refClickRow = testing.quoteRowElement(reactStub, refRows[0], 0, "session-far", (target) => {
+	refJumped = target;
+});
+refClickRow.props.onClick();
+check("the jump is handed the row's own ref", refJumped !== null && JSON.stringify(refJumped.ref) === JSON.stringify(refPayload), JSON.stringify(refJumped?.ref));
+const lostJumped = testing.jumpToSource(refQuote, "session-far", refPayload);
+const lostRowElement = testing.quoteRowElement(reactStub, refRows[0], 0, "session-far", () => {});
+const lostFoot = lostRowElement.props.children[2];
+check(
+	"a failed jump leaves the row saying 原文已变",
+	lostJumped === false && lostRowElement.props["data-dshq-lost"] === "true" && lostFoot?.props?.children?.[1]?.props?.children === "原文已变",
+	JSON.stringify(toastNode()?.textContent)
+);
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote panel: " + passed + " checks passed"
 		: "\ndsh-client-ui-quote panel: " + failures.length + " FAILED -> " + failures.join(", ")
 );
 process.exit(failures.length === 0 ? 0 : 1);
+
+

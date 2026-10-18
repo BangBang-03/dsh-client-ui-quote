@@ -132,6 +132,9 @@ if (
 if (!dict.zh.jump || !dict.en.jump || !dict.zh.jumpFailed || !dict.en.jumpFailed) {
 	throw new Error("the jump-back row needs its zh/en labels");
 }
+if (!dict.zh.sourceLost || !dict.en.sourceLost) {
+	throw new Error("the lost-anchor state needs its zh/en labels");
+}
 if (
 	!dict.zh.panelTitle ||
 	!dict.en.panelTitle ||
@@ -219,9 +222,15 @@ const enPath = join(root, "locale", "en.json");
 if (!existsSync(enPath)) throw new Error("locale/en.json is the anchor the host scans");
 const locales = ["zh", "en"].map((id) => {
 	const file = join(root, "locale", `${id}.json`);
-	const meta = JSON.parse(readFileSync(file, "utf8")).meta;
+	const data = JSON.parse(readFileSync(file, "utf8"));
+	const meta = data.meta;
 	if (typeof meta?.title !== "string" || meta.title.trim() === "") throw new Error(`${id}: meta.title is required`);
 	if (typeof meta?.description !== "string" || meta.description.trim() === "") throw new Error(`${id}: meta.description is required`);
+	// The lost-anchor string lives in both the plugin dictionary and the locale
+	// file, so the package metadata and the running UI cannot drift apart.
+	if (typeof data.sourceLost !== "string" || data.sourceLost !== dict[id].sourceLost) {
+		throw new Error(`${id}: locale sourceLost must match the plugin dictionary`);
+	}
 	return `${id}: ${meta.title}`;
 });
 for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u, "")]) {
@@ -236,7 +245,7 @@ for (const entry of ["icon.svg", "locale", "lib", "test", patch.replace(/^\.\//u
 // a chip label), and the per-session thread memory is what makes the row reuse
 // one thread per main session.
 const testing = exports_.__testing;
-for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "rememberRevision", "revisedFor", "startRevision", "activeSessions", "jumpToSource", "registerShortcut", "quoteRowsFromEntries", "filterQuoteRows", "quoteListMarkdown", "readQuoteRows", "loadOlderQuotes", "downloadText", "quoteTabService", "openQuoteList", "quoteRowElement", "sessionMessagesFromEntries", "threadConclusion", "threadMarkdown", "mainSessionForThread", "readSessionMessages", "loadThreadSummary", "bringThreadBack", "exportThread"]) {
+for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSideThread", "rememberSideThread", "prefillDraft", "sourceKeyOf", "saveSource", "sourceFor", "sourceCandidatesFor", "sourceBinKey", "encodeQuoteRef", "decodeQuoteRef", "migrateSources", "rememberRevision", "revisedFor", "startRevision", "activeSessions", "jumpToSource", "registerShortcut", "quoteRowsFromEntries", "filterQuoteRows", "quoteListMarkdown", "readQuoteRows", "loadOlderQuotes", "downloadText", "quoteTabService", "openQuoteList", "quoteRowElement", "sessionMessagesFromEntries", "threadConclusion", "threadMarkdown", "mainSessionForThread", "readSessionMessages", "loadThreadSummary", "bringThreadBack", "exportThread"]) {
 	if (typeof testing[key] !== "function") throw new Error("__testing is missing " + key);
 }
 // The jump-back key folds whitespace, trims and caps: a paragraph must not
@@ -244,6 +253,26 @@ for (const key of ["sideChatService", "sideQuestion", "sideChatTitle", "storedSi
 if (testing.sourceKeyOf("  第一段\n  引用 ") !== "第一段 引用") throw new Error("sourceKeyOf must fold whitespace");
 if (testing.sourceKeyOf("字".repeat(400)).length !== 120) throw new Error("sourceKeyOf must cap the key");
 if (testing.sourceFor("从没选过的句子") !== null) throw new Error("an unseen quote has no source");
+// 自带坐标: the coordinate rides in the sent text, encoded so it neither
+// wraps nor breaks a blockquote and decodes back to exactly what was put in.
+const sampleRef = { v: 1, s: "会话 α/β", a: "data-chat-anchor-key", k: "row-1", t: "3", n: 1 };
+const encodedRef = testing.encodeQuoteRef(sampleRef);
+if (!/^[A-Za-z0-9_-]+$/u.test(encodedRef)) throw new Error("a ref must be unpadded base64url");
+if (JSON.stringify(testing.decodeQuoteRef(encodedRef)) !== JSON.stringify(sampleRef)) {
+	throw new Error("a ref must round-trip its exact JSON, non-ASCII included");
+}
+if (testing.decodeQuoteRef("AAAA") !== null || testing.decodeQuoteRef("") !== null) throw new Error("a corrupt ref must decode to null");
+const refWire = testing.quoteBlock("引用正文", "", false, { ref: sampleRef });
+if (refWire !== "> ❝ 引用正文\n> ※ │q1:" + encodedRef) throw new Error("the ref must be one transport line at the block's tail");
+const refSegments = testing.splitQuoteRuns(refWire);
+if (refSegments?.[0]?.quote !== "引用正文" || refSegments?.[0]?.ref?.k !== "row-1") {
+	throw new Error("the ref line must be stripped and handed back as a decoded coordinate");
+}
+if (testing.quoteBlock("※ 正文") !== "> ❝ ※ 正文") throw new Error("a body line starting with ※ must be left alone");
+if (testing.splitQuoteRuns("> ❝ 正文\n> ※ │q1:AAAA")?.[0]?.ref !== undefined) throw new Error("a corrupt ref line must be ignored, not half-parsed");
+if (testing.sourceCandidatesFor("从没选过的句子", "s1", null).length !== 0) throw new Error("a quote with no coordinate has no candidates");
+if (testing.sourceBinKey("s1", "3") !== "s1::3") throw new Error("the v2 bin key must be session::turn");
+console.log("OK  ref wire          :", "> ※ │q1:" + encodedRef.slice(0, 12) + "…", "->", JSON.stringify(refSegments?.[0]?.ref?.k), "(stripped)");
 if (testing.sideChatService() !== null) {
 	throw new Error("the side chat must be unavailable without betterSidebar");
 }
