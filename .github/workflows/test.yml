@@ -1,0 +1,30 @@
+# 测试门 —— 与发布门分开。
+#
+# publish.yml 只在 lab push / v* 标签时跑，测试是 prepublishOnly 的副作用；
+# PR 和 main 的普通 push 以前没有任何断言。这里让每次 push / PR 都跑三套
+# 离线断言，并在 Node 18 / 20 / 22 上各跑一遍（engines.node >= 18）。
+#
+# 插件没有运行时依赖，所以不需要 install；`npm test` 直接调用 node。
+
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax check
+        run: node --check lib/client.js
+      - name: Offline assertions
+        run: npm test
