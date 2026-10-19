@@ -274,7 +274,8 @@ const refSegments = testing.splitQuoteRuns(refWire);
 if (refSegments?.[0]?.quote !== "引用正文" || refSegments?.[0]?.ref?.k !== "row-1") {
 	throw new Error("the ref line must be stripped and handed back as a decoded coordinate");
 }
-if (testing.quoteBlock("※ 正文") !== "> ❝ ※ 正文") throw new Error("a body line starting with ※ must be left alone");
+if (testing.quoteBlock("※ 正文") !== "> ❝ \\※ 正文") throw new Error("a body line starting with ※ must be escaped, not stripped");
+if (testing.splitQuoteRuns(testing.quoteBlock("※ 正文"))?.[0]?.quote !== "※ 正文") throw new Error("an escaped body line must come back as content");
 if (testing.splitQuoteRuns("> ❝ 正文\n> ※ │q1:AAAA")?.[0]?.ref !== undefined) throw new Error("a corrupt ref line must be ignored, not half-parsed");
 if (testing.sourceCandidatesFor("从没选过的句子", "s1", null).length !== 0) throw new Error("a quote with no coordinate has no candidates");
 if (testing.sourceBinKey("s1", "3") !== "s1::3") throw new Error("the v2 bin key must be session::turn");

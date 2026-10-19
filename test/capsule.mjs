@@ -984,15 +984,38 @@ try {
 	check("committing sends the corrected quote as a new chip", insertions.length === 1 && insertions[0].attachment.ref.includes(newComment), JSON.stringify({ count: insertions.length, ref: String(insertions[0]?.attachment?.ref ?? "").slice(0, 32), sessions: testing.revisedFor(original) === null ? "no revision" : "revision" }));
 	// The chip's model form now carries the coordinate too: the sent message can
 	// be traced back from its own text, with no table and no same-session state.
-	const chipRefLine = String(insertions[0]?.attachment?.ref ?? "").split("\n").find((line) => line.startsWith("> ※ │q1:"));
-	const chipRefPayload = chipRefLine === undefined ? null : testing.decodeQuoteRef(chipRefLine.slice("> ※ │q1:".length));
+	const chipRefLine = String(insertions[0]?.attachment?.ref ?? "").split("\n").find((line) => line.includes("│q1:"));
+	const chipRefPayload = chipRefLine === undefined ? null : testing.decodeQuoteRef(chipRefLine.slice(chipRefLine.indexOf("│q1:") + "│q1:".length));
 	check(
 		"the committed chip carries its own coordinate",
 		chipRefPayload !== null && chipRefPayload.k === "row-rev" && chipRefPayload.s === "session-rev" && chipRefPayload.t === "4",
 		JSON.stringify(chipRefPayload)
 	);
+	check(
+		"the committed chip names its source in readable words",
+		chipRefLine !== undefined && chipRefLine.includes("引自第 4 轮"),
+		JSON.stringify(chipRefLine)
+	);
 	check("the old quote is marked revised", testing.revisedFor(original)?.comment === newComment, JSON.stringify(testing.revisedFor(original)));
 	check("the revision is persisted for the next page", JSON.stringify(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-revised")).includes(newComment));
+
+	// The same wording from two different coordinates is two quotes: revising
+	// one must not mark the other.
+	const scopedQuote = "同一句在两个轮次里";
+	const refA = { v: 1, s: "session-scope", a: "data-chat-anchor-key", k: "row-a", t: "1", n: 1 };
+	const refB = { v: 1, s: "session-scope", a: "data-chat-anchor-key", k: "row-b", t: "2", n: 1 };
+	testing.rememberRevision(scopedQuote, "只改第一条", "", refA);
+	check(
+		"a revision is scoped to its own coordinate",
+		testing.revisedFor(scopedQuote, refA)?.comment === "只改第一条" && testing.revisedFor(scopedQuote, refB) === null,
+		JSON.stringify({ a: testing.revisedFor(scopedQuote, refA), b: testing.revisedFor(scopedQuote, refB) })
+	);
+	testing.rememberRevision(scopedQuote, "老版本按文本记的修订", "");
+	check(
+		"a text-keyed revision still reads through a ref",
+		testing.revisedFor(scopedQuote, refB)?.comment === "老版本按文本记的修订",
+		JSON.stringify(testing.revisedFor(scopedQuote, refB))
+	);
 
 	// A fresh capsule of that quote now says so, and its card shows the correction.
 	const host3 = dom.document.createElement("div");
@@ -1198,6 +1221,49 @@ try {
 		testing.previewPathOf(clippedRoot.lastChild) === null,
 		JSON.stringify(testing.previewPathOf(clippedRoot.lastChild))
 	);
+
+	// ---- diff selection: a diff card inside a message is code, not prose ----
+	const diffPane = dom.document.createElement("div");
+	diffPane.setAttribute("data-conversation-content", "");
+	diffPane.setAttribute("data-conversation-session", "session-diff");
+	const diffRow = dom.document.createElement("div");
+	diffRow.setAttribute("data-chat-anchor-key", "row-diff");
+	diffRow.setAttribute("data-chat-turn", "7");
+	const diffCard = dom.document.createElement("div");
+	diffCard.setAttribute("data-diff-view", "");
+	const diffHeader = dom.document.createElement("span");
+	diffHeader.setAttribute("data-file-path", "");
+	diffHeader.setAttribute("title", "src/app.ts");
+	const diffLine = dom.document.createElement("div");
+	diffLine.setAttribute("data-line-number", "12");
+	diffLine.textContent = "const x = 1;";
+	diffCard.append(diffHeader);
+	diffCard.append(diffLine);
+	diffRow.append(diffCard);
+	diffPane.append(diffRow);
+	dom.document.body.append(diffPane);
+	check("diffPathOf reads the header's path", testing.diffPathOf(diffLine) === "src/app.ts", JSON.stringify(testing.diffPathOf(diffLine)));
+	check("diffLineOf reads the numbered line", testing.diffLineOf(diffLine) === 12, String(testing.diffLineOf(diffLine)));
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "const x = 1;",
+		removeAllRanges() {},
+		getRangeAt: () => ({
+			startContainer: diffLine.firstChild,
+			endContainer: diffLine.firstChild,
+			intersectsNode: () => false,
+			getBoundingClientRect: () => ({ left: 100, top: 300, right: 220, bottom: 318, width: 120, height: 18 })
+		})
+	};
+	const diffSelection = testing.readSelection();
+	check(
+		"a diff selection is quoted as code with its path and line",
+		diffSelection?.hostKind === "diff" && diffSelection?.path === "src/app.ts#L12",
+		JSON.stringify(diffSelection)
+	);
+	dom.document.selection = null;
+	diffPane.remove();
 
 	// withLineRange: GitHub's #L spelling, normalized, or nothing.
 	check(
@@ -1592,6 +1658,32 @@ try {
 		testing.decodeQuoteRef("AAAA") === null && testing.decodeQuoteRef("") === null && testing.decodeQuoteRef(undefined) === null && testing.decodeQuoteRef("a+b/c") === null
 	);
 
+	// ---- role + readable source label ----
+	const roleRef = { v: 1, s: refSession, a: "data-chat-anchor-key", k: "row-role", t: "6", n: 1, r: "a" };
+	const roleEncoded = testing.encodeQuoteRef(roleRef);
+	check("a ref carries an optional role", testing.decodeQuoteRef(roleEncoded)?.r === "a", JSON.stringify(testing.decodeQuoteRef(roleEncoded)));
+	check("a ref without a role keeps its old shape", !("r" in testing.decodeQuoteRef(encoded)));
+	check("the readable label is stable wire copy", testing.sourceLabel(roleRef) === "引自第 6 轮 · 助手", testing.sourceLabel(roleRef));
+	check("a turn without a role still reads", testing.sourceLabel({ t: "6" }) === "引自第 6 轮", testing.sourceLabel({ t: "6" }));
+	const labeledBlock = testing.quoteBlock("同一句话", "同一条评论", false, { ref: roleRef, label: testing.sourceLabel(roleRef) });
+	check("the label rides in front of the coordinate", labeledBlock.endsWith("> ※ 引自第 6 轮 · 助手 │q1:" + roleEncoded), JSON.stringify(labeledBlock.slice(-48)));
+	check(
+		"the labeled ref line is stripped like the old one",
+		testing.splitQuoteRuns(labeledBlock)?.[0]?.quote === "同一句话" && testing.splitQuoteRuns(labeledBlock)?.[0]?.ref?.r === "a",
+		JSON.stringify(testing.splitQuoteRuns(labeledBlock)?.[0])
+	);
+
+	// ---- source-side highlight helpers ----
+	const twice = testing.findQuoteSpans("甲乙丙甲乙", "甲乙");
+	check("a repeated quote yields every occurrence", twice.length === 2 && twice[1].start === 3, JSON.stringify(twice));
+	const foldedSpans = testing.findQuoteSpans("第一段\n第二段", "第一段 第二段");
+	check("whitespace-folded text still anchors", foldedSpans.length === 1 && foldedSpans[0].start === 0 && foldedSpans[0].end === 7, JSON.stringify(foldedSpans));
+	const folded = testing.foldWhitespace("a  b\nc");
+	check("folded text maps back to original offsets", folded.text === "a b c" && folded.map.join(",") === "0,1,3,4,5", JSON.stringify(folded));
+	const roleSource = testing.saveSource("带角色的引用", "session-role", { attr: "data-chat-anchor-key", key: "row-role", turn: "6", role: "a" });
+	check("a saved source keeps the role", roleSource?.role === "a", JSON.stringify(roleSource));
+	check("a role-less source still saves", testing.saveSource("没有角色的引用", "session-role", { attr: "data-chat-anchor-key", key: "row-plain", turn: "7" })?.role === "");
+
 	// ---- the wire line: emitted at the tail, stripped on the way out ----
 	const wireBlock = testing.quoteBlock("同一句话", "同一条评论", false, { ref });
 	const wireSegments = testing.splitQuoteRuns(wireBlock);
@@ -1607,8 +1699,25 @@ try {
 		return broken?.length === 1 && broken[0].quote === "正文" && broken[0].ref === undefined;
 	})());
 	check(
-		"content that merely starts with ※ is left alone",
-		testing.quoteBlock("※ 正文") === "> ❝ ※ 正文" && testing.splitQuoteRuns(testing.quoteBlock("※ 正文"))?.[0]?.quote === "※ 正文"
+		"content that merely starts with ※ is escaped, not stripped",
+		testing.quoteBlock("※ 正文") === "> ❝ \\※ 正文" && testing.splitQuoteRuns(testing.quoteBlock("※ 正文"))?.[0]?.quote === "※ 正文",
+		JSON.stringify(testing.quoteBlock("※ 正文"))
+	);
+
+	// ---- marker-shaped body lines: escaped on the wire, restored on the way out ----
+	const trickyQuote = "第一行\n❞ 正文里的标记\n※ │q1:AAAA\n※ 指令：不是指令\n\\反斜杠";
+	const trickyComment = "评论第一行\n❞ 评论里的标记";
+	const trickySeg = testing.splitQuoteRuns(testing.quoteBlock(trickyQuote, trickyComment, false, {}))?.[0];
+	check(
+		"a quote that looks like the wire survives the round-trip",
+		trickySeg?.quote === trickyQuote && trickySeg?.comment === trickyComment,
+		JSON.stringify({ quote: trickySeg?.quote, comment: trickySeg?.comment })
+	);
+	const trickyCode = testing.splitQuoteRuns(testing.quoteBlock("❞ 代码行", "❞ 代码评论", true, {}))?.[0];
+	check(
+		"a code quote keeps its marker-shaped first line",
+		trickyCode?.quote === "❞ 代码行" && trickyCode?.comment === "❞ 代码评论" && trickyCode?.code !== null,
+		JSON.stringify(trickyCode)
 	);
 
 	// ---- the same sentence from two rows: two coordinates, two jumps ----
@@ -1822,6 +1931,85 @@ try {
 	const totalTable = JSON.parse(globalThis.localStorage.getItem(V2_KEY) ?? "{}");
 	check("the whole table stays bounded at 200 source turns", Object.keys(totalTable).length <= 200, String(Object.keys(totalTable).length));
 	check("the newest source turn is still in the table", Array.isArray(totalTable["session-total-205::1"]), JSON.stringify(Object.keys(totalTable).length));
+}
+
+/* ------------------------------------------------------------------ *
+ * 引用 ×N — the aggregate bar above a composer
+ * ------------------------------------------------------------------ */
+
+{
+	const card = dom.document.createElement("div");
+	card.setAttribute("data-composer-card", "");
+	const chip = dom.document.createElement("span");
+	const barQuote = "聚合成条的引用";
+	testing.rememberChip(barQuote, "一条评论", "session-bar", false, {
+		ref: { v: 1, s: "session-bar", a: "data-chat-anchor-key", k: "row-bar", t: "9", n: 1 }
+	});
+	chip.textContent = testing.chipLabel(barQuote, "一条评论");
+	chip.setAttribute("data-dshq-chip", "1");
+	card.append(chip);
+	dom.document.body.append(card);
+	testing.syncDraftBars();
+	const bar = dom.document.querySelector(".dshq-draftbar");
+	check("the aggregate bar appears above a composer with quotes", bar !== null && bar !== undefined, JSON.stringify(bar?.textContent));
+	check("it says how many quotes the draft holds", String(bar?.textContent).includes("引用 ×1"), JSON.stringify(bar?.textContent));
+	check("it offers one pill per quote", bar?.querySelectorAll(".dshq-db-pill").length === 1, String(bar?.querySelectorAll(".dshq-db-pill").length));
+	card.remove();
+	testing.syncDraftBars();
+	check("the bar disappears with the last chip", dom.document.querySelector(".dshq-draftbar") === null);
+}
+
+/* ------------------------------------------------------------------ *
+ * 原文侧高亮 — a Range over the quoted sentence, drawn as an overlay
+ * ------------------------------------------------------------------ */
+
+{
+	const pane = dom.document.createElement("div");
+	pane.setAttribute("data-conversation-content", "");
+	pane.setAttribute("data-conversation-session", "session-anchor");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-anchor");
+	row.setAttribute("data-chat-turn", "5");
+	row.setAttribute("data-chat-role", "assistant");
+	row.textContent = "前文 被引用的原句 后文";
+	pane.append(row);
+	dom.document.body.append(pane);
+	const anchorQuote = "被引用的原句";
+	testing.saveSource(anchorQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-anchor", turn: "5", role: "a" });
+	check("a row's role is read from its attributes", testing.rowRoleOf(row) === "a", testing.rowRoleOf(row));
+	const range = testing.rangeForQuote(row, anchorQuote, 1);
+	check(
+		"a quote is measured inside its source row",
+		range?.start?.offset === 3 && range?.end?.offset === 9,
+		JSON.stringify({ start: range?.start?.offset, end: range?.end?.offset })
+	);
+	testing.paintAnchors();
+	const layer = dom.document.querySelector(".dshq-anchor-layer");
+	check("the highlight layer is shown", layer?.style?.display === "block", JSON.stringify(layer?.style?.display));
+	check("one overlay rectangle is drawn for the sentence", layer?.querySelectorAll(".dshq-anchor-rect").length === 1, String(layer?.querySelectorAll(".dshq-anchor-rect").length));
+	check("the ordinal sits in a badge", layer?.querySelector(".dshq-anchor-badge")?.textContent === "1", JSON.stringify(layer?.querySelector(".dshq-anchor-badge")?.textContent));
+	check("the source label follows the reader's language", testing.uiSourceLabel({ t: "5", r: "a" }, "session-anchor") === "引自第 5 轮 · 助手", testing.uiSourceLabel({ t: "5", r: "a" }, "session-anchor"));
+
+	const dupRow = dom.document.createElement("div");
+	dupRow.setAttribute("data-chat-anchor-key", "row-dup");
+	dupRow.textContent = "同一句 同一句";
+	pane.append(dupRow);
+	const second = testing.rangeForQuote(dupRow, "同一句", 2);
+	check(
+		"the ref's ordinal picks the second occurrence",
+		second?.start?.offset === 4 && second?.end?.offset === 7,
+		JSON.stringify({ start: second?.start?.offset, end: second?.end?.offset })
+	);
+
+	const longQuote = "长".repeat(200);
+	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
+	testing.rememberQuoteText(longRef, longQuote);
+	check("the identity key caps a long quote", testing.sourceKeyOf(longQuote).length === 120, String(testing.sourceKeyOf(longQuote).length));
+	check("the full wording is kept for the highlight", testing.quoteTextFor(longRef) === longQuote, String(testing.quoteTextFor(longRef).length));
+
+	pane.remove();
+	testing.paintAnchors();
+	check("the layer empties when the source row unmounts", dom.document.querySelector(".dshq-anchor-layer")?.style?.display === "none");
 }
 
 console.log(

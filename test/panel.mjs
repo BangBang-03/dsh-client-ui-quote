@@ -431,14 +431,44 @@ check("a traced quote is marked jumpable", jumpable.props["data-dshq-row"] === "
 check("an untraced quote is not", plainRow.props["data-dshq-row"] === "plain", JSON.stringify(plainRow.props["data-dshq-row"]));
 jumpable.props.onClick();
 check("clicking it asks for the jump", jumpableJumped === "后来引用的那一句", JSON.stringify(jumpableJumped));
+let keyedJump = null;
+const keyRow = testing.quoteRowElement(reactStub, rows[0], 0, "session-far", (row) => {
+	keyedJump = row.quote;
+});
+let prevented = false;
+keyRow.props.onKeyDown({ key: "Enter", preventDefault: () => { prevented = true; } });
+check("Enter on a jumpable row asks for the jump", keyedJump === "后来引用的那一句" && prevented === true, JSON.stringify({ keyedJump, prevented }));
+keyedJump = null;
+keyRow.props.onKeyDown({ key: " ", preventDefault: () => {} });
+check("Space on a jumpable row asks for the jump", keyedJump === "后来引用的那一句", JSON.stringify(keyedJump));
+let plainJumped = 0;
+let plainPrevented = false;
+const plainSpy = testing.quoteRowElement(reactStub, rows[1], 1, "session-far", () => {
+	plainJumped += 1;
+});
+plainSpy.props.onKeyDown({ key: "Enter", preventDefault: () => { plainPrevented = true; } });
+check("Enter on a plain row neither jumps nor swallows the key", plainJumped === 0 && plainPrevented === false, JSON.stringify({ plainJumped, plainPrevented }));
 check("the row prints the quote behind the lamp", String(jumpable.props.children[0].props.children).startsWith("❝ "), JSON.stringify(jumpable.props.children[0].props.children));
 
 // ---- the body component -----------------------------------------------------
 const body = testing.QuoteListBody({ sessionId: "session-far", load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }) });
 check("the body renders the panel shell", body?.props?.className === "dshq-list", JSON.stringify(body?.props?.className));
-const headElement = Array.isArray(body.props.children) ? body.props.children[0] : body.props.children;
+const headElement = Array.isArray(body.props.children) ? body.props.children[1] : body.props.children;
 const search = Array.isArray(headElement.props.children) ? headElement.props.children[0] : headElement.props.children;
 check("with a search box in its own language", search?.props?.placeholder === "搜索引用或评论…", JSON.stringify(search?.props?.placeholder));
+const bodyWithInsert = testing.QuoteListBody({
+	sessionId: "session-far",
+	load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }),
+	insert: () => 0
+});
+const insertHead = Array.isArray(bodyWithInsert.props.children) ? bodyWithInsert.props.children[1] : bodyWithInsert.props.children;
+const insertBar = Array.isArray(insertHead?.props?.children) ? insertHead.props.children[1] : null;
+const insertButton = Array.isArray(insertBar?.props?.children) ? insertBar.props.children.find((node) => node?.props?.key === "insert") : null;
+check(
+	"the page offers 插入所选 and starts disabled",
+	insertButton !== null && insertButton?.props?.disabled === true && String(insertButton?.props?.children).startsWith("插入所选"),
+	JSON.stringify(insertButton?.props?.children)
+);
 const rootChildren = Array.isArray(body.props.children) ? body.props.children : [body.props.children];
 const footer = rootChildren[rootChildren.length - 1];
 const footerBar = Array.isArray(footer?.props?.children) ? footer.props.children[0] : null;
@@ -488,6 +518,203 @@ check(
 	lostJumped === false && lostRowElement.props["data-dshq-lost"] === "true" && lostFoot?.props?.children?.[1]?.props?.children === "原文已变",
 	JSON.stringify(toastNode()?.textContent)
 );
+
+// ---- multi-select: a checkbox per row, one insert for the ticked set -------
+let toggledRow = null;
+const selectable = testing.quoteRowElement(reactStub, rows[0], 0, "session-far", () => {}, {
+	checked: true,
+	onToggle: (row) => {
+		toggledRow = row;
+	}
+});
+const checkbox = selectable.props.children[0];
+check(
+	"a selectable row carries a checked box",
+	checkbox?.props?.type === "checkbox" && checkbox?.props?.checked === true && selectable.props["data-dshq-selectable"] === "true",
+	JSON.stringify(checkbox?.props)
+);
+checkbox.props.onChange();
+check("the box hands its row back", toggledRow === rows[0], JSON.stringify(toggledRow?.seq));
+check("a plain row has no box", testing.quoteRowElement(reactStub, rows[0], 0, "session-far", () => {}).props.children[0]?.props?.type !== "checkbox");
+
+const insertedAttachments = [];
+let insertedText = [];
+shells.set("session-far", {
+	actions: {
+		captureInsertion: () => ({ span: true }),
+		insertText: (text) => {
+			insertedText.push(text);
+			return true;
+		},
+		setDraft: () => true
+	},
+	insertReference: (attachment, span) => {
+		insertedAttachments.push({ attachment, span });
+		return true;
+	}
+});
+const insertedCount = testing.insertQuoteRows("session-far", rows);
+check("multi-insert mints one chip per quote", insertedCount === 2 && insertedAttachments.length === 2, JSON.stringify({ insertedCount, attachments: insertedAttachments.length }));
+check(
+	"each chip keeps its own quote block",
+	insertedAttachments.every(({ attachment }) => typeof attachment.ref === "string" && attachment.ref.includes("> ❝")),
+	JSON.stringify(insertedAttachments.map(({ attachment }) => attachment.label))
+);
+check("the page reports the inserted count", String(toastNode()?.textContent).includes("已插入 2 条引用"), JSON.stringify(toastNode()?.textContent));
+
+// With no chip pipeline, the same action falls back to one text payload.
+shells.set("session-text", {
+	actions: {
+		captureInsertion: () => ({ span: true }),
+		insertText: (text) => {
+			insertedText.push(text);
+			return true;
+		},
+		setDraft: () => true
+	}
+});
+const fallbackCount = testing.insertQuoteRows("session-text", rows);
+check(
+	"multi-insert falls back to a text payload",
+	fallbackCount === 2 && insertedText.some((text) => text.includes("> ❝ 第一段引用") && text.includes("> ❝ 后来引用的那一句")),
+	JSON.stringify(insertedText.map((text) => text.slice(0, 40)))
+);
+
+// ---- the review workbench ---------------------------------------------------
+// Status and tags share one local store keyed by ref (or wording for pre-ref
+// quotes). Everything here is off-session, so the rows are plain objects; the
+// ref rows prove the ref scoping, the plain rows prove the wording fallback.
+localStorage.removeItem("dsh-client-ui-quote:v1:quote-meta");
+
+const revRefA = { v: 1, s: "session-review", a: "data-chat-anchor-key", k: "row-ra", t: "3", n: 1 };
+const revRefB = { v: 1, s: "session-review", a: "data-chat-anchor-key", k: "row-rb", t: "3", n: 1 };
+const revRowA = { quote: "审阅的第一条", comment: "", ref: revRefA };
+const revRowB = { quote: "审阅的第一条", comment: "", ref: revRefB };
+const revRowPlain = { quote: "审阅的无坐标一条", comment: "", ref: null };
+
+check("same wording behind two refs keeps two meta keys", testing.quoteMetaKeyOf(revRowA) !== testing.quoteMetaKeyOf(revRowB) && testing.quoteMetaKeyOf(revRowA) !== testing.quoteMetaKeyOf(revRowPlain), JSON.stringify([testing.quoteMetaKeyOf(revRowA), testing.quoteMetaKeyOf(revRowB)]));
+check("a fresh row reads open with no tags", (() => {
+	const meta = testing.quoteMetaFor(revRowA);
+	return meta.status === "open" && meta.tags.length === 0;
+})());
+check("an unknown status is refused", testing.setQuoteStatus(revRowA, "done") === false && testing.quoteMetaFor(revRowA).status === "open");
+check("marking one ref resolved leaves the twin open", testing.setQuoteStatus(revRowA, "resolved") === true && testing.quoteMetaFor(revRowA).status === "resolved" && testing.quoteMetaFor(revRowB).status === "open", JSON.stringify(testing.quoteMetaFor(revRowB)));
+check(
+	"the review marks persist for the next page",
+	JSON.parse(localStorage.getItem("dsh-client-ui-quote:v1:quote-meta"))[testing.quoteMetaKeyOf(revRowA)]?.status === "resolved"
+);
+check("toggling back to open works", testing.setQuoteStatus(revRowA, "open") === true && testing.quoteMetaFor(revRowA).status === "open");
+
+const resolvedCount = testing.markRowsResolved([revRowB, revRowPlain]);
+check("batch resolve marks every row and is idempotent", resolvedCount === 2 && testing.markRowsResolved([revRowB]) === 0, JSON.stringify(resolvedCount));
+
+check("a tag is normalized and stored", testing.addQuoteTag(revRowA, "#P 0") === true && testing.quoteMetaFor(revRowA).tags.join(",") === "P-0", JSON.stringify(testing.quoteMetaFor(revRowA).tags));
+check("a duplicate tag is refused", testing.addQuoteTag(revRowA, "P-0") === false);
+check("an empty tag is refused", testing.addQuoteTag(revRowA, "  ") === false && testing.addQuoteTag(revRowA, "###") === false);
+for (let at = testing.quoteMetaFor(revRowA).tags.length; at < 6; at += 1) testing.addQuoteTag(revRowA, "t" + at);
+check("a seventh tag is refused", testing.addQuoteTag(revRowA, "overflow") === false && testing.quoteMetaFor(revRowA).tags.length === 6, JSON.stringify(testing.quoteMetaFor(revRowA).tags));
+check("removing a tag keeps the rest", testing.removeQuoteTag(revRowA, "t3") === true && testing.quoteMetaFor(revRowA).tags.includes("t3") === false);
+check("removing an absent tag is a no-op", testing.removeQuoteTag(revRowA, "ghost") === false);
+check("every tag counts its rows, most used first", JSON.stringify(testing.allQuoteTags([revRowA, revRowB, revRowPlain]).slice(0, 2)) === JSON.stringify([{ tag: "P-0", count: 1 }, { tag: "t1", count: 1 }]), JSON.stringify(testing.allQuoteTags([revRowA, revRowB, revRowPlain])));
+
+let statusToggles = 0;
+let tagFiltered = null;
+let tagsRemoved = null;
+let tagAdded = false;
+let tagCommitted = false;
+let tagCancelled = false;
+let draftSet = null;
+let stopCount = 0;
+const stopper = (event) => {
+	if (event !== null && event !== undefined && typeof event.stopPropagation === "function") event.stopPropagation();
+	stopCount += 1;
+};
+const reviewedRow = testing.quoteRowElement(reactStub, revRowA, 0, "session-review", () => {}, null, {
+	status: "resolved",
+	tags: testing.quoteMetaFor(revRowA).tags,
+	editingTag: false,
+	tagDraft: "",
+	onToggleStatus: () => {
+		statusToggles += 1;
+	},
+	onFilterTag: (tag) => {
+		tagFiltered = tag;
+	},
+	onRemoveTag: (tag) => {
+		tagsRemoved = tag;
+	},
+	onAddTag: () => {
+		tagAdded = true;
+	},
+	onTagDraft: (value) => {
+		draftSet = value;
+	},
+	onCommitTag: () => {
+		tagCommitted = true;
+	},
+	onCancelTag: () => {
+		tagCancelled = true;
+	}
+});
+check("a reviewed row wears its status", reviewedRow.props["data-status"] === "resolved", JSON.stringify(reviewedRow.props["data-status"]));
+const tagZone = reviewedRow.props.children.find((node) => node?.props?.className === "dshq-row-tags");
+const tagChips = Array.isArray(tagZone?.props?.children) ? tagZone.props.children : [];
+const firstChip = tagChips[0];
+check("tags render as chips with a remove cross", firstChip?.props?.className === "dshq-tag" && firstChip.props.children[0].props.children === "#P-0" && String(firstChip.props.children[1].props["aria-label"]).includes("移除标签 P-0"), JSON.stringify(tagChips.length));
+firstChip.props.children[0].props.onClick({ stopPropagation: stopper });
+check("clicking a chip filters by that tag", tagFiltered === "P-0" && stopCount === 1, JSON.stringify(tagFiltered));
+firstChip.props.children[1].props.onClick({ stopPropagation: stopper });
+check("the cross removes the tag", tagsRemoved === "P-0");
+const tagAddButton = tagChips.find((node) => node?.props?.className === "dshq-tag-add");
+tagAddButton.props.onClick({ stopPropagation: stopper });
+check("＋标签 asks for the editor", tagAdded === true);
+const statusButton = reviewedRow.props.children.find((node) => node?.props?.className === "dshq-row-foot").props.children.find((node) => node?.props?.className === "dshq-row-status");
+check("the status button reads 已解决 while resolved", statusButton.props["data-status"] === "resolved" && statusButton.props.children === "已解决", JSON.stringify(statusButton.props.children));
+statusButton.props.onClick({ stopPropagation: stopper });
+check("clicking it asks to toggle", statusToggles === 1);
+
+const editingRow = testing.quoteRowElement(reactStub, revRowA, 0, "session-review", () => {}, null, {
+	status: "open",
+	tags: ["P-0"],
+	editingTag: true,
+	tagDraft: "dr",
+	onTagDraft: (value) => {
+		draftSet = value;
+	},
+	onCommitTag: () => {
+		tagCommitted = true;
+	},
+	onCancelTag: () => {
+		tagCancelled = true;
+	}
+});
+const editorInput = editingRow.props.children.find((node) => node?.props?.className === "dshq-row-tags").props.children.find((node) => node?.props?.className === "dshq-tag-input");
+check("the tag editor is an input with the draft", editorInput?.props?.value === "dr" && editorInput?.props?.placeholder === "标签，回车添加", JSON.stringify(editorInput?.props));
+editorInput.props.onChange({ target: { value: "P1" } });
+check("typing drafts the tag", draftSet === "P1");
+editorInput.props.onKeyDown({ key: "Enter", stopPropagation: stopper, preventDefault: () => {} });
+check("Enter commits the tag", tagCommitted === true);
+editorInput.props.onKeyDown({ key: "Escape", stopPropagation: stopper, preventDefault: () => {} });
+check("Escape cancels the editor", tagCancelled === true);
+
+check(
+	"the export marks resolved rows and their tags",
+	testing.quoteListMarkdown([revRowB, revRowA], "审阅导出").includes("## 1. 审阅的第一条　已解决") && testing.quoteListMarkdown([revRowA], "审阅导出").includes("#t1") && testing.quoteListMarkdown([revRowA], "审阅导出").includes("#P-0"),
+	JSON.stringify({ metaB: testing.quoteMetaFor(revRowB), headings: testing.quoteListMarkdown([revRowB, revRowA], "审阅导出").split("\n").filter((line) => line.startsWith("##")) })
+);
+const revRowFresh = { quote: "审阅的干净一条", comment: "", ref: null };
+const freshExport = testing.quoteListMarkdown([revRowFresh], "审阅导出");
+check("an untouched row exports without marks", freshExport.includes("已解决") === false && !/　/u.test(freshExport), JSON.stringify(freshExport.split("\n").slice(0, 3)));
+
+const bodyReview = testing.QuoteListBody({ sessionId: "session-review", load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }) });
+const reviewRoot = Array.isArray(bodyReview.props.children) ? bodyReview.props.children : [bodyReview.props.children];
+const filterRow = reviewRoot.find((node) => node?.props?.className === "dshq-list-filters");
+const filterChips = Array.isArray(filterRow?.props?.children) ? filterRow.props.children : [];
+check("the filter row offers 只看未解决 with a count", filterChips[0]?.props?.children === "只看未解决 (0)", JSON.stringify(filterChips[0]?.props?.children));
+const reviewBody = reviewRoot.find((node) => node?.props?.className === "dshq-list-head");
+const reviewBar = Array.isArray(reviewBody?.props?.children) ? reviewBody.props.children[1] : null;
+const resolveButton = Array.isArray(reviewBar?.props?.children) ? reviewBar.props.children.find((node) => node?.props?.key === "resolve") : null;
+check("the page offers 标记已解决 and starts disabled", resolveButton !== null && resolveButton?.props?.disabled === true && String(resolveButton?.props?.children).startsWith("标记已解决"), JSON.stringify(resolveButton?.props?.children));
 
 console.log(
 	failures.length === 0

@@ -304,6 +304,52 @@ function matchesSelector(element, selector) {
 	return true;
 }
 
+class ShimTreeWalker {
+	constructor(root, whatToShow, filter) {
+		this.filter = typeof filter === 'function' ? filter : null;
+		this.nodes = [];
+		this.collect(root);
+		this.index = -1;
+	}
+
+	collect(node) {
+		for (const child of node.childNodes) {
+			if (child.nodeType === TEXT_NODE) this.nodes.push(child);
+			else if (child.nodeType === ELEMENT_NODE) this.collect(child);
+		}
+	}
+
+	nextNode() {
+		while (this.index + 1 < this.nodes.length) {
+			this.index += 1;
+			const node = this.nodes[this.index];
+			const verdict = this.filter === null ? 1 : this.filter(node);
+			if (verdict === 1) return node;
+		}
+		return null;
+	}
+}
+
+/** A Range with no layout: offsets are real, rectangles are a fixed stub. */
+class ShimRange {
+	constructor() {
+		this.start = null;
+		this.end = null;
+	}
+
+	setStart(node, offset) {
+		this.start = { node, offset };
+	}
+
+	setEnd(node, offset) {
+		this.end = { node, offset };
+	}
+
+	getClientRects() {
+		return [{ left: 10, top: 20, right: 130, bottom: 36, width: 120, height: 16 }];
+	}
+}
+
 class ShimDocument extends ShimNode {
 	constructor() {
 		super(9);
@@ -344,6 +390,14 @@ class ShimDocument extends ShimNode {
 
 	createTextNode(value) {
 		return new ShimText(this, value);
+	}
+
+	createTreeWalker(root, whatToShow, filter) {
+		return new ShimTreeWalker(root, whatToShow, filter);
+	}
+
+	createRange() {
+		return new ShimRange();
 	}
 
 	getElementById(id) {
