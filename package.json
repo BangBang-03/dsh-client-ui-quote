@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-ui-quote",
   "version": "0.12.0",
-  "description": "Select text in the DSH transcript, a file preview or the terminal to quote it into the composer or into a side thread's composer, Kimi-Code style (comment / add to conversation / side chat), with Alt+Q/C/B, a jump back to the quoted source, a searchable quote list page that exports as Markdown, one-click back-flow of a side thread's conclusion, and revisions of a sent quote that mark the old capsule as superseded. The quoted text itself is editable in the comment box (trim a selection, correct a revision's wording), a selection from the file preview or the terminal travels to the model as a fenced code block carrying its file path and line range, and a per-quote reply toggle has the model answer quote by quote, each 「引用N」 label in the reply becoming a badge linked back to the quote. The quoted sentence keeps a highlight and ordinal in its source message, a 引用 ×N bar above the composer lists the draft's quotes, and the sent ref line names the turn and role it came from in readable words. Selections in a diff or per-turn change panel are quotable as code with their file path and line range, and the quote list can insert a multi-selected set into the composer in one action; it also works as a review workbench, marking quotes open/resolved, tagging and filtering them, and batch-resolving or batch-inserting the ticked ones.",
+  "description": "Turn any DSH selection into a reviewable quote — comment / add to chat / side chat, source highlights and jump-back, a searchable review list, side threads, revisions, and per-quote reply badges.",
   "icon": "icon.svg",
   "license": "MIT",
   "author": "BangBang-03",
@@ -20,6 +20,8 @@
     "quote",
     "selection",
     "comment",
+    "annotation",
+    "review",
     "kimi-code"
   ],
   "type": "module",
@@ -45,6 +47,7 @@
     "docs",
     "cordis.patch.yml",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {

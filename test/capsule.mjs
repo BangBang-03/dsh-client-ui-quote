@@ -39,12 +39,23 @@ function check(name, ok, detail) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Chromium's Custom Highlight API: the plugin keeps the source selection visible
+// while the comment box owns focus. A registry stub is enough to observe it.
+const highlightRegistry = new Map();
+globalThis.CSS = { highlights: highlightRegistry };
+globalThis.Highlight = class Highlight {
+	constructor(...ranges) {
+		this.ranges = ranges;
+	}
+};
+
 // ---- the browser globals the bundle runs against --------------------------
 const dom = createDom();
 let spec = null;
 globalThis.document = dom.document;
 globalThis.Element = dom.Element;
 globalThis.MutationObserver = dom.MutationObserver;
+globalThis.KeyboardEvent = dom.KeyboardEvent;
 globalThis.getComputedStyle = dom.getComputedStyle;
 globalThis.localStorage = dom.localStorage;
 try {
@@ -82,6 +93,7 @@ const exports_ = spec.factory((name) => {
 });
 
 const sources = [];
+const openedResources = [];
 const effects = [];
 /** What the plugin registered into the host's slots, so a test can mount it. */
 const registered = [];
@@ -90,6 +102,24 @@ const dictionaries = [];
 // The composer of every session the plugin may prefill: a session's input shell
 // exists only once its view mounts, so tests install (and remove) them here.
 const shells = new Map();
+// The native fallback's two host faces: session fork/rename and the right
+// sidebar's resource navigation (the built-in subagent chat claims the address).
+const forkCalls = [];
+const renameCalls = [];
+let nativeForkImpl = async (opts) => {
+	forkCalls.push(opts);
+	return "session-native-default";
+};
+let bindingImpl = () => null;
+const sessionsStub = {
+	fork: (opts) => nativeForkImpl(opts),
+	rename: async (id, title) => {
+		renameCalls.push({ id, title });
+		return { ok: true, value: { title, seq: 1 } };
+	},
+	binding: (id) => bindingImpl(id),
+	scope: (id) => bindingImpl(id)?.ctx ?? null
+};
 exports_.apply({
 	effect(fn, label) {
 		const dispose = fn();
@@ -103,6 +133,14 @@ exports_.apply({
 		}
 		if (name === "conversation") {
 			return { input: { shell: (sessionId) => shells.get(sessionId) ?? null } };
+		}
+		if (name === "sessions") return sessionsStub;
+		if (name === "sidebarRight") {
+			return {
+				openResource(address, options) {
+					openedResources.push({ address, options });
+				}
+			};
 		}
 		return undefined;
 	},
@@ -693,7 +731,7 @@ try {
 	// only forgets ours.
 	testing.rememberSideThread("session-q8", "session-side-8");
 	const ownMap = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:sidechat-thread"));
-	check("the plugin keeps its own thread map", ownMap?.["session-q8"] === "session-side-8", JSON.stringify(ownMap));
+	check("the plugin keeps its own thread map", ownMap?.["session-q8"]?.threadId === "session-side-8", JSON.stringify(ownMap));
 	bindHostThread("session-q8", "session-side-8-host");
 	check("the host's binding wins over ours", testing.storedSideThread("session-q8") === "session-side-8-host");
 	testing.rememberSideThread("session-q8", "");
@@ -705,6 +743,127 @@ try {
 	check("a blank quote never reaches the wire", fetches.length === 0);
 } finally {
 	globalThis.fetch = realFetch;
+}
+
+// ---- 侧边对话 without better-sidebar: fork + the built-in subagent chat ----
+// The fallback must not rebuild a chat UI: `sessions.fork` gives a child that
+// inherits the source history, and `sidebarRight.openResource` opens the
+// built-in `subagentchat` tab for it. The quote still lands as a draft only.
+{
+	check("the native side-chat fallback is exported", typeof testing.nativeSideChatRequest === "function" && typeof testing.nativeSideChatAvailable === "function");
+	check("the third row stays available through the native fallback", testing.sideChatAvailable() === true);
+	const nativeState = installShell("session-native-1");
+	forkCalls.length = 0;
+	renameCalls.length = 0;
+	openedResources.length = 0;
+	nativeForkImpl = async (opts) => {
+		forkCalls.push(opts);
+		return "session-native-1";
+	};
+	await testing.nativeSideChatRequest("session-native-main", "原生侧栏引用", false, null, "");
+	check("the native fallback forks the quoting session", forkCalls.length === 1 && forkCalls[0]?.sessionId === "session-native-main", JSON.stringify(forkCalls));
+	check(
+		"the native fallback opens the built-in subagent chat for the fork",
+		openedResources.length === 1 && openedResources[0]?.address === "dsh-resource://subagentchat/session/session-native-1?parent=session-native-main&mode=continuable",
+		JSON.stringify(openedResources)
+	);
+	check("the native fallback names the fork after the quote", renameCalls.length === 1 && renameCalls[0]?.title === "原生侧栏引用", JSON.stringify(renameCalls));
+	check("the native fallback prefills the fork's composer", nativeState.draft === "> 原生侧栏引用", JSON.stringify(nativeState.draft));
+	check("the native fallback remembers the fork as the thread", testing.storedSideThread("session-native-main") === "session-native-1");
+	openedResources.length = 0;
+	await testing.nativeSideChatRequest("session-native-main", "第二段引用", false, null, "");
+	check(
+		"the native fallback reuses the remembered fork",
+		forkCalls.length === 1 && openedResources.length === 1 && String(openedResources[0]?.address).includes("session-native-1"),
+		JSON.stringify(openedResources)
+	);
+	openedResources.length = 0;
+	check(
+		"the quote list opens a native fork thread in the built-in chat",
+		testing.openThreadTab("session-native-main", "session-native-1") === true &&
+			openedResources.length === 1 &&
+			String(openedResources[0]?.address).includes("session-native-1"),
+		JSON.stringify(openedResources)
+	);
+	forkCalls.length = 0;
+	openedResources.length = 0;
+	nativeForkImpl = async (opts) => {
+		forkCalls.push(opts);
+		return "session-native-2";
+	};
+	await testing.nativeSideChatRequest("session-native-main", "另开一条", false, null, "", "new", "");
+	check(
+		"the native 'new' mode forks another thread",
+		forkCalls.length === 1 && openedResources.length === 1 && String(openedResources[0]?.address).includes("session-native-2"),
+		JSON.stringify(openedResources)
+	);
+	nativeForkImpl = async () => {
+		throw new Error("fork refused");
+	};
+	await testing.nativeSideChatRequest("session-native-fail", "会失败的引用", false, null, "");
+	check("a refused native fork lands in the toast", toastNode()?.textContent === "侧边对话没有打开，请重试", JSON.stringify(toastNode()?.textContent));
+	nativeForkImpl = async (opts) => {
+		forkCalls.push(opts);
+		return "session-native-default";
+	};
+	openedResources.length = 0;
+}
+
+// A future host may keep the scoped input events but drop the shell's
+// insertReference method. The chip must still land through the event, not
+// degrade to a plain-text quote.
+{
+	const events = [];
+	bindingImpl = (id) => id === "session-event"
+		? {
+			ctx: {
+				bail(_ctx, name, payload) {
+					events.push({ name, payload });
+					return true;
+				}
+			}
+		}
+		: null;
+	shells.set("session-event", {});
+	const entry = { actions: () => ({ captureInsertion: () => ({ draftRev: 9 }) }) };
+	const inserted = testing.insertChip(entry, "session-event", "事件插入的引用", "", false, {
+		ref: { v: 1, s: "session-event", a: "data-chat-anchor-key", k: "row-event", t: "4", n: 1 }
+	});
+	check(
+		"a host without the shell method dispatches the scoped insert event",
+		inserted === true && events.length === 1 && events[0]?.name === "slash/input-insert-reference" && events[0]?.payload?.span?.draftRev === 9,
+		JSON.stringify(events)
+	);
+	bindingImpl = () => null;
+}
+
+// The overlay's own third row must take the same fallback, not only the
+// lower-level request helper: this drives startRevision → openSideChat.
+{
+	openedResources.length = 0;
+	forkCalls.length = 0;
+	renameCalls.length = 0;
+	const menuState = installShell("session-native-menu-1");
+	nativeForkImpl = async (opts) => {
+		forkCalls.push(opts);
+		return "session-native-menu-1";
+	};
+	testing.startRevision("端到端降级引用", "", "session-native-menu", null, false);
+	testing.openSideChat();
+	await wait(120);
+	check(
+		"the overlay's side-chat action uses the native fallback",
+		forkCalls.length === 1 &&
+			openedResources.length === 1 &&
+			String(openedResources[0]?.address).includes("session-native-menu-1") &&
+			menuState.draft === "> 端到端降级引用",
+		JSON.stringify({ forkCalls, openedResources, draft: menuState.draft })
+	);
+	openedResources.length = 0;
+	nativeForkImpl = async (opts) => {
+		forkCalls.push(opts);
+		return "session-native-default";
+	};
 }
 
 /* ------------------------------------------------------------------ *
@@ -1104,6 +1263,74 @@ try {
 }
 
 /* ------------------------------------------------------------------ *
+ * 打开文件 — the card's path line opens the source at its first line
+ * ------------------------------------------------------------------ */
+
+{
+	const openHost = dom.document.createElement("div");
+	openHost.setAttribute("data-conversation-content", "");
+	openHost.setAttribute("data-conversation-session", "session-open");
+	const openBubble = dom.document.createElement("div");
+	const openRun = dom.document.createElement("span");
+	openRun.className = "plainRun";
+	openRun.textContent = testing.chipRef("const x = 1;", "", true, { path: "src/app.ts#L12-L48" });
+	openBubble.append(openRun);
+	openHost.append(openBubble);
+	dom.document.body.append(openHost);
+	dom.document.deliver();
+	await wait(120);
+	const openCap = openHost.querySelectorAll(".dshq-cap")[0];
+	openCap.rect = { left: 100, top: 300, width: 180, height: 22 };
+	openCap.dispatch("mouseenter", {});
+	const sourceButton = pop()?.querySelector(".dshq-pop-source");
+	check("the card shows the code quote's file and line", sourceButton?.textContent === "src/app.ts · L12-L48 ↗", JSON.stringify(sourceButton?.textContent));
+	testing.saveSource("const x = 1;", "session-open", { attr: "data-chat-anchor-key", key: "row-open", turn: "1", role: "u", origin: "preview" });
+	openCap.dispatch("mouseenter", {});
+	check(
+		"the card names where the quote came from",
+		pop()?.querySelector(".dshq-pop-source")?.textContent === "文件预览 · src/app.ts · L12-L48 ↗",
+		JSON.stringify(pop()?.querySelector(".dshq-pop-source")?.textContent)
+	);
+	sourceButton?.dispatch("click", { stopPropagation() {} });
+	check(
+		"opening the source asks the right sidebar for the session file at line 12",
+		openedResources.length === 1 &&
+			openedResources[0].address === "dsh-resource://file/session/session-open/src/app.ts" &&
+			openedResources[0].options?.params?.line === 12,
+		JSON.stringify(openedResources)
+	);
+	openCap.dispatch("mouseleave", {});
+	await wait(200);
+	openHost.remove();
+
+	// A language-only code quote (a chat code block) has no file to open: the
+	// card must not offer a dead source line for the language tag.
+	const langHost = dom.document.createElement("div");
+	langHost.setAttribute("data-conversation-content", "");
+	langHost.setAttribute("data-conversation-session", "session-open-lang");
+	const langBubble = dom.document.createElement("div");
+	const langRun = dom.document.createElement("span");
+	langRun.className = "plainRun";
+	langRun.textContent = testing.chipRef("const x = 1;", "", true, { lang: "ts" });
+	langBubble.append(langRun);
+	langHost.append(langBubble);
+	dom.document.body.append(langHost);
+	dom.document.deliver();
+	await wait(120);
+	const langCap = langHost.querySelectorAll(".dshq-cap")[0];
+	langCap.rect = { left: 100, top: 300, width: 180, height: 22 };
+	langCap.dispatch("mouseenter", {});
+	check(
+		"a language-only code quote offers no file line",
+		pop()?.querySelector(".dshq-pop-source") === null && pop()?.querySelector(".dshq-pop-code")?.textContent === "const x = 1;",
+		JSON.stringify([pop()?.querySelector(".dshq-pop-source")?.textContent, pop()?.querySelector(".dshq-pop-code")?.textContent])
+	);
+	langCap.dispatch("mouseleave", {});
+	await wait(200);
+	langHost.remove();
+}
+
+/* ------------------------------------------------------------------ *
  * 文件路径 + 逐条回应 — the wire's two new transport-only forms
  * ------------------------------------------------------------------ */
 
@@ -1175,6 +1402,31 @@ try {
 		"the side thread drops a whitespace path",
 		testing.sideQuestion("x=1", true, "my file.ts") === "```\nx=1\n```",
 		JSON.stringify(testing.sideQuestion("x=1", true, "my file.ts"))
+	);
+	check(
+		"a chat code block's language rides in the fence info when there is no file",
+		testing.quoteBlock("const x = 1;", "", true, { lang: "ts" }) === "> ❝ ``` ts\n> const x = 1;\n> ```",
+		JSON.stringify(testing.quoteBlock("const x = 1;", "", true, { lang: "ts" }))
+	);
+	check(
+		"the file wins the fence info over the language",
+		testing.quoteBlock("const x = 1;", "", true, { path: "src/a.ts", lang: "ts" }) === "> ❝ ``` src/a.ts\n> const x = 1;\n> ```",
+		JSON.stringify(testing.quoteBlock("const x = 1;", "", true, { path: "src/a.ts", lang: "ts" }))
+	);
+	check(
+		"a language tag round-trips as the fence info string",
+		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { lang: "ts" }))?.[0]?.code === "ts",
+		JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { lang: "ts" })))
+	);
+	check(
+		"a junk language degrades to a bare fence",
+		testing.quoteBlock("const x = 1;", "", true, { lang: "not a lang" }) === "> ❝ ```\n> const x = 1;\n> ```",
+		JSON.stringify(testing.quoteBlock("const x = 1;", "", true, { lang: "not a lang" }))
+	);
+	check(
+		"the side thread's fence carries the language too",
+		testing.sideQuestion("x=1", true, null, "ts") === "``` ts\nx=1\n```",
+		JSON.stringify(testing.sideQuestion("x=1", true, null, "ts"))
 	);
 
 	// previewPathOf: walk the ancestors, skip values that cannot be a path.
@@ -1265,6 +1517,65 @@ try {
 	dom.document.selection = null;
 	diffPane.remove();
 
+	// A chat selection inside one rendered code block is code too: the fence
+	// carries the renderer's language, and the quote still jumps to its row.
+	const codePane = dom.document.createElement("div");
+	codePane.setAttribute("data-conversation-content", "");
+	codePane.setAttribute("data-conversation-session", "session-chatcode");
+	const chatRow = dom.document.createElement("div");
+	chatRow.setAttribute("data-chat-anchor-key", "row-chatcode");
+	chatRow.setAttribute("data-chat-turn", "3");
+	const chatPre = dom.document.createElement("pre");
+	const chatCode = dom.document.createElement("code");
+	chatCode.className = "language-ts";
+	chatCode.textContent = "const x = 1;";
+	chatPre.append(chatCode);
+	chatRow.append(chatPre);
+	codePane.append(chatRow);
+	dom.document.body.append(codePane);
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "const x = 1;",
+		removeAllRanges() {},
+		getRangeAt: () => ({
+			startContainer: chatCode.firstChild,
+			endContainer: chatCode.firstChild,
+			intersectsNode: () => false,
+			getBoundingClientRect: () => ({ left: 100, top: 300, right: 220, bottom: 318, width: 120, height: 18 })
+		})
+	};
+	const chatCodeSelection = testing.readSelection();
+	check(
+		"a chat code block selection is code with the renderer's language",
+		chatCodeSelection?.hostKind === "chat" && chatCodeSelection?.lang === "ts" && chatCodeSelection?.source !== null,
+		JSON.stringify(chatCodeSelection)
+	);
+	// A selection that crosses the block boundary degrades to a plain quote.
+	const afterBlock = dom.document.createElement("p");
+	afterBlock.textContent = "后面的正文";
+	codePane.append(afterBlock);
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "const x = 1;",
+		removeAllRanges() {},
+		getRangeAt: () => ({
+			startContainer: chatCode.firstChild,
+			endContainer: afterBlock.firstChild,
+			intersectsNode: () => false,
+			getBoundingClientRect: () => ({ left: 100, top: 300, right: 220, bottom: 318, width: 120, height: 18 })
+		})
+	};
+	const crossingSelection = testing.readSelection();
+	check(
+		"a selection crossing the code block boundary stays a plain quote",
+		crossingSelection?.hostKind === "chat" && crossingSelection?.lang === null,
+		JSON.stringify(crossingSelection)
+	);
+	dom.document.selection = null;
+	codePane.remove();
+
 	// withLineRange: GitHub's #L spelling, normalized, or nothing.
 	check(
 		"withLineRange composes the GitHub line range",
@@ -1283,6 +1594,33 @@ try {
 		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts#L12-L48" }))?.[0]?.code === "src/app.ts#L12-L48",
 		JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true, { path: "src/app.ts#L12-L48" }))
 		)
+	);
+	check(
+		"parseCodeSource splits the GitHub line range",
+		JSON.stringify(testing.parseCodeSource("src/app.ts#L12-L48")) === JSON.stringify({ path: "src/app.ts", line: 12, end: 48 }),
+		JSON.stringify(testing.parseCodeSource("src/app.ts#L12-L48"))
+	);
+	check(
+		"parseCodeSource keeps a bare path openable",
+		JSON.stringify(testing.parseCodeSource("src/app.ts")) === JSON.stringify({ path: "src/app.ts", line: null, end: null }),
+		JSON.stringify(testing.parseCodeSource("src/app.ts"))
+	);
+	check(
+		"parseCodeSource refuses an impossible range",
+		testing.parseCodeSource("src/app.ts#L12-L3") === null && testing.parseCodeSource("") === null,
+		JSON.stringify([testing.parseCodeSource("src/app.ts#L12-L3"), testing.parseCodeSource("")])
+	);
+	check(
+		"a bare language tag is not a file to open",
+		testing.parseCodeSource("ts") === null && testing.parseCodeSource("c++") === null,
+		JSON.stringify([testing.parseCodeSource("ts"), testing.parseCodeSource("c++")])
+	);
+	const winPath = String.raw`C:\a b\app.ts`;
+	check(
+		"fileAddressFor builds the session resource address",
+		testing.fileAddressFor("session-a", "src/app.ts") === "dsh-resource://file/session/session-a/src/app.ts" &&
+			testing.fileAddressFor("会话 α", winPath) === "dsh-resource://file/session/%E4%BC%9A%E8%AF%9D%20%CE%B1/C:/a%20b/app.ts",
+		JSON.stringify([testing.fileAddressFor("session-a", "src/app.ts"), testing.fileAddressFor("会话 α", winPath)])
 	);
 }
 
@@ -1518,6 +1856,7 @@ try {
 		barOf()?.dataset.visible === "true",
 		JSON.stringify(barOf()?.dataset.visible)
 	);
+	check("the source selection stays highlighted while the bar is open", highlightRegistry.has("dshq-selection"));
 	check(
 		"the bar offers the actions",
 		barOf()?.querySelector('[data-action="add"]') !== null && barOf()?.querySelector('[data-action="comment"]') !== null
@@ -1528,6 +1867,7 @@ try {
 	check("the overlay slot is registered for mounting", overlay !== undefined);
 	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
 	check("Escape closes the bar", barOf()?.dataset.visible === "false", JSON.stringify(barOf()?.dataset.visible));
+	check("closing the bar clears the source highlight", highlightRegistry.has("dshq-selection") === false);
 	if (overlay !== undefined) {
 		overlay.Component({ sessionId: "session-bar", inputActions: { captureInsertion: () => ({ draftRev: 1 }) } });
 		overlay.Component({ sessionId: "session-bar-2", inputActions: { captureInsertion: () => ({ draftRev: 2 }) } });
@@ -1938,6 +2278,11 @@ try {
  * ------------------------------------------------------------------ */
 
 {
+	// Earlier hover-card cases leave composer cards behind; their bars would be
+	// the first `.dshq-draftbar` in the document. Start this case from a clean
+	// composer surface so the bar and its remove control belong to this card.
+	for (const old of Array.from(dom.document.querySelectorAll("[data-composer-card]"))) old.remove();
+	testing.syncDraftBars();
 	const card = dom.document.createElement("div");
 	card.setAttribute("data-composer-card", "");
 	const chip = dom.document.createElement("span");
@@ -1949,14 +2294,86 @@ try {
 	chip.setAttribute("data-dshq-chip", "1");
 	card.append(chip);
 	dom.document.body.append(card);
+	const composer = dom.document.createElement("div");
+	composer.setAttribute("data-composer-input", "");
+	const editable = dom.document.createElement("div");
+	editable.setAttribute("contenteditable", "true");
+	composer.append(editable);
+	dom.document.body.append(composer);
 	testing.syncDraftBars();
 	const bar = dom.document.querySelector(".dshq-draftbar");
 	check("the aggregate bar appears above a composer with quotes", bar !== null && bar !== undefined, JSON.stringify(bar?.textContent));
 	check("it says how many quotes the draft holds", String(bar?.textContent).includes("引用 ×1"), JSON.stringify(bar?.textContent));
 	check("it offers one pill per quote", bar?.querySelectorAll(".dshq-db-pill").length === 1, String(bar?.querySelectorAll(".dshq-db-pill").length));
+	check("the pill carries the full quote in its accessible name", String(bar?.querySelector(".dshq-db-pill")?.getAttribute("aria-label")).includes(barQuote) && String(bar?.querySelector(".dshq-db-pill")?.getAttribute("aria-label")).includes("一条评论"), JSON.stringify(bar?.querySelector(".dshq-db-pill")?.getAttribute("aria-label")));
+	const remove = bar?.querySelector(".dshq-db-remove");
+	check("it offers a remove control per quote", bar?.querySelectorAll(".dshq-db-remove").length === 1, String(bar?.querySelectorAll(".dshq-db-remove").length));
+	check("the remove control is named", remove?.getAttribute("aria-label") === "移除这条引用", JSON.stringify(remove?.getAttribute("aria-label")));
+	remove?.dispatch("click", { preventDefault() {}, stopPropagation() {} });
+	check("a chip the host cannot locate falls back to the editor's Backspace path", (editable.dispatched ?? []).map((event) => event.type + ":" + event.key).join(",") === "keydown:Backspace,keyup:Backspace", JSON.stringify((editable.dispatched ?? []).map((event) => event.type + ":" + event.key)));
 	card.remove();
+	composer.remove();
 	testing.syncDraftBars();
 	check("the bar disappears with the last chip", dom.document.querySelector(".dshq-draftbar") === null);
+}
+
+{
+	// The host's composer state lists every chip occurrence with its clipboard
+	// offset and length. A chip is one character in detect coordinates, so a
+	// preceding foreign chip shifts the target left by `length - 1`. The shell's
+	// consumeToken applies the span only when its draftRev still matches.
+	const consumeQuote = "精确删除的引用";
+	const consumeLabel = testing.chipLabel(consumeQuote, "");
+	const consumeRef = testing.chipRef(consumeQuote, "", false, {
+		ref: { v: 1, s: "session-consume", a: "data-chat-anchor-key", k: "row-consume", t: "3", n: 1 }
+	});
+	const consumed = [];
+	shells.set("session-consume", {
+		compose() {
+			return {
+				draft: "XYZ" + consumeRef + " tail",
+				draftRev: 7,
+				occurrences: [
+					{ source: "file", ref: "@a", label: "@a", offset: 0, length: 3 },
+					{ source: "quote", ref: consumeRef, label: consumeLabel, offset: 3, length: consumeRef.length }
+				]
+			};
+		},
+		consumeToken(guard) {
+			consumed.push(guard);
+			return true;
+		}
+	});
+	testing.rememberChip(consumeQuote, "", "session-consume", false, {
+		ref: { v: 1, s: "session-consume", a: "data-chat-anchor-key", k: "row-consume", t: "3", n: 1 }
+	});
+	const consumeChip = dom.document.createElement("span");
+	consumeChip.textContent = consumeLabel;
+	testing.removeDraftChip(consumeChip, "session-consume");
+	check(
+		"a located draft quote is removed through the shell's token consumer",
+		consumed.length === 1 && consumed[0]?.kind === "span" && consumed[0]?.span?.start === 1 && consumed[0]?.span?.end === 3 && consumed[0]?.span?.draftRev === 7,
+		JSON.stringify(consumed)
+	);
+	const ambiguous = [];
+	shells.set("session-consume-ambiguous", {
+		compose() {
+			return {
+				draft: consumeRef + " " + consumeRef + " ",
+				draftRev: 8,
+				occurrences: [
+					{ source: "quote", ref: consumeRef, label: consumeLabel, offset: 0, length: consumeRef.length },
+					{ source: "quote", ref: consumeRef, label: consumeLabel, offset: consumeRef.length + 1, length: consumeRef.length }
+				]
+			};
+		},
+		consumeToken(guard) {
+			ambiguous.push(guard);
+			return true;
+		}
+	});
+	testing.removeDraftChip(consumeChip, "session-consume-ambiguous");
+	check("two chips with the same label are left to the caret path", ambiguous.length === 0, JSON.stringify(ambiguous));
 }
 
 /* ------------------------------------------------------------------ *
@@ -2010,6 +2427,343 @@ try {
 	pane.remove();
 	testing.paintAnchors();
 	check("the layer empties when the source row unmounts", dom.document.querySelector(".dshq-anchor-layer")?.style?.display === "none");
+}
+
+/* ------------------------------------------------------------------ *
+ * 配置 + 调试句柄 — the switches and the window onto the plugin
+ * ------------------------------------------------------------------ */
+
+{
+	const defaults = testing.config();
+	check(
+		"the switches start at their defaults",
+		defaults.minChars === 1 && defaults.maxQuoteChars === 4000 && defaults.replyByDefault === false && defaults.attribution === true && defaults.highlight === true,
+		JSON.stringify(defaults)
+	);
+	const patched = testing.setConfig({ minChars: 12, maxQuoteChars: "not a number", attribution: false, unknownKey: 1 });
+	check(
+		"a patch keeps the whitelist and the types",
+		patched.minChars === 12 && patched.maxQuoteChars === 4000 && patched.attribution === false && patched.unknownKey === undefined,
+		JSON.stringify(patched)
+	);
+	check("a patch is persisted", testing.config().minChars === 12, JSON.stringify(testing.config()));
+	testing.setConfig({ minChars: 1, attribution: true });
+	check("the switches go back", testing.config().minChars === 1 && testing.config().attribution === true, JSON.stringify(testing.config()));
+
+	const probe = globalThis.window.__dshQuote;
+	check(
+		"the probe handle is installed",
+		probe !== undefined && typeof probe.config === "function" && typeof probe.state === "function" && typeof probe.probe === "function",
+		typeof probe
+	);
+	check(
+		"the probe reads the host's services",
+		probe.probe().services.inputTriggers === true && probe.probe().services.conversation === true,
+		JSON.stringify(probe.probe().services)
+	);
+	check("the probe reads the live state", probe.state() !== undefined, JSON.stringify(probe.state()));
+	check("the probe reads the native side-chat fallback", probe.probe().nativeSideChat === true, JSON.stringify(probe.probe()));
+}
+
+/* ------------------------------------------------------------------ *
+ * 逐条回应的双语 — the instruction follows the reader, the badges read both
+ * ------------------------------------------------------------------ */
+
+{
+	const englishInstruction = "Instruction: number the quote blocks of this message in order as 「Quote 1」「Quote 2」…, answer each one separately, and prefix every answer with 「Quote N」.";
+	const englishWire = testing.quoteBlock("正文", "评论", false, { reply: true, replyInstruction: englishInstruction });
+	check("the English instruction rides the wire", englishWire.includes(englishInstruction), JSON.stringify(englishWire));
+	const englishSegments = testing.splitQuoteRuns(englishWire);
+	check(
+		"the English instruction never reaches the capsule",
+		englishSegments?.length === 1 && englishSegments[0].quote === "正文" && JSON.stringify(englishSegments).includes("Instruction") === false,
+		JSON.stringify(englishSegments)
+	);
+
+	// An English reply's 「Quote 1」 becomes a badge just like 「引用1」 does.
+	const enHost = dom.document.createElement("div");
+	enHost.setAttribute("data-conversation-content", "");
+	enHost.setAttribute("data-conversation-session", "session-en-badge");
+	const enBubble = dom.document.createElement("div");
+	const enRun = dom.document.createElement("span");
+	enRun.className = "plainRun";
+	enRun.textContent = "问题" + testing.quoteBlock("第一处引用", "注一") + "\n\n";
+	enBubble.append(enRun);
+	enHost.append(enBubble);
+	const enReply = dom.document.createElement("p");
+	enReply.textContent = "Answer 「Quote 1」 and 「Quote 9」 out of range";
+	enHost.append(enReply);
+	dom.document.body.append(enHost);
+	dom.document.deliver();
+	await wait(120);
+	const enBadges = enReply.querySelectorAll(".dshq-ref");
+	check("an English label becomes a badge", enBadges.length === 1, enBadges.length + " badge(s)");
+	check("the English badge keeps the label it was written with", enBadges[0]?.textContent === "「Quote 1」", JSON.stringify(enBadges[0]?.textContent));
+	enHost.remove();
+}
+
+/* ------------------------------------------------------------------ *
+ * 草稿芯片的跨刷新索引 — the host restores the draft's chips, we must too
+ * ------------------------------------------------------------------ */
+
+{
+	const storeKey = "dsh-client-ui-quote:v1:chip-index";
+	testing.rememberChip("写进持久索引的引用", "一条评论", "session-persist", false, { ref: null });
+	const store = JSON.parse(globalThis.localStorage.getItem(storeKey) ?? "{}");
+	check(
+		"a minted chip is written to the persisted index",
+		Object.values(store).some((entry) => entry.quote === "写进持久索引的引用"),
+		JSON.stringify(Object.keys(store))
+	);
+
+	// A chip the host restored after a reload was never minted in this page:
+	// the persisted index is what still knows what it holds.
+	const restoredLabel = testing.chipLabel("跨刷新还在的引用", "一条评论");
+	globalThis.localStorage.setItem(
+		storeKey,
+		JSON.stringify({
+			[restoredLabel]: { quote: "跨刷新还在的引用", comment: "一条评论", sessionId: "session-reload", code: false, path: null, ref: null }
+		})
+	);
+	testing.loadPersistedChips();
+	const restoredChip = dom.document.createElement("span");
+	restoredChip.textContent = restoredLabel;
+	const restored = testing.chipInfoFor(restoredChip);
+	check(
+		"a chip restored by the host is still ours after a reload",
+		restored?.quote === "跨刷新还在的引用" && restored?.comment === "一条评论" && restored?.sessionId === "session-reload",
+		JSON.stringify(restored)
+	);
+	const markedChip = dom.document.createElement("span");
+	markedChip.textContent = "❝ " + restoredLabel;
+	check(
+		"a restored chip is recognised even with the host's own mark",
+		testing.chipInfoFor(markedChip)?.quote === "跨刷新还在的引用",
+		JSON.stringify(testing.chipInfoFor(markedChip))
+	);
+}
+
+/* ------------------------------------------------------------------ *
+ * 待发引用的编辑 — the aggregate bar edits a quote that is still in the draft
+ * ------------------------------------------------------------------ */
+
+{
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	const draftInsertions = [];
+	shells.set("session-draft-edit", {
+		insertReference(attachment, capturedSpan) {
+			draftInsertions.push({ attachment, capturedSpan });
+			return true;
+		}
+	});
+	if (overlay !== undefined) {
+		overlay.Component({ sessionId: "session-draft-edit", inputActions: { captureInsertion: () => ({ draftRev: 3 }) } });
+	}
+	const card = dom.document.createElement("div");
+	card.setAttribute("data-composer-card", "");
+	const chip = dom.document.createElement("span");
+	const draftQuote = "待发引用的原文";
+	testing.rememberChip(draftQuote, "待发的评论", "session-draft-edit", false, {
+		ref: { v: 1, s: "session-draft-edit", a: "data-chat-anchor-key", k: "row-draft", t: "2", n: 1 }
+	});
+	chip.textContent = testing.chipLabel(draftQuote, "待发的评论");
+	chip.setAttribute("data-dshq-chip", "1");
+	card.append(chip);
+	dom.document.body.append(card);
+	testing.syncDraftBars();
+	const draftBar = dom.document.querySelector(".dshq-draftbar");
+	const edit = draftBar?.querySelector(".dshq-db-edit");
+	check("the aggregate bar offers an edit control per quote", draftBar?.querySelectorAll(".dshq-db-edit").length === 1, String(draftBar?.querySelectorAll(".dshq-db-edit").length));
+	check("the edit control is named", edit?.getAttribute("aria-label") === "编辑这条引用", JSON.stringify(edit?.getAttribute("aria-label")));
+	edit?.dispatch("click", { preventDefault() {}, stopPropagation() {} });
+	const commentBar = dom.document.getElementById("dsh-quote-bar");
+	const quoteBox = commentBar?.querySelector(".dshq-quote-input");
+	const input = commentBar?.querySelector(".dshq-comment-input");
+	check("the box comes back with the draft quote", quoteBox?.value === draftQuote, JSON.stringify(quoteBox?.value));
+	check("and the draft comment", input?.value === "待发的评论", JSON.stringify(input?.value));
+	input.value = "改过的评论";
+	input.dispatch("input", {});
+	const confirm = commentBar?.querySelector('[data-action="confirm"]');
+	commentBar?.dispatch("click", { target: confirm });
+	check(
+		"the corrected quote is inserted",
+		draftInsertions.length === 1 && String(draftInsertions[0]?.attachment?.ref ?? "").includes("改过的评论"),
+		JSON.stringify({ count: draftInsertions.length, ref: String(draftInsertions[0]?.attachment?.ref ?? "").slice(0, 40) })
+	);
+	check(
+		"the old chip was asked to leave",
+		(chip.dispatched ?? []).some((event) => event.key === "Backspace"),
+		JSON.stringify((chip.dispatched ?? []).map((event) => event.key))
+	);
+	card.remove();
+	testing.syncDraftBars();
+}
+
+/* ------------------------------------------------------------------ *
+ * 选区保结构 — a link keeps its target, an inline code span keeps its backticks
+ * ------------------------------------------------------------------ */
+
+{
+	const pane = dom.document.createElement("div");
+	pane.setAttribute("data-conversation-content", "");
+	pane.setAttribute("data-conversation-session", "session-structure");
+	const paragraph = dom.document.createElement("p");
+	const before = dom.document.createTextNode("看 ");
+	const link = dom.document.createElement("a");
+	link.setAttribute("href", "https://example.com/docs");
+	link.append(dom.document.createTextNode("文档"));
+	const middle = dom.document.createTextNode(" 和 ");
+	const code = dom.document.createElement("code");
+	code.append(dom.document.createTextNode("npm test"));
+	const after = dom.document.createTextNode(" 结束");
+	paragraph.append(before, link, middle, code, after);
+	pane.append(paragraph);
+	dom.document.body.append(pane);
+
+	// The fragment a range hands back: a fragment, not an element — the shape
+	// the browser's `cloneContents()` really returns.
+	const fragment = dom.document.createDocumentFragment();
+	const fragLink = dom.document.createElement("a");
+	fragLink.setAttribute("href", "https://example.com/docs");
+	fragLink.append(dom.document.createTextNode("文档"));
+	const fragCode = dom.document.createElement("code");
+	fragCode.append(dom.document.createTextNode("npm test"));
+	fragment.append(dom.document.createTextNode("看 "), fragLink, dom.document.createTextNode(" 和 "), fragCode, dom.document.createTextNode(" 结束"));
+
+	const rangeOf = (fragmentNode) => ({
+		startContainer: before,
+		endContainer: after,
+		cloneContents: () => fragmentNode,
+		intersectsNode: () => false,
+		getBoundingClientRect: () => ({ left: 100, top: 300, right: 320, bottom: 318, width: 220, height: 18 })
+	});
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "看 文档 和 npm test 结束",
+		removeAllRanges() {},
+		getRangeAt: () => rangeOf(fragment)
+	};
+	const structured = testing.readSelection();
+	check(
+		"a link keeps its target and an inline code keeps its backticks",
+		structured?.text === "看 [文档](https://example.com/docs) 和 `npm test` 结束",
+		JSON.stringify(structured?.text)
+	);
+	check(
+		"the plain wording can still be found in the transcript",
+		testing.plainOf(structured?.text ?? "") === "看 文档 和 npm test 结束",
+		JSON.stringify(testing.plainOf(structured?.text ?? ""))
+	);
+
+	// A selection with no structure is left exactly as it was.
+	const plainFragment = dom.document.createDocumentFragment();
+	plainFragment.append(dom.document.createTextNode("一段普通的正文"));
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "一段普通的正文",
+		removeAllRanges() {},
+		getRangeAt: () => rangeOf(plainFragment)
+	};
+	const plainSelection = testing.readSelection();
+	check("a selection without structure stays plain", plainSelection?.text === "一段普通的正文", JSON.stringify(plainSelection?.text));
+	dom.document.selection = null;
+	pane.remove();
+}
+
+/* ------------------------------------------------------------------ *
+ * 引用本轮 — the turn tail quotes a whole turn
+ * ------------------------------------------------------------------ */
+
+{
+	const pane = dom.document.createElement("div");
+	pane.setAttribute("data-conversation-content", "");
+	pane.setAttribute("data-conversation-session", "session-turn");
+	const question = dom.document.createElement("div");
+	question.setAttribute("data-chat-turn", "3");
+	question.setAttribute("data-chat-anchor-key", "row-turn-q");
+	question.setAttribute("data-chat-role", "user");
+	question.textContent = "这一轮的问题";
+	const answer = dom.document.createElement("div");
+	answer.setAttribute("data-chat-turn", "3");
+	answer.setAttribute("data-chat-anchor-key", "row-turn-a");
+	answer.setAttribute("data-chat-role", "assistant");
+	answer.textContent = "这一轮的回答";
+	pane.append(question, answer);
+	dom.document.body.append(pane);
+
+	const asked = testing.turnTextAt(question, 3, "user");
+	check("a turn's question is read from the transcript", asked.text === "这一轮的问题", JSON.stringify(asked.text));
+	check("and it keeps the row's coordinate", asked.source?.key === "row-turn-q" && asked.source?.turn === "3", JSON.stringify(asked.source));
+	const answered = testing.turnTextAt(answer, 3, "assistant");
+	check("a turn's answer is read too", answered.text === "这一轮的回答", JSON.stringify(answered.text));
+	check("another turn is not mixed in", testing.turnTextAt(question, 4, "user").text === "", JSON.stringify(testing.turnTextAt(question, 4, "user").text));
+
+	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
+	const turnBar = dom.document.getElementById("dsh-quote-bar");
+	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
+
+	const turnSlot = registered.find((entry) => entry.spec.name === "conversation.chat.turnTail");
+	check("the turn tail slot is registered", turnSlot !== undefined && turnSlot.spec.id === "ui-quote.turn", JSON.stringify(turnSlot?.spec));
+	pane.remove();
+}
+
+/* ------------------------------------------------------------------ *
+ * 一引用一线程 — the side thread is bound to the quote that opened it
+ * ------------------------------------------------------------------ */
+
+{
+	testing.rememberQuoteThread("session-multi", "第一条引用", "thread-a");
+	check("a quote keeps its own thread", testing.threadForQuote("session-multi", "第一条引用") === "thread-a", String(testing.threadForQuote("session-multi", "第一条引用")));
+	check("another quote of the same session has none", testing.threadForQuote("session-multi", "第二条引用") === null, String(testing.threadForQuote("session-multi", "第二条引用")));
+	testing.rememberSideThread("session-multi", "thread-default");
+	const known = testing.sideThreadsOf("session-multi");
+	check("the session keeps its default thread", known.default === "thread-default", String(known.default));
+	check("and the quote's own thread beside it", known.quotes["第一条引用"] === "thread-a", JSON.stringify(known.quotes));
+	check("the default thread is still the one the page shows", testing.storedSideThread("session-multi") === "thread-default", String(testing.storedSideThread("session-multi")));
+
+	// 另开侧边对话 — a thread of its own, even when the session has one.
+	const fetches = [];
+	const openTabsBefore = openTabs.length;
+	const realFetch = globalThis.fetch;
+	globalThis.fetch = async (url, options) => {
+		fetches.push({ url, options });
+		return { ok: true, json: async () => ({ ok: true, value: { childId: "session-child-2" } }) };
+	};
+	const childState = installShell("session-child-2");
+	await testing.sideChatRequest(sideService, "session-multi", "第三条引用", false, null, "", "new", "第三条引用");
+	check("另开侧边对话 starts a thread of its own", fetches.length === 1 && openTabs.length === openTabsBefore + 1, JSON.stringify({ fetches: fetches.length, tabs: openTabs.length - openTabsBefore }));
+	check("and the quote is bound to that thread", testing.threadForQuote("session-multi", "第三条引用") === "session-child-2", String(testing.threadForQuote("session-multi", "第三条引用")));
+	check("the quote lands in that thread's composer", childState.draft === "> 第三条引用", JSON.stringify(childState.draft));
+	globalThis.fetch = realFetch;
+}
+
+/* ------------------------------------------------------------------ *
+ * 打开的行范围 — the quoted lines are marked once the preview is open
+ * ------------------------------------------------------------------ */
+
+{
+	const preview = dom.document.createElement("div");
+	const row12 = dom.document.createElement("div");
+	row12.setAttribute("data-textpreview-line", "12");
+	row12.rect = { left: 10, top: 100, width: 200, height: 18 };
+	const row13 = dom.document.createElement("div");
+	row13.setAttribute("data-textpreview-line", "13");
+	row13.rect = { left: 10, top: 118, width: 200, height: 18 };
+	const row20 = dom.document.createElement("div");
+	row20.setAttribute("data-textpreview-line", "20");
+	row20.rect = { left: 10, top: 160, width: 200, height: 18 };
+	preview.append(row12, row13, row20);
+	dom.document.body.append(preview);
+	testing.setOpenedRange({ path: "src/app.ts", line: 12, end: 13 });
+	const marks = testing.openedRangeMarks(800);
+	check("the quoted lines of the opened file are marked", marks.length === 2, String(marks.length));
+	check("and the marks know they are the file's", marks[0]?.getAttribute("data-kind") === "file", JSON.stringify(marks[0]?.getAttribute("data-kind")));
+	testing.setOpenedRange({ path: "src/app.ts", line: 30, end: 30 });
+	check("a line the preview never showed is not marked", testing.openedRangeMarks(800).length === 0, String(testing.openedRangeMarks(800).length));
+	testing.setOpenedRange(null);
+	preview.remove();
 }
 
 console.log(

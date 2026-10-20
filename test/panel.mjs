@@ -101,10 +101,14 @@ const exports_ = spec.factory((name) => {
 });
 /** Composer shells by session id: `bringThreadBack` writes a draft into one. */
 const shells = new Map();
+const openedResources = [];
 const sidebarRight = {
 	openTab(kind) {
 		if (openTabThrows) throw new Error("sidebarRight: no tab type is registered as " + kind);
 		openedKinds.push(kind);
+	},
+	openResource(address, options) {
+		openedResources.push({ address, options });
 	}
 };
 const sidebarRightTabs = {
@@ -450,6 +454,42 @@ plainSpy.props.onKeyDown({ key: "Enter", preventDefault: () => { plainPrevented 
 check("Enter on a plain row neither jumps nor swallows the key", plainJumped === 0 && plainPrevented === false, JSON.stringify({ plainJumped, plainPrevented }));
 check("the row prints the quote behind the lamp", String(jumpable.props.children[0].props.children).startsWith("❝ "), JSON.stringify(jumpable.props.children[0].props.children));
 
+// A code quote keeps its file path; the row's source line opens that file at
+// the first line of the range instead of jumping to the carrying message.
+const sourceRows = testing.quoteRowsFromEntries([
+	{
+		type: "event",
+		event: {
+			type: "user/message",
+			seq: 20,
+			time: "",
+			data: { id: "m-code", role: "user", content: [{ type: "text", text: "> ❝ ``` src/app.ts#L12-L48\n> const x = 1;\n> ```" }] }
+		}
+	}
+]);
+check("a code quote keeps its fence path", sourceRows[0]?.code === true && sourceRows[0]?.fence === "src/app.ts#L12-L48", JSON.stringify(sourceRows[0]));
+const findClass = (node, className) => {
+	if (node === null || typeof node !== "object") return null;
+	if (node.props?.className === className) return node;
+	const children = Array.isArray(node.props?.children) ? node.props.children : [node.props?.children];
+	for (const child of children) {
+		const found = findClass(child, className);
+		if (found !== null) return found;
+	}
+	return null;
+};
+const sourceRowElement = testing.quoteRowElement(reactStub, sourceRows[0], 0, "session-far", () => {}, null, null);
+const rowSource = findClass(sourceRowElement, "dshq-row-source");
+check("the row offers the code quote's file and line", String(rowSource?.props?.children).includes("src/app.ts · L12-L48"), JSON.stringify(rowSource?.props?.children));
+rowSource?.props?.onClick({ stopPropagation() {} });
+check(
+	"the row opens the session file at the range's first line",
+	openedResources.length === 1 &&
+		openedResources[0].address === "dsh-resource://file/session/session-far/src/app.ts" &&
+		openedResources[0].options?.params?.line === 12,
+	JSON.stringify(openedResources)
+);
+
 // ---- the body component -----------------------------------------------------
 const body = testing.QuoteListBody({ sessionId: "session-far", load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }) });
 check("the body renders the panel shell", body?.props?.className === "dshq-list", JSON.stringify(body?.props?.className));
@@ -476,6 +516,22 @@ const footerLabel = Array.isArray(footerBar?.props?.children) ? footerBar.props.
 const footerNote = Array.isArray(footer?.props?.children) ? footer.props.children[1] : null;
 check("the page ends with the side-thread section", footer?.props?.className === "dshq-list-thread" && footerLabel?.props?.children === "侧边线程", JSON.stringify(footerLabel?.props?.children));
 check("a session with no thread is told so, without buttons", footerNote?.props?.children === "这条会话还没有侧边线程" && footerBar.props.children.filter(Boolean).length === 1, JSON.stringify(footerNote?.props?.children));
+const healthBody = testing.QuoteListBody({
+	sessionId: "session-far",
+	load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }),
+	health: () => ({ token: true, sideChat: "native" })
+});
+const healthRoot = Array.isArray(healthBody.props.children) ? healthBody.props.children : [healthBody.props.children];
+const healthFooter = healthRoot[healthRoot.length - 1];
+const healthNode = Array.isArray(healthFooter?.props?.children)
+	? healthFooter.props.children.find((node) => node?.props?.className === "dshq-list-health")
+	: null;
+const healthText = [].concat(healthNode?.props?.children ?? []).join("");
+check(
+	"the page shows which host capabilities are live",
+	healthText.includes("宿主自检") && healthText.includes("芯片精确删除 ✓") && healthText.includes("侧聊 fork 兜底"),
+	JSON.stringify(healthText)
+);
 
 // ---- the ref in the text: the list and the export never show it -------------
 const refQuote = "引用清单里的自携带坐标";
@@ -715,6 +771,49 @@ const reviewBody = reviewRoot.find((node) => node?.props?.className === "dshq-li
 const reviewBar = Array.isArray(reviewBody?.props?.children) ? reviewBody.props.children[1] : null;
 const resolveButton = Array.isArray(reviewBar?.props?.children) ? reviewBar.props.children.find((node) => node?.props?.key === "resolve") : null;
 check("the page offers 标记已解决 and starts disabled", resolveButton !== null && resolveButton?.props?.disabled === true && String(resolveButton?.props?.children).startsWith("标记已解决"), JSON.stringify(resolveButton?.props?.children));
+
+/* ---- the list as JSON, and the local copy that survives a compaction ---- */
+{
+	const jsonRows = [
+		{
+			id: "m-1",
+			seq: 4,
+			time: "2026-10-10T09:00:00.000Z",
+			quote: "第一段引用",
+			comment: "这是我的评论",
+			code: false,
+			fence: "",
+			ref: { v: 1, s: "session-far", a: "data-chat-anchor-key", k: "row-2", t: "9", r: "a" }
+		}
+	];
+	const json = JSON.parse(testing.quoteListJson(jsonRows, "session-far", "引用清单"));
+	check(
+		"the JSON export is versioned",
+		json.kind === "dsh-client-ui-quote" && json.version === 1 && json.count === 1 && json.sessionId === "session-far",
+		JSON.stringify({ kind: json.kind, version: json.version, count: json.count, sessionId: json.sessionId })
+	);
+	check(
+		"every quote carries its source",
+		json.quotes[0].source?.anchorKey === "row-2" && json.quotes[0].source?.turn === "9" && json.quotes[0].source?.role === "a",
+		JSON.stringify(json.quotes[0].source)
+	);
+	check(
+		"and its review state",
+		json.quotes[0].status === "open" && Array.isArray(json.quotes[0].tags) && json.quotes[0].tags.length === 0,
+		JSON.stringify({ status: json.quotes[0].status, tags: json.quotes[0].tags })
+	);
+
+	// The local copy: a quote the event log no longer holds still shows up.
+	testing.rememberIndexedQuotes("session-far", jsonRows);
+	const merged = testing.mergeIndexedQuotes("session-far", []);
+	check(
+		"a quote the log lost is still in the list",
+		merged.length === 1 && merged[0].quote === "第一段引用" && merged[0].comment === "这是我的评论",
+		JSON.stringify(merged.map((row) => row.quote))
+	);
+	const mergedTwice = testing.mergeIndexedQuotes("session-far", jsonRows);
+	check("and the log's own rows are not duplicated", mergedTwice.length === 1, JSON.stringify(mergedTwice.length));
+}
 
 console.log(
 	failures.length === 0

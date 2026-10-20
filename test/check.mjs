@@ -94,7 +94,7 @@ const ctx = {
 	},
 	slots: {
 		inject(name, factory) {
-			if (name !== "conversation.input.overlay") throw new Error("unexpected slot: " + name);
+			if (name !== "conversation.input.overlay" && name !== "conversation.chat.turnTail") throw new Error("unexpected slot: " + name);
 			factory();
 			return () => {};
 		},
@@ -108,7 +108,7 @@ const ctx = {
 exports_.apply(ctx);
 exports_.apply(ctx); // idempotent re-apply must not throw
 
-if (registered.length !== 2) throw new Error("expected 2 registrations, got " + registered.length);
+if (registered.length !== 4) throw new Error("expected 4 registrations, got " + registered.length);
 const entry = registered[0];
 if (entry.slotSpec.name !== "conversation.input.overlay") throw new Error("wrong slot");
 if (entry.slotSpec.id !== "quote-selection") throw new Error("wrong entry id");
@@ -116,6 +116,10 @@ if (typeof entry.Component !== "function") throw new Error("component is not a f
 if (entry.Component({ sessionId: "s1", inputActions: {}, t: (k) => k }) !== null) {
 	throw new Error("component must render nothing");
 }
+const turnEntry = registered[1];
+if (turnEntry.slotSpec.name !== "conversation.chat.turnTail") throw new Error("wrong turn tail slot");
+if (turnEntry.slotSpec.id !== "ui-quote.turn") throw new Error("wrong turn tail entry id");
+if (typeof turnEntry.Component !== "function") throw new Error("turn tail component is not a function");
 if (dictionaries.length !== 2) throw new Error("locale dictionary not registered per apply");
 const dict = dictionaries[0].dict;
 if (!dict.zh || !dict.en || !dict.zh.comment || !dict.en.comment) throw new Error("bad dictionaries");
@@ -329,6 +333,7 @@ if (testing.sideChatService() !== null) throw new Error("a disabled sidechat tab
 probe.enabled = true;
 probe.hasTab = false;
 if (testing.sideChatService() !== null) throw new Error("a missing sidechat tab must hide the row");
+if (testing.nativeSideChatAvailable() !== false) throw new Error("the native fallback must be unavailable without sessions and sidebarRight");
 
 console.log("OK  module id          :", spec.id);
 console.log("OK  inject             :", JSON.stringify(exports_.inject));

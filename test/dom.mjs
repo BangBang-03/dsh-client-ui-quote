@@ -13,6 +13,7 @@
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
+const DOCUMENT_FRAGMENT_NODE = 11;
 
 class ShimNode {
 	constructor(nodeType) {
@@ -45,8 +46,8 @@ class ShimNode {
 		return siblings[siblings.indexOf(this) + 1] ?? null;
 	}
 
-	append(child) {
-		this.insertBefore(child, null);
+	append(...children) {
+		for (const child of children) this.insertBefore(child, null);
 	}
 
 	insertBefore(child, reference) {
@@ -100,6 +101,14 @@ class ShimText extends ShimNode {
 	set textContent(value) {
 		this.nodeValue = String(value);
 		this.ownerDocument?.record({ type: 'characterData', target: this });
+	}
+}
+
+/** A document fragment: children only, like the browser's `cloneContents()`. */
+class ShimFragment extends ShimNode {
+	constructor(document) {
+		super(DOCUMENT_FRAGMENT_NODE);
+		this.ownerDocument = document;
 	}
 }
 
@@ -207,6 +216,13 @@ class ShimElement extends ShimNode {
 
 	dispatch(type, event) {
 		for (const handler of this.listeners.get(type) ?? []) handler(event);
+	}
+
+	dispatchEvent(event) {
+		this.dispatched = this.dispatched ?? [];
+		this.dispatched.push(event);
+		this.dispatch(event.type, event);
+		return true;
 	}
 
 	/** A zero box unless a test placed this element (`element.rect = {…}`). */
@@ -388,6 +404,15 @@ class ShimDocument extends ShimNode {
 		return new ShimElement(this, tag);
 	}
 
+	/**
+	 * A real range's `cloneContents()` hands back a fragment, not an element.
+	 * The harness offers one so the offline suite sees the same shape the
+	 * browser does — a fragment that only holds children.
+	 */
+	createDocumentFragment() {
+		return new ShimFragment(this);
+	}
+
 	createTextNode(value) {
 		return new ShimText(this, value);
 	}
@@ -488,6 +513,14 @@ export function createDom() {
 		document,
 		Element: ShimElement,
 		MutationObserver: ShimMutationObserver,
+		// The draft bar removes a chip by dispatching Backspace at the editor;
+		// the harness only needs the constructor and the event's key fields.
+		KeyboardEvent: class ShimKeyboardEvent {
+			constructor(type, init) {
+				this.type = type;
+				Object.assign(this, init);
+			}
+		},
 		navigator: { clipboard: { writeText: (text) => clipboard.push(text) } },
 		getComputedStyle: () => ({ backgroundColor: 'rgb(20, 21, 24)' }),
 		window: { innerWidth: 1200, innerHeight: 800, addEventListener() {}, removeEventListener() {} },

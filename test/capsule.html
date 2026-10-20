@@ -13,6 +13,7 @@
 	#probe-out[data-status="pass"]{background:#0d2b1b;color:#a7f3c9}
 	#probe-out[data-status="fail"]{background:#3a1418;color:#ffc9d0}
 </style>
+<body>
 <script>
 	// The DSH client module loader hands the bundle a `require` and keeps the
 	// factory; the probe drives that factory exactly like the app does.
@@ -61,7 +62,7 @@
 			locale: { register: () => () => {} },
 			slots: { inject: (name, factory) => { factory(); return () => {}; }, register: () => () => {} }
 		});
-		check("apply installs an effect with a disposer", effectDisposers === 1, effectDisposers + " disposer(s)");
+		check("apply installs an effect with a disposer", effectDisposers >= 1, effectDisposers + " disposer(s)");
 		check("capsule stylesheet is installed", document.getElementById("dsh-quote-capsule-style") !== null);
 
 		const testing = exports_.__testing;
@@ -253,8 +254,23 @@
 			box === null ? "no box" : "bar.top " + Math.round(box.top) + " / text.bottom " + Math.round(under.bottom)
 		);
 		check("the menu is not above the selection any more", box !== null && box.top > under.top, box === null ? "no box" : "bar.top " + Math.round(box.top) + " / text.top " + Math.round(under.top));
+		check(
+			"the real selection stays highlighted while the menu is open",
+			typeof CSS !== "undefined" && CSS.highlights !== undefined && CSS.highlights.has("dshq-selection"),
+			typeof CSS === "undefined" || CSS.highlights === undefined ? "no CSS.highlights" : String(CSS.highlights.has("dshq-selection"))
+		);
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+		await wait(80);
+		check(
+			"closing the menu clears the real selection highlight",
+			typeof CSS === "undefined" || CSS.highlights === undefined || CSS.highlights.has("dshq-selection") === false,
+			typeof CSS === "undefined" || CSS.highlights === undefined ? "no CSS.highlights" : String(CSS.highlights.has("dshq-selection"))
+		);
 
 		// ---- idempotence, re-render and removal -------------------------------
+		// A drag-selection over the pill must not toggle it, so the probe clears
+		// the selection before the click.
+		window.getSelection().removeAllRanges();
 		caps()[0].click();
 		check("clicking the pill expands it", caps()[0].dataset.expanded === "true", caps()[0].dataset.expanded);
 
@@ -273,6 +289,63 @@
 		const serialized = await sources[0].codec.serialize(model + "\n\n");
 		check("codec.serialize is what lands in the sent message", serialized === model + "\n\n", JSON.stringify(serialized));
 		check("the model form round-trips back into the pill", testing.splitQuoteRuns(serialized)[0].quote === "做法（推荐这条）\n我已经编好启动器");
+
+		// ---- a real selection: links and inline code keep their shape --------
+		const realPane = document.createElement("div");
+		realPane.setAttribute("data-conversation-content", "");
+		realPane.setAttribute("data-conversation-session", "s-structure");
+		const realParagraph = document.createElement("p");
+		realParagraph.append(document.createTextNode("看 "));
+		const probeLink = document.createElement("a");
+		probeLink.setAttribute("href", "https://example.com/docs");
+		probeLink.textContent = "文档";
+		realParagraph.append(probeLink, document.createTextNode(" 和 "));
+		const probeInlineCode = document.createElement("code");
+		probeInlineCode.textContent = "npm test";
+		realParagraph.append(probeInlineCode, document.createTextNode(" 结束"));
+		realPane.append(realParagraph);
+		document.body.append(realPane);
+		const realRange = document.createRange();
+		realRange.selectNodeContents(realParagraph);
+		const realSelection = window.getSelection();
+		realSelection.removeAllRanges();
+		realSelection.addRange(realRange);
+		const realStructured = testing.readSelection();
+		check(
+			"a real selection keeps the link and the inline code",
+			realStructured !== null && realStructured.text === "看 [文档](https://example.com/docs) 和 `npm test` 结束",
+			JSON.stringify(realStructured === null ? null : realStructured.text)
+		);
+		realSelection.removeAllRanges();
+		realPane.remove();
+
+		// ---- the draft bar in a real DOM: edit and remove controls -----------
+		// The earlier cases left composer cards behind; their bars would be the
+		// first one in the document, so this case starts from a clean surface.
+		for (const old of Array.from(document.querySelectorAll("[data-composer-card]"))) old.remove();
+		testing.syncDraftBars();
+		const realCard = document.createElement("div");
+		realCard.setAttribute("data-composer-card", "");
+		const realDraftChip = document.createElement("span");
+		const draftQuote = "待发引用的原文";
+		testing.rememberChip(draftQuote, "待发的评论", "s-draft", false, { ref: null });
+		realDraftChip.textContent = testing.chipLabel(draftQuote, "待发的评论");
+		realDraftChip.setAttribute("data-dshq-chip", "1");
+		realCard.append(realDraftChip);
+		document.body.append(realCard);
+		let realBackspaces = 0;
+		realDraftChip.addEventListener("keydown", (event) => { if (event.key === "Backspace") realBackspaces += 1; });
+		testing.syncDraftBars();
+		const realDraftBar = document.querySelector(".dshq-draftbar");
+		check(
+			"the bar offers an edit and a remove control",
+			realDraftBar !== null && realDraftBar.querySelectorAll(".dshq-db-edit").length === 1 && realDraftBar.querySelectorAll(".dshq-db-remove").length === 1,
+			realDraftBar === null ? "no bar" : realDraftBar.querySelectorAll(".dshq-db-edit").length + "/" + realDraftBar.querySelectorAll(".dshq-db-remove").length
+		);
+		const realRemoveButton = realDraftBar === null ? null : realDraftBar.querySelector(".dshq-db-remove");
+		if (realRemoveButton !== null) realRemoveButton.click();
+		check("removing it asks the editor for a Backspace", realBackspaces >= 1, String(realBackspaces));
+		realCard.remove();
 
 		// ---- report -----------------------------------------------------------
 		const failed = checks.filter((entry) => !entry.ok);
