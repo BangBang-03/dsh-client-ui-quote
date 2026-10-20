@@ -1573,6 +1573,32 @@ try {
 		crossingSelection?.hostKind === "chat" && crossingSelection?.lang === null,
 		JSON.stringify(crossingSelection)
 	);
+	// Two messages in one selection: the text still travels, but no single row
+	// can claim it — a turn/role here would be a lie about half the sentence.
+	const secondRow = dom.document.createElement("div");
+	secondRow.setAttribute("data-chat-anchor-key", "row-chatcode-2");
+	secondRow.setAttribute("data-chat-turn", "4");
+	secondRow.setAttribute("data-chat-role", "assistant");
+	secondRow.textContent = "第二条消息里的文字";
+	codePane.append(secondRow);
+	dom.document.selection = {
+		isCollapsed: false,
+		rangeCount: 1,
+		toString: () => "const x = 1;第二条消息里的文字",
+		removeAllRanges() {},
+		getRangeAt: () => ({
+			startContainer: chatCode.firstChild,
+			endContainer: secondRow.firstChild,
+			intersectsNode: () => false,
+			getBoundingClientRect: () => ({ left: 100, top: 300, right: 220, bottom: 318, width: 120, height: 18 })
+		})
+	};
+	const spanningSelection = testing.readSelection();
+	check(
+		"a selection spanning two messages carries no source",
+		spanningSelection?.hostKind === "chat" && spanningSelection?.source === null && spanningSelection?.text.includes("第二条"),
+		JSON.stringify({ source: spanningSelection?.source, text: spanningSelection?.text })
+	);
 	dom.document.selection = null;
 	codePane.remove();
 
@@ -2403,8 +2429,30 @@ try {
 	testing.paintAnchors();
 	const layer = dom.document.querySelector(".dshq-anchor-layer");
 	check("the highlight layer is shown", layer?.style?.display === "block", JSON.stringify(layer?.style?.display));
-	check("one overlay rectangle is drawn for the sentence", layer?.querySelectorAll(".dshq-anchor-rect").length === 1, String(layer?.querySelectorAll(".dshq-anchor-rect").length));
+	const painted = highlightRegistry.get("dshq-quote");
+	check(
+		"the sentence is painted by the browser when the API is there",
+		painted?.ranges?.length === 1 && layer?.querySelectorAll(".dshq-anchor-rect").length === 0,
+		JSON.stringify({ ranges: painted?.ranges?.length, rects: layer?.querySelectorAll(".dshq-anchor-rect").length })
+	);
 	check("the ordinal sits in a badge", layer?.querySelector(".dshq-anchor-badge")?.textContent === "1", JSON.stringify(layer?.querySelector(".dshq-anchor-badge")?.textContent));
+	check("the stylesheet paints the browser's mark", source.includes("::highlight(dshq-quote)"), "no ::highlight(dshq-quote) rule");
+	// A browser without the API still gets the old overlay, rectangles and all.
+	const savedCss = globalThis.CSS;
+	globalThis.CSS = undefined;
+	testing.paintAnchors();
+	check(
+		"a browser without the API falls back to a rectangle",
+		layer?.querySelectorAll(".dshq-anchor-rect").length === 1 && highlightRegistry.has("dshq-quote") === false,
+		JSON.stringify({ rects: layer?.querySelectorAll(".dshq-anchor-rect").length, registry: highlightRegistry.has("dshq-quote") })
+	);
+	globalThis.CSS = savedCss;
+	testing.paintAnchors();
+	check(
+		"the switch back repaints with the browser API",
+		highlightRegistry.get("dshq-quote")?.ranges?.length === 1 && layer?.querySelectorAll(".dshq-anchor-rect").length === 0,
+		JSON.stringify({ ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
 	check("the source label follows the reader's language", testing.uiSourceLabel({ t: "5", r: "a" }, "session-anchor") === "引自第 5 轮 · 助手", testing.uiSourceLabel({ t: "5", r: "a" }, "session-anchor"));
 
 	const dupRow = dom.document.createElement("div");
@@ -2427,6 +2475,7 @@ try {
 	pane.remove();
 	testing.paintAnchors();
 	check("the layer empties when the source row unmounts", dom.document.querySelector(".dshq-anchor-layer")?.style?.display === "none");
+	check("the browser-painted mark goes with the row", highlightRegistry.has("dshq-quote") === false, JSON.stringify([...highlightRegistry.keys()]));
 }
 
 /* ------------------------------------------------------------------ *
@@ -2463,6 +2512,22 @@ try {
 	);
 	check("the probe reads the live state", probe.state() !== undefined, JSON.stringify(probe.state()));
 	check("the probe reads the native side-chat fallback", probe.probe().nativeSideChat === true, JSON.stringify(probe.probe()));
+
+	// A refused insert says which step refused, not just "it did not work".
+	const failuresBefore = testing.failureSnapshot().count;
+	const refused = testing.insertChip({ actions: () => ({ captureInsertion: () => null }) }, "session-probe", "探针引用", "", false, {});
+	const failed = testing.failureSnapshot();
+	check(
+		"a refused insert names the step that refused",
+		refused === false && failed.stage === "insert" && failed.detail.includes("composer shell") && failed.count === failuresBefore + 1,
+		JSON.stringify(failed)
+	);
+	check(
+		"the probe exposes the last failure to support",
+		probe.probe().lastFailure.stage === "insert" && probe.probe().lastFailure.count >= 1,
+		JSON.stringify(probe.probe().lastFailure)
+	);
+	check("the failure record carries no quoted text", JSON.stringify(failed).includes("探针引用") === false, JSON.stringify(failed));
 }
 
 /* ------------------------------------------------------------------ *
