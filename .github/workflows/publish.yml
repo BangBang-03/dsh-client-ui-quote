@@ -24,6 +24,15 @@ on:
       - lab
     tags:
       - "v*"
+    # 纯文档提交不切预发布：一次 lab push 只改 md/docs/submission/CI 时跳过。
+    # 标签推送不受路径过滤约束（GitHub: "Path filters are not evaluated for
+    # pushes of tags."），发版提交也必然改 package.json，双保险。
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - "submission/**"
+      - ".github/**"
 
 jobs:
   publish-stable:
