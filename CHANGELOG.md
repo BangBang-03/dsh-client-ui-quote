@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (lab)
+## 0.12.1 — 2026-10-20
 
 ### Added
 

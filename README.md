@@ -93,7 +93,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.12.0**）。当前 `lab` 源码比稳定包多出：聚合引用条的**逐条编辑/移除**与完整可访问名、草稿芯片索引的**跨刷新恢复**、**代码引用的来源标签与打开文件定位（含行范围标记）**、**聊天代码块划选的自动围栏（带语言）**、**选区保结构（链接/行内代码）**、**回合级引用**、**逐条回应的双语标记**、**一引用一线程的侧边对话**、**引用清单的 JSON 导出与本机索引**、以及**配置项与 `window.__dshQuote` 调试句柄**；随下一个补丁版本发布，0.12.0 稳定包没有这些。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.12.1**）。`lab` 分支始终领先稳定包一个补丁：日常改动先在 lab 上发 `-lab.N` 预发布，验收后再提升；两边的差异看 `CHANGELOG.md` 的 `Unreleased` 段。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -107,7 +107,7 @@ npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国�
 
 1. 把包装进 profile：`cd <DSH_HOME>/profiles/<profile> && pnpm add dsh-client-ui-quote`；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
-   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.12.0"`（安装器会写）；
+   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.12.1"`（安装器会写）；
    - `dsh.profile.bundles` 追加 `"dsh-client-ui-quote"`；
 3. 重启 DSH（profile 打开 `patchReload` 时也会自动重载）。
 
