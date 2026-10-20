@@ -472,7 +472,7 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 - **Markdown 预览的行号**：要精修就得读源文件，而客户端必须声明 `remote` 才能拿到它；声明错会让 client bundle 在不匹配的宿主上**静默失效**（`dsh-quote-annotate` 上游就是这么死的）。所以先不声明——文件仍然打开，只是落在顶部而不是行上。
 - **表格/列表/LaTeX 的结构保真**：链接与行内代码已做；表格要还原成 Markdown 表格，列表要还原成缩进，成本明显更高，留到有人真的需要时再做。
 - **图片/截图引用**：明确不做（理由见「本插件不做的」）。真要做请独立成插件：图片引用要的是另一套胶囊/卡片/附件语义。
-- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 541 项离线断言；真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。另外在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8790）里确认：插件进入 boot 列表、`window.__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见，`betterSidebar` 缺失而 `probe().nativeSideChat === true`——原生 fork 降级链的前置条件成立。欢迎页的交互点击被安全闸门拦下，因此下面五条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、另开侧边对话、JSON 导出。
+- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 541 项离线断言；真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。另外在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8790）里确认：工作区 link 与 **npm lab 发布包 `0.12.1-lab.15`** 都能进入 boot 列表，`window.__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见，`betterSidebar` 缺失而 `probe().nativeSideChat === true`——原生 fork 降级链的前置条件成立，发布产物的 manifest/打包路径也随真宿主一起验证过。欢迎页的交互点击被安全闸门拦下，因此下面五条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、另开侧边对话、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。
 
 ## 变更记录

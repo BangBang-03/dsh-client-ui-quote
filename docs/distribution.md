@@ -70,4 +70,4 @@ awesome-deepseek-harness 的列表条目（英文，一行）：
 2. 按仓库的 `lab → main` 快进流程发下一个补丁版本。
 3. 在真实 DSH 窗口点一遍：聚合条编辑/移除、回合尾按钮、打开文件与行范围、另开侧边对话、JSON 导出。
 
-已复核：`npm test` 541 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中插件加载、`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的五条交互路径仍需人工点击。
+已复核：`npm test` 541 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm lab 发布包 `0.12.1-lab.15` 均加载成功，`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的五条交互路径仍需人工点击。
