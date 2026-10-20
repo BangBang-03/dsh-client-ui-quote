@@ -66,8 +66,9 @@ awesome-deepseek-harness 的列表条目（英文，一行）：
 
 ## 发布前
 
-1. 把 `CHANGELOG.md` 的 Unreleased 段改成下一个版本号，并提交本轮代码（当前工作区含未提交改动）。
-2. 按仓库的 `lab → main` 快进流程发下一个补丁版本。
-3. 在真实 DSH 窗口点一遍：聚合条编辑/移除、回合尾按钮、打开文件与行范围、另开侧边对话、JSON 导出。
+1. 把 `CHANGELOG.md` 顶部的 `Unreleased (lab)` 改成正式版本号（`## X.Y.Z — YYYY-MM-DD`），在 lab 上提交。
+2. 推 `lab`（CI 发一个 `-lab.N` 预发布），在真实 DSH 窗口点一遍：聚合条编辑/移除、回合尾按钮、打开文件与行范围、另开侧边对话、JSON 导出。
+3. 发正式版：`main` 快进到 `lab` 并推送 → 在 `main` 头上打 `vX.Y.Z` 标签并推送。标签会同时触发两件事：**npm `latest` 发布** 与 **GitHub Release 创建**（正文取自 CHANGELOG 同名小节；已存在则更新 notes，重跑安全）。
+4. 发完确认三处一致：`npm view dsh-client-ui-quote dist-tags` 的 `latest`、仓库 Releases 页的最新一条、`git ls-remote --tags` 的标签指向同一个提交。
 
-已复核：`npm test` 541 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm lab 发布包 `0.12.1-lab.15` 均加载成功，`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的五条交互路径仍需人工点击。
+已复核：`npm test` 549 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm lab 发布包均加载成功，`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的五条交互路径仍需人工点击。
