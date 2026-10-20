@@ -5,6 +5,7 @@
 本页写给要在这个仓库里动手的 agent：**第一节是红线，第二节是路由表**。开工前先读三处：本页、`README.md` 的「功能」表、「已知限制」。分支与发布纪律另有 `../PLUGIN-WORKFLOW.md`。
 
 - 仓库真身在 `C:\Users\15812\Desktop\dsh\dsh-client-ui-quote`；`Desktop\dsh-client-ui-quote` 是指向它的软链。同一棵树，别在两个路径之间复制文件。
+- 分支拓扑：`lab` 是默认分支与唯一开发线，平时只推它，**lab 应领先 main**；`main` 只是备份，发版/里程碑时 `merge --ff-only lab` 追上（R20）。
 - 行号会漂。本页括号里的行号只是 2026-10-20 的锚点，**以函数名/常量名为准**（`rg "function jumpToSource" lib/client.js`）。
 - 产品行为不要只看代码猜：README 的功能表是验收口径，改行为要同时改它。
 
@@ -52,7 +53,7 @@
 | R17 | 数字以实跑为准：check **12** 组 + capsule **384** + panel **153** = **549**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
-| R20 | 发布：`main` 只 `merge --ff-only`；已推送的 `lab` 不 amend / 不 rebase；不 `push --force`；进 `main` 的 `package.json` 不能是 `-lab.N` | 改写远端历史会让同一分支出现两条平行提交，CI 与其它 clone 全部对不上 | 在 main 直接提交；`rebase` 已推分支；强推 |
+| R20 | 分支：**`lab` 是 GitHub 默认分支与唯一开发线，平时所有提交只进 `lab`，`lab` 应当领先 `main`**；`main` 只是备份，仅在发版/里程碑时 `merge --ff-only lab` 追上，平时不往 main 提交。已推送的 `lab` 不 amend / 不 rebase；不 `push --force`；进 `main` 的 `package.json` 不能是 `-lab.N` | 改写远端历史会让同一分支出现两条平行提交，CI 与其它 clone 全部对不上；main 若与 lab 同步推进就不再是"以防万一"的备份 | 在 main 直接提交；平时把 lab 与 main 一起推平；`rebase` 已推分支；强推 |
 | R21 | 推送通道：`git` 优先，失败走 REST 兜底，**同一轮别来回切** | REST 重建的提交时区归一到 `+0000`，同内容不同 SHA → 平行提交（`git status` 干净，远端多一条线） | 手动一半 git 一半 REST；分叉后用 force 掩盖 |
 | R22 | 不进仓库：`node_modules/`、`.workbuddy/`、报告与截图工作区（`.dsh-quote-work/`、`PLUGIN-*.md` 都在仓库外）；`package.json` 的 `files` 是 npm 发货白名单，别加工作文件 | 包体、CI 时间、以及「报告被发到 npm」都不该发生 | `git add -A` 把工作稿一起提交；把 `AGENTS.md` 加进 `files` |
 
