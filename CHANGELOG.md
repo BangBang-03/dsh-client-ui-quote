@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (lab)
+
+### Changed
+
+- 发布工作流：推 `v*` 标签时，除了发 npm `latest`，还会按 `CHANGELOG.md` 同名小节建 GitHub Release（已存在则更新 notes，重跑安全）；`publish-stable` 的 `contents` 权限从 read 提到 write。小节缺失时用一句兜底，不让文档缺失把已发布的 npm 包拖成失败。
+
 ## 0.12.1 — 2026-10-20
 
 ### Added

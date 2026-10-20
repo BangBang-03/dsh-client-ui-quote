@@ -4,7 +4,8 @@
 #              `lab` dist-tag，不会碰 latest。本地想跑开发版：
 #                  pnpm install dsh-client-ui-quote@lab
 #              切回稳定版：pnpm install dsh-client-ui-quote@latest
-#   v* 标签    稳定线。在 main 上打 tag，发到 npm 的 `latest`。
+#   v* 标签    稳定线。在 main 上打 tag，发到 npm 的 `latest`，并按 CHANGELOG 的
+#              同名小节建（或更新）GitHub Release。
 #
 # 不在本机发布的原因：registry.npmjs.org 从本地直连不可达（系统 DNS 返回污染地址
 # 182.16.62.14，真实 Cloudflare IP 也被握手阻断），而 runner 在 GitHub 机房里，
@@ -30,16 +31,39 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
+      # 发版说明的唯一来源是 CHANGELOG 里同名的一节；小节缺失时给一句兜底，
+      # 不让「文档没写」把已经发出去的 npm 包拖成一次失败。
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v head="## ${VERSION} " 'index($0, head) == 1 { found = 1; next } found && /^## / { exit } found' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            printf 'Release %s. See CHANGELOG.md for details.\n' "$GITHUB_REF_NAME" > release-notes.md
+          fi
+          printf '\n---\n\nnpm: `dsh-client-ui-quote@%s` · install: `dsh plugin --profile web add dsh-client-ui-quote`\n' "$VERSION" >> release-notes.md
+          head -5 release-notes.md
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # 标签已经发过一次时更新 notes，而不是再建一条；重跑工作流是安全的。
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag --latest
+          fi
 
   publish-lab:
     # lab 分支每推一次就发一个预发布版：版本号取「下一个补丁版本」+ run_number，
