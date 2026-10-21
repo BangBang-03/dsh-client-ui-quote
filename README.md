@@ -34,6 +34,8 @@
 
 ![界面总览：浮层 → 评论 → 胶囊卡片 → 引用清单](docs/screenshots/overview.gif)
 
+素材说明见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。
+
 ## 功能
 
 | 动作 | 行为 |
