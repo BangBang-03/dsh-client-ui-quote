@@ -1925,6 +1925,52 @@ try {
 		JSON.stringify([landed.length, String(landed[0]?.ref ?? "").slice(0, 24)])
 	);
 
+	// 3b. A draft that already holds the reader's wording: the quote goes to
+	//     the top and the wording moves to a line of its own below it.
+	const lineCalls = [];
+	let lineDraft = "已经写好的问题";
+	let lineCaret = lineDraft.length;
+	let lineRev = 1;
+	shells.set("session-line", {
+		state: { getSnapshot: () => ({ draft: lineDraft, occurrences: [] }) },
+		actions: {
+			captureInsertion: () => ({ start: lineCaret, end: lineCaret, draftRev: lineRev }),
+			insertText(text, span) {
+				lineCalls.push({ kind: "text", text, span });
+				lineDraft = lineDraft.slice(0, span.start) + text + lineDraft.slice(span.end);
+				lineCaret = span.start + text.length;
+				lineRev += 1;
+				return true;
+			}
+		},
+		insertReference(attachment, span) {
+			lineCalls.push({ kind: "reference", span, attachment });
+			const model = String(attachment?.ref ?? "");
+			lineDraft = lineDraft.slice(0, span.start) + model + lineDraft.slice(span.end);
+			lineCaret = span.start + model.length;
+			lineRev += 1;
+			return true;
+		}
+	});
+	const linePane = pane("session-line", "引用要自己起一行的原文");
+	selectIn(linePane.run, "引用要自己起一行的原文");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	check(
+		"a quote in a written draft goes to the top",
+		lineCalls[0]?.kind === "reference" && lineCalls[0]?.span?.start === 0 && lineCalls[0]?.span?.end === 0 && lineCalls[0]?.span?.draftRev === 1,
+		JSON.stringify(lineCalls.map((call) => [call.kind, call.span?.start, call.span?.end, call.span?.draftRev]))
+	);
+	check(
+		"and the wording moves below it on a new line",
+		lineCalls[1]?.kind === "text" && lineCalls[1]?.text === "\n" && lineCalls[1]?.span?.draftRev === 2 && lineDraft.endsWith("\n已经写好的问题"),
+		JSON.stringify(lineCalls.map((call) => [call.kind, call.text, call.span?.draftRev]))
+	);
+	check(
+		"the quote keeps its wire block in front",
+		lineDraft.startsWith(String(lineCalls[0]?.attachment?.ref ?? "")) && String(lineCalls[0]?.attachment?.ref ?? "").includes("引用要自己起一行的原文"),
+		JSON.stringify(lineDraft.slice(0, 24))
+	);
+
 	// 4. With nowhere to insert, the reader is told instead of left wondering.
 	const thirdPane = pane("session-noshell", "没有输入框的会话");
 	selectIn(thirdPane.run, "没有输入框的会话");
@@ -2464,6 +2510,85 @@ try {
 		"the ref's ordinal picks the second occurrence",
 		second?.start?.offset === 4 && second?.end?.offset === 7,
 		JSON.stringify({ start: second?.start?.offset, end: second?.end?.offset })
+	);
+
+	// 表格划选：Chrome 的 selection.toString() 用 \t 分隔同一行的单元格、用
+	// \n 分隔行，而行的文本节点是直接拼接的 ("alpha" + "第一行说明")。高亮要
+	// 按这种边界对齐，否则表格里的引用永远找不到原文。
+	const tableRow = dom.document.createElement("div");
+	tableRow.setAttribute("data-chat-anchor-key", "row-table");
+	tableRow.setAttribute("data-chat-turn", "6");
+	tableRow.setAttribute("data-chat-role", "assistant");
+	const table = dom.document.createElement("table");
+	const tbody = dom.document.createElement("tbody");
+	const tr1 = dom.document.createElement("tr");
+	const cellA = dom.document.createElement("td");
+	cellA.textContent = "alpha";
+	const cellB = dom.document.createElement("td");
+	cellB.textContent = "第一行说明";
+	const tr2 = dom.document.createElement("tr");
+	const cellC = dom.document.createElement("td");
+	cellC.textContent = "beta";
+	const cellD = dom.document.createElement("td");
+	cellD.textContent = "第二行说明";
+	tr1.append(cellA);
+	tr1.append(cellB);
+	tr2.append(cellC);
+	tr2.append(cellD);
+	tbody.append(tr1);
+	tbody.append(tr2);
+	table.append(tbody);
+	tableRow.append(table);
+	pane.append(tableRow);
+	const cellRange = testing.rangeForQuote(tableRow, "alpha\t第一行说明", 1);
+	check(
+		"a quote across two table cells is measured as one range",
+		cellRange?.start?.node === cellA.firstChild && cellRange?.start?.offset === 0 &&
+			cellRange?.end?.node === cellB.firstChild && cellRange?.end?.offset === 5,
+		JSON.stringify({ start: cellRange?.start?.node?.nodeValue, end: cellRange?.end?.node?.nodeValue })
+	);
+	const rowRange = testing.rangeForQuote(tableRow, "alpha\t第一行说明\nbeta", 1);
+	check(
+		"a quote across two table rows keeps both ends",
+		rowRange?.start?.node === cellA.firstChild && rowRange?.start?.offset === 0 &&
+			rowRange?.end?.node === cellC.firstChild && rowRange?.end?.offset === 4,
+		JSON.stringify({ start: rowRange?.start?.node?.nodeValue, end: rowRange?.end?.node?.nodeValue })
+	);
+	const cellOnly = testing.rangeForQuote(tableRow, "第一行说明", 1);
+	check(
+		"one cell still matches exactly",
+		cellOnly?.start?.node === cellB.firstChild && cellOnly?.start?.offset === 0 && cellOnly?.end?.offset === 5,
+		JSON.stringify({ start: cellOnly?.start?.offset, end: cellOnly?.end?.offset })
+	);
+	// A table cell with inline code: selectedText keeps the backticks, the
+	// rendered cell does not — the plain fallback is what makes it paintable.
+	const codeCell = dom.document.createElement("td");
+	const codeNode = dom.document.createElement("code");
+	codeNode.textContent = "run";
+	codeCell.append(codeNode);
+	tr1.append(codeCell);
+	const codeRange = testing.rangeForQuote(tableRow, "`run`", 1);
+	check(
+		"a code span inside a cell matches through its Markdown marks",
+		codeRange?.start?.node === codeNode.firstChild && codeRange?.start?.offset === 0 && codeRange?.end?.offset === 3,
+		JSON.stringify({ start: codeRange?.start?.node?.nodeValue, end: codeRange?.end?.node?.nodeValue })
+	);
+	// Inline neighbours must stay glued: two spans with no whitespace between
+	// them still match one word, not a spaced-out phantom.
+	const inlineRow = dom.document.createElement("div");
+	inlineRow.setAttribute("data-chat-anchor-key", "row-inline");
+	const spanA = dom.document.createElement("span");
+	spanA.textContent = "foo";
+	const spanB = dom.document.createElement("span");
+	spanB.textContent = "bar";
+	inlineRow.append(spanA);
+	inlineRow.append(spanB);
+	pane.append(inlineRow);
+	const inlineRange = testing.rangeForQuote(inlineRow, "foobar", 1);
+	check(
+		"inline text nodes still match without an inserted space",
+		inlineRange?.start?.node === spanA.firstChild && inlineRange?.end?.node === spanB.firstChild && inlineRange?.end?.offset === 3,
+		JSON.stringify({ start: inlineRange?.start?.node?.nodeValue, end: inlineRange?.end?.node?.nodeValue })
 	);
 
 	const longQuote = "长".repeat(200);
