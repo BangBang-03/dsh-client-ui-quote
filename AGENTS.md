@@ -49,8 +49,8 @@
 
 | # | 红线 | 为什么 | 违规长什么样 |
 | --- | --- | --- | --- |
-| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 557 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
-| R17 | 数字以实跑为准：check **12** 组 + capsule **392** + panel **153** = **557**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
+| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 574 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
+| R17 | 数字以实跑为准：check **12** 组 + capsule **409** + panel **153** = **574**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
 | R20 | 分支：**`lab` 是 GitHub 默认分支与唯一开发线，平时所有提交只进 `lab`，`lab` 应当领先 `main`**；`main` 只是备份，仅在发版/里程碑时 `merge --ff-only lab` 追上，平时不往 main 提交。已推送的 `lab` 不 amend / 不 rebase；不 `push --force`；进 `main` 的 `package.json` 不能是 `-lab.N` | 改写远端历史会让同一分支出现两条平行提交，CI 与其它 clone 全部对不上；main 若与 lab 同步推进就不再是"以防万一"的备份 | 在 main 直接提交；平时把 lab 与 main 一起推平；`rebase` 已推分支；强推 |
@@ -80,7 +80,7 @@
 | 改这条引用（追加式修订） | `startRevision` 4943、`startDraftEdit` 4978、`rememberRevision` 3031、`revisedFor` 3048 | `REVISED_KEY` 513 | capsule「改这条引用」 |
 | 逐条回应徽章 | `enhanceRefNode` 4471、`flushRefBadges` 4514 | `REF_LABEL` 4377、`replyInstruction`（zh/en） | capsule「逐条回应 / Quote N」 |
 | 回合尾「引用提问/回答」 | `TurnTailQuote` 1045 | 槽位 `conversation.chat.turnTail`（`apply` 7417） | capsule 的回合尾段、check 的槽位断言 |
-| 侧边对话（含原生 fork 降级） | `sideChatService` 5167、`nativeSideChatAvailable` 5201、`nativeSideChatRequest` 5241、`openSideChat` 5641 | `prefillDraft` 5555、线程记忆 5344-5422、`SIDECHAT_API` 470 | capsule「侧边对话」「without better-sidebar」 |
+| 侧边对话（原生页签 / 内置 subagentchat / better-sidebar 三档） | `sideChatBackend`、`installNativeSideChatPage`、`sideChatResourceProvider`、`nativeSideChatRequest`、`openSideChat`、`openThreadTab`；`sideChatService` | `nativeThreadAddress` / `parseNativeThreadAddress` / `nativeThreadTitle`、`prefillDraft`、线程记忆、`SIDECHAT_API` | capsule「侧边对话」「原生侧聊页」、check 槽位断言 |
 | 引用清单页 | `QuoteListBody` 6328、`quoteRowElement` 6142、`readQuoteRows` 6788、`loadOlderQuotes` 6922、`openQuoteList` 7137 | `quoteTabService` 7118、`QUOTE_TAB_*` 529-531、`PANEL_STYLE_TEXT` 5858 | panel 全篇 |
 | 清单导出 | `quoteListMarkdown` 6019、`quoteListJson` 6877、`downloadText` 7049 | `MARKDOWN_MIME` 534 | panel「Markdown export」「export」 |
 | 审阅工作台（状态/标签/批量） | `quoteMetaFor` 3115、`setQuoteStatus` 3142、`markRowsResolved` 3152、`addQuoteTag` 3171 | `QUOTE_META_KEY` 516、`REVIEW_STATUSES` 3069 | panel「the review workbench」 |
@@ -123,7 +123,7 @@
 | `icon.svg` | 插件页卡片图标（相对路径、≤ 256 KiB、realpath 必须留在包内） |
 | `locale/zh.json`、`locale/en.json` | 插件页卡片文案；`en.json` 是扫描锚点 |
 | `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer |
-| `test/capsule.mjs` | 392 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、高亮、草稿条、侧聊、徽章、diff） |
+| `test/capsule.mjs` | 409 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、高亮、草稿条、侧聊与原生侧聊页、徽章、diff） |
 | `test/panel.mjs` | 153 组：清单页（解析、搜索、导出、读取、注册、审阅、JSON、本机索引、线程回流） |
 | `test/dom.mjs` | 最小 DOM / MutationObserver / Range / localStorage 垫片；新 API 先补这里 |
 | `test/capsule.html` | 真浏览器版（51 项），`file://` 打开，结果写进标题与 `#probe-out` |
@@ -134,7 +134,7 @@
 
 ```bash
 node --check lib/client.js                 # 语法门（CI 也先跑这个）
-npm test                                   # check + capsule + panel，557 组
+npm test                                   # check + capsule + panel，574 组
 node test/check.mjs                        # 只跑清单/契约
 node test/capsule.mjs                      # 只跑发送后链路
 node test/panel.mjs                        # 只跑清单页

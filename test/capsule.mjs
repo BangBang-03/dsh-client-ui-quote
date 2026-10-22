@@ -2956,6 +2956,111 @@ try {
 	preview.remove();
 }
 
+/* ------------------------------------------------------------------ *
+ * 原生侧边对话页 — our own right-sidebar page type, embedded conversation
+ * ------------------------------------------------------------------ */
+
+{
+	check("native is the default side-chat backend", testing.sideChatBackend() === "native", testing.config().sideChatBackend);
+	check("an unknown backend is dropped", testing.setConfig({ sideChatBackend: "bogus" }).sideChatBackend === "native");
+	check("better-sidebar stays opt-in", testing.setConfig({ sideChatBackend: "better" }).sideChatBackend === "better");
+	testing.setConfig({ sideChatBackend: "native" });
+
+	const pageProviders = [];
+	const pageTabs = [];
+	const pageSlots = [];
+	const retained = [];
+	const released = [];
+	const fakeSessions = {
+		retain(address, options) {
+			retained.push({ address, options });
+			return { release: () => released.push(address.childSessionId) };
+		},
+		list: {
+			getSnapshot: () => ({ byId: { "session-page-1": { projectionValues: { title: "原生页标题" } } } })
+		}
+	};
+	const fakeHost = {
+		effect: (fn) => fn(),
+		resources: { register: (provider) => { pageProviders.push(provider); return () => {}; } },
+		sidebarRightTabs: { register: (definition) => { pageTabs.push(definition); return () => {}; } },
+		slots: {
+			inject: (name, factory) => {
+				const dispose = factory();
+				return typeof dispose === "function" ? dispose : () => {};
+			},
+			register: (spec, Component) => {
+				pageSlots.push({ spec, Component });
+				return () => {};
+			}
+		}
+	};
+	const disposePage = testing.installNativeSideChatPage(fakeHost, fakeSessions);
+	check("the native side chat page installs on a host with the slots", testing.nativeSideChatReady() === true);
+	check("the page keeps its own stylesheet", dom.document.getElementById("dsh-quote-sidechat-style") !== null);
+	const definition = pageTabs.find((entry) => entry.kind === "quote-sidechat");
+	const address = testing.nativeThreadAddress("session-page-main", "session-page-1");
+	check(
+		"the page type claims only our own addresses",
+		definition !== undefined &&
+			definition.patterns[0] === "dsh-resource://quote-sidechat/session/**" &&
+			definition.canOpen(address) === true &&
+			definition.canOpen("dsh-resource://subagentchat/session/session-page-1?parent=session-page-main&mode=continuable") === false,
+		JSON.stringify(definition?.patterns)
+	);
+	check("the title follows the renamed session", definition?.title(address) === "原生页标题", JSON.stringify(definition?.title(address)));
+	const parsed = testing.parseNativeThreadAddress(address);
+	check(
+		"the address carries the parent and the mode",
+		parsed?.parentSessionId === "session-page-main" && parsed?.childSessionId === "session-page-1" && parsed?.mode === "continuable",
+		JSON.stringify(parsed)
+	);
+	check(
+		"a malformed address is refused",
+		testing.parseNativeThreadAddress("dsh-resource://quote-sidechat/session/x?parent=&mode=continuable") === null &&
+			testing.parseNativeThreadAddress("dsh-resource://subagentchat/session/x?parent=p&mode=continuable") === null
+	);
+	const tabBody = pageSlots.find((entry) => entry.spec.name === "sidebar.right.pane.tab");
+	const conversationBody = pageSlots.find((entry) => entry.spec.name === "ui-quote.sidechat.body");
+	check(
+		"the page body declares the embedded conversation child",
+		tabBody?.spec.key === "dsh-client-ui-quote/sidechat" &&
+			tabBody?.spec.children?.["ui-quote.sidechat.body"]?.kind === "single" &&
+			tabBody?.spec.children?.["ui-quote.sidechat.body"]?.scope === "session" &&
+			typeof conversationBody?.Component === "function",
+		JSON.stringify(tabBody?.spec.children)
+	);
+	const provider = pageProviders.find((entry) => entry.protocol === "quote-sidechat");
+	check("the resource provider is registered under our protocol", provider !== undefined);
+	const controller = new AbortController();
+	const iterator = provider.open(address, { signal: controller.signal });
+	const first = await iterator.next();
+	check("opening the resource retains the child session", first.value?.ok === true && retained[0]?.address?.childSessionId === "session-page-1", JSON.stringify(first.value?.ok));
+	controller.abort();
+	await iterator.return();
+	check("closing the resource releases it", released.length === 1, JSON.stringify(released));
+	openedResources.length = 0;
+	check(
+		"the tab opens our address",
+		testing.openNativeThreadTab("session-page-main", "session-page-1") === true && openedResources[0]?.address === address,
+		JSON.stringify(openedResources[0]?.address)
+	);
+	nativeForkImpl = async () => "session-page-2";
+	await testing.nativeSideChatRequest("session-page-main-2", "页签标题", false, null, "");
+	const opened = openedResources.find((entry) => String(entry.address).includes("session-page-2"));
+	check(
+		"a new thread opens our page",
+		opened !== undefined && opened.address.startsWith("dsh-resource://quote-sidechat/session/session-page-2?"),
+		JSON.stringify(opened?.address)
+	);
+	check("and the tab title is the quote itself", opened === undefined ? false : definition?.title(opened.address) === "页签标题", JSON.stringify(opened === undefined ? null : definition?.title(opened.address)));
+	disposePage();
+	check(
+		"uninstalling the page takes its type and style with it",
+		testing.nativeSideChatReady() === false && dom.document.getElementById("dsh-quote-sidechat-style") === null
+	);
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote capsule: " + passed + " checks passed"

@@ -12,7 +12,7 @@
 2. 在消息、文件预览、终端或 diff 里**选中一段文字**，浮层选「评论」或「添加到对话」。
 3. 发送后回原文看高亮，悬停胶囊可**跳回**；右侧栏「引用清单」（`Alt+L`）可搜索、导出、审阅。
 
-没有 `dsh-better-sidebar` 时，「侧边对话」自动 fork 一个继承上下文的子会话，用宿主内置的 `subagentchat` 页打开——仍然只写草稿，不替你发送。
+「侧边对话」默认不需要 `dsh-better-sidebar`：fork 一个继承上下文的子会话，用本插件自己的原生右侧栏页签打开（页体是宿主嵌入式会话视图）——仍然只写草稿，不替你发送。想用 better-sidebar 的隐藏线程，把 `sideChatBackend` 设成 `"better"`。
 
 选中正文 → 浮层动作 → 引用变成输入框里的行内胶囊（不是纯文本），评论也放在同一颗芯片里；发送之后，引用和评论**合成一颗胶囊**留在消息里，不会摊成一屏 `>` 行。第三项「侧边对话」则把引用写进右侧栏一条**独立的侧边线程的输入框**（一条主会话一条线程，反复点就反复追加），问什么由你写，主会话一点都不动。评论框里**引用正文本身也可编辑**（选多了当场裁）；从**文件预览、终端或 diff**划选的引用以**围栏代码块**的线格式发给模型，模型看到的是真正的代码块。引用落进草稿后，**原句在来源消息里留下高亮与序号**，输入框上方出现 **`引用 ×N`** 的聚合条；发送块里的坐标行前面还带一段人可读的 **`引自第 N 轮 · 助手`**，模型不用解码就知道这段话从哪来。
 
@@ -42,7 +42,7 @@
 | --- | --- |
 | **评论** | 浮层就地变成评论框（`写一句评论…` + `取消` / `添加到对话`）。评论框里**引用正文也在自己的输入框里、可以改**——选多了就当场裁掉。评论框打开期间，原选区用 Chromium 的 `CSS.highlights` 保持高亮，焦点进了输入框也不会丢参照；不支持该 API 的宿主静默退化，评论框里仍有原文。`Enter` 提交、`Esc` 关闭、引用或评论为空时确认按钮禁用；输入法组合输入不会误触发。 |
 | **添加到对话** | 直接把引用加进输入框，不弹评论框。输入框里已经写好的文字会留在原位：引用落到草稿**最上方**，你的文字另起一行接在下面，光标停在末尾，接着写正式提问即可。 |
-| **侧边对话** | 把引用写进一条**独立的侧边对话**的输入框：优先用 dsh-better-sidebar 的侧边线程；没装/禁用时自动降级为**fork 一个继承主会话历史的子会话**，用宿主内置的 `subagentchat` 页在右侧栏打开，再把引用写进它的草稿。两种后端都**什么都不发送**，线程独立运行、不污染主会话，页签自动在右侧栏打开。同一条主会话只开一条线程，之后每次点都在同一条线程的草稿后面接着追加。鲸鱼蓝（`#4d6bfe`）的图标是它在浮层里的标识。**一条引用一条线程**：浮层里还有一项「另开侧边对话」，给这条引用单独开一条线程；之后对同一条引用再选侧边对话，回到的就是它自己的那条。引用清单页底部会列出这个会话的**全部侧边线程**，每条都能重新打开（原生兜底时同样用内置页打开）。 |
+| **侧边对话** | 把引用写进一条**独立的侧边对话**的输入框。默认走**本插件自己的原生右侧栏页签**：线程是 `sessions.fork` 出来的子会话（继承主会话历史），页体用的是宿主自己的嵌入式会话视图——聊天记录、输入框、流式输出与工具调用全是 DSH 原生的，页签标题取引用首行。宿主缺少注册面时退回内置 `subagentchat` 页；把 `sideChatBackend` 设成 `"better"` 才切到 dsh-better-sidebar 的隐藏线程。所有后端都**什么都不发送**，线程独立运行、不污染主会话，页签自动在右侧栏打开。同一条主会话只开一条线程，之后每次点都在同一条线程的草稿后面接着追加。鲸鱼蓝（`#4d6bfe`）的图标是它在浮层里的标识。**一条引用一条线程**：浮层里还有一项「另开侧边对话」，给这条引用单独开一条线程；之后对同一条引用再选侧边对话，回到的就是它自己的那条。引用清单页底部会列出这个会话的**全部侧边线程**，每条都能重新打开。 |
 | **键盘直达** | `Alt+Q` 引用 / `Alt+C` 评论 / `Alt+B` 侧边对话——同一个浮层的三个动作，不弹浮层直接办。走 DSH 的快捷键服务注册，所以出现在设置里、可改键、与宿主键位冲突会在注册时报错；没有选区时返回 `pass`，按键不会被吞掉。 |
 | **原文侧高亮** | 引用落进草稿或发出后，被引用的原句回到**来源消息**里留下淡黄高亮与**序号角标**（序号就是坐标里的同句序号，和 `「引用N」` 对得上）。支持 `CSS.highlights` 的宿主由浏览器**直接绘制高亮**，滚动、流式输出、虚拟列表重排都跟手，不靠逐帧重画去追；不支持时才退回浮层矩形（只画序号徽章）。行不在视口里、文字已经变了、宿主不给 `Range` 时就静默跳过，**不改宿主的 DOM**（高亮不包 `mark`，也不搬节点）。表格单元格、表格行、段落、列表项、`<br>` 这些块级边界按浏览器选区报告的 `\t` / `\n` 对齐，所以跨单元格、跨行、跨段落的引用也能画回来。 |
 | **聚合引用条** | 输入框上方一条 **`引用 ×N`**：每颗芯片一个摘要胶囊，点一下跳回原文（跳不到就把光标放到芯片上，一次退格删掉），悬停就是完整卡片；每条末尾有 **`✎` 编辑**与 **`×` 移除**：编辑把原引用与评论回填进注释框，确认后旧芯片让位、新芯片原地插入；移除优先走宿主自己的 `consumeToken`（按芯片的 detect 区间与 `draftRev` 做 CAS 精确删除，不会碰错别的文本），宿主没有这个读取面或同名芯片无法区分时才退回「聚焦芯片 + 退格」并提示。**整条索引存在本机**：宿主会跨刷新恢复草稿里的芯片，插件的索引也一起恢复，所以刷新后条、卡片与「打开文件」都还在。主会话与侧边线程各自的输入框各有一条；芯片删光时条自己消失。整条带 `role=toolbar`，每颗胶囊的可访问名是完整引用+评论，不是截断后的标签。 |
@@ -51,7 +51,7 @@
 | **清单多选插入** | 引用清单每行一个勾选框，`插入所选` 一次把多条引用写进输入框——每条各成一颗芯片、各自带坐标，不合并；芯片通路不可用时退回一段包含多个引用块的文本。这一栏是只读导航 + 批量插入，不做就地删除——删除与编辑在**草稿上方的聚合条**里做（宿主暴露了按区间消费 token 的 `consumeToken`；旧宿主没有这个读取面时才退回退格路径）。 |
 | **审阅工作台** | 清单页把引用当**对象**管：每行一个 **`待处理 / 已解决`** 状态钮（点一下切换，行整体随之变淡），页首的 `只看未解决 (N)` 一键筛出没处理完的；每行可以打 **`#标签`**（回车添加、点 × 移除、点标签按它筛选，页首列出全部标签及数量）；勾选若干行后 `标记已解决 (N)` 批量落章，`插入所选` 批量送回输入框。状态与标签按引用坐标归一键（老引用退回按原文），记在本机 `localStorage`（`dsh-client-ui-quote:v1:quote-meta`，上限 800 条）——跨刷新仍在，不跨设备同步、不进模型上下文；`导出 Markdown` 的标题行会带上 `已解决` 与标签标记，没标过的行输出和从前逐字相同。 |
 | **跳回原文** | 悬停卡片底部的 `跳回原文`：把引用当初所在的那条消息**停到视野上方 24px**（和宿主自己跳轮次一样的位置）并闪一下。坐标（消息行锚点 + 轮次 + 同句序号）在插入时**写进消息自己的文本**——一段只在线上存在的 `※ 引自第 N 轮 · 助手 │q1:…` 行（base64url 的 JSON），显示、胶囊、清单导出里都剥掉；它随消息本身走，所以跨刷新、跨窗口、以及清单页里根本没被本插件看着选中的引用都跳得回去。只在**引用自己那条会话的面板里**找，不跨会话误跳；被虚拟列表藏起来的行会让位给同轮次的可见行；压根没挂载的行靠滚动搜索一屏一屏地找出来——先往上找（引用总在比它更早的消息里），一路到顶还没找到就从最新处再来一遍；都找不到就明说（`原文已变`——消息还在、那段文字不在了；或 `原文不在当前视图里`）。 |
-| **引用清单** | 右侧栏的一个**页面**：本会话发出去的引用与评论的清单。搜索框按引用/评论过滤、点一条跳回原文、`导出 Markdown` 落一个文件、历史没读完时可 `加载更早的消息`。它作为**页面类型**注册进右侧栏（`ctx.sidebarRightTabs.register`），并在指南页留下一个胶囊作入口；`Alt+L` 同样能打开。数据来自会话自己的事件日志（`ctx.sessions.retain` → `session.eventSource`），不依赖屏幕上有没有那条消息；**本机还留一份索引**：上下文压缩把消息裁掉之后，这些引用仍然列得出来。清单可以导出 **Markdown**（给人读）或 **JSON**（给工具读：版本化的 schema，带每条引用的来源坐标、文件、审阅状态与标签）；每行带着**自己那份坐标**（从消息文本的 `※ … │q1:…` 行读出来），所以没被本插件看着选过的引用也能跳。页面底部还有一行**宿主自检**：芯片精确删除是否可用、侧聊走 better-sidebar 还是 fork 兜底，不开控制台就能判断。 |
+| **引用清单** | 右侧栏的一个**页面**：本会话发出去的引用与评论的清单。搜索框按引用/评论过滤、点一条跳回原文、`导出 Markdown` 落一个文件、历史没读完时可 `加载更早的消息`。它作为**页面类型**注册进右侧栏（`ctx.sidebarRightTabs.register`），并在指南页留下一个胶囊作入口；`Alt+L` 同样能打开。数据来自会话自己的事件日志（`ctx.sessions.retain` → `session.eventSource`），不依赖屏幕上有没有那条消息；**本机还留一份索引**：上下文压缩把消息裁掉之后，这些引用仍然列得出来。清单可以导出 **Markdown**（给人读）或 **JSON**（给工具读：版本化的 schema，带每条引用的来源坐标、文件、审阅状态与标签）；每行带着**自己那份坐标**（从消息文本的 `※ … │q1:…` 行读出来），所以没被本插件看着选过的引用也能跳。页面底部还有一行**宿主自检**：芯片精确删除是否可用、侧聊走原生页签还是 better-sidebar，不开控制台就能判断。 |
 | **侧边线程回流** | 同一个页面底部是这条会话的**侧边线程**：显示它最后问的那个问题与消息条数，并给两个动作——**`带回主会话`** 把线程最后「问题 + 答案」写成主会话输入框里的草稿（**不发送**，你自己按发送），**`导出 Markdown`** 把整条线程落成一个文件。线程内容同样从它自己的事件日志读；没有线程时这一节只说明「还没有侧边线程」。 |
 | **改这条引用** | 悬停卡片里的 `改这条引用`：把那条引用当初的**引用与评论都原样放回评论框**（引用正文、评论各占一个输入框，都能改），你改完按 `⏎` 就发出一条**新的**引用（DSH 没有编辑已发送消息的 API，这是唯一诚实的做法）。旧胶囊随即挂上 **`已修订`** 标记，卡片里直接显示改后的评论；**连正文一起改过的**，卡片里也把改后的原文亮出来。标记按引用原文记在本机，跨刷新仍在。 |
 | **逐条回应** | 评论框里的一格**勾选项**（默认关）：勾上，这条引用的块尾就多一行**只有模型读得到的指令**——请按出现顺序把引用记为「引用1」「引用2」…并在回复中逐条对应。**指令随界面语言**：英文界面下要求模型用 `「Quote N」`，模型的回复里 `「引用N」` 与 `「Quote N」` 都会被认成徽章。模型的回复里每个这样的标签会变成一枚**小徽章**：悬停就是那条引用的完整卡片（含 `跳回原文` 与 `改这条引用`），点了就跳；编号超出这条消息引用数的标签保持纯文本。指令行与围栏一样只是**线上形态**，胶囊、卡片、导出里都不出现。 |
@@ -77,6 +77,7 @@
 | `replyByDefault` | `false` | 「让模型逐条回应」是否默认勾上。 |
 | `attribution` | `true` | 是否把可读的来源头（`引自第 N 轮 · 助手`）写进发给模型的线格式；关掉后仍保留可跳回的坐标。 |
 | `highlight` | `true` | 是否绘制原文侧高亮。 |
+| `sideChatBackend` | `"native"` | 侧边对话走后端：`"native"` 用本插件自己的原生右侧栏页签（默认，不依赖第三方插件）；`"better"` 改用 dsh-better-sidebar 的隐藏线程（唯一能把线程藏在会话列表外的后端）。 |
 
 调试句柄在浏览器控制台里可用：
 
@@ -138,7 +139,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
-两条线的断言入口相同：`npm test`（557 项：check 12 + capsule 392 + panel 153）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
+两条线的断言入口相同：`npm test`（574 项：check 12 + capsule 409 + panel 153）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
 
 **推送通道**：`git push` 优先，但本机 `github.com:443` **时通时不通**（2026-10-19 实测：短时可用、随后连续超时，每次失败等约 21 秒）。日常用工作区根的 `promote.ps1`：先试 git，失败自动转 REST 兜底（`.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`，`-Channel rest` 可跳过探测），并核对远端 SHA。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
 
@@ -253,13 +254,14 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 
 第三项是本插件自己的扩展（Kimi 的浮层只有两项），融合了三家 agent 同类组件的优点：**Kimi Code 的 `/btw` 侧边聊天**——一键在侧边栏开一条继承主会话上下文的线程；**Qoder 的「在侧边任务中提问」**——同一会话进行中的创建请求自动并入第一次，失败只弹一条提示，绝不大张旗鼓；**WorkBuddy 的划选引用**——引用是线程里持久的内容，而不是一次性的草稿附件。与前两家不同的是**问什么由你来写**：引用只落进那条线程的输入框，不会被当成第一条消息替你发出去。样式上第三项用 DeepSeek 的鲸鱼蓝（`#4d6bfe`）画图标与悬停色，白底浅色主题是主基调，深色主题同一色相。
 
-- **可用性探测**：`ctx.get("betterSidebar")` 存在、`getTab("sidechat")` 有注册、`isTabEnabled("sidechat")` 为真时走 better-sidebar；否则 `sessions.fork` 与 `sidebarRight.openResource` 都在时走原生 subagentchat 兜底；两种后端都不可用时第三项才整个隐藏——与「芯片通路不可用时退回纯文本」同一个哲学。
-- **开线程**：`POST /sidebar/api/sidechat.start`，载荷 `{ sessionId, question: "" }`。**空 question 是关键**：better-sidebar 对非空 question 会调 `admitFirstContact` 把它当成线程的第一条消息发出去，而空 question 只把主会话的上下文快照挂到子线程上、一条消息都不发——引用于是不会替你提问，而「线程继承主会话上下文」仍然成立。
-- **开页签**：拿到 `{ childId }` 后调 `betterSidebar.openTab({ type: "sidechat", id: "sidechat:<childId>", title: 引用首行, meta: { threadId: childId } }, { sessionId })`。`meta` 自 0.12.0 起是文档化的种子通道，会一路透传成原生页签的导航参数；`SideChatView` 正是按 `meta.threadId` 绑定线程——页签于是精确落在这条线程上，而不是又开一个空线程。
+- **可用性探测**：默认要求 `sessions.fork` 与 `sidebarRight.openResource` 都在，第三项就出现；原生页签本身还要等 `resources` 与 `sidebarRightTabs` 两个服务就绪（用 `ctx.inject` 等，晚到也装）。宿主缺注册面时退回内置 `subagentchat` 页；把 `sideChatBackend` 设成 `"better"` 且 better-sidebar 的 `sidechat` 页签已启用，才走 better-sidebar 的隐藏线程。后端都不可用时第三项才整个隐藏——与「芯片通路不可用时退回纯文本」同一个哲学。
+- **开线程**：`sessions.fork({ sessionId, increaseTitle: true })` 复制主会话历史（`response` 里拿 child id），再把 child 重命名成引用首行。线程记住后，之后点第三项不再新建，只把新引用接进同一条线程的草稿。
+- **开页签**：原生页签的地址是 `dsh-resource://quote-sidechat/session/<child>?parent=<sessionId>&mode=continuable`，由本插件注册的 `quote-sidechat` 页签类型认领；页签标题优先取刚刚的本地重命名，其次取会话列表里的 `title`，最后才退回 child id——所以不会再显示一串会话 id。`sessions.retain` 在页签存活期间持有 child，关掉页签就 `release`。
+- **页体**：`SessionProvider` 绑定 child，再渲染宿主的 `conversation.content`（`variant: "embedded"`）；聊天记录、输入框、流式输出、工具调用与审批都还是 DSH 自己的组件，没有重写一套聊天 UI。这是内置 `subagentchat` 页的同一条内部契约，宿主缺这一层时 `<p>` 里明说，不白屏。
 - **写进输入框**：页签打开后，`ctx.get("conversation").input.shell(childId)` 拿到子会话的输入框外壳（`SessionInputShell`），用 `setDraft(...)` 把引用的**纯块引用**形态（`>` 逐行前缀，不带 `❝` 标记——那两个标记是主会话胶囊增强器的识别符，侧边线程用不上）写成草稿：输入框里已经有你写的内容时，引用接在下面、空行隔开；**不发送，也不碰别的东西**。子会话的输入框要等页签挂载后才存在（`shell(id)` 在此之前会抛「resolved no binding」），所以这里按 200ms 轮询等它出现；外壳在而 `setDraft` 不在（版本对不上）则立刻放弃，不空等 5 秒。
-- **一条主会话一条线程**：线程 id 按主会话记住——优先读 better-sidebar 自己写在 `dsh-sidebar:v1:sidechat-thread` 里的绑定（页签绑上哪条线程它就记哪条），其次读本插件自己的 `dsh-client-ui-quote:v1:sidechat-thread`。第二次点第三项不再新建线程，只把新引用接进同一条线程的输入框。
+- **一条主会话一条线程**：线程 id 按主会话记住——优先读 better-sidebar 自己写在 `dsh-sidebar:v1:sidechat-thread` 里的绑定（页签绑上哪条线程它就记哪条，切回原生时也能复用旧线程），其次读本插件自己的 `dsh-client-ui-quote:v1:sidechat-thread`。第二次点第三项不再新建线程，只把新引用接进同一条线程的输入框。
 - **防重复**：同一会话的请求还在途中时，再次点击直接并入第一次（模块级 `Map<sessionId, Promise>` 记账，结算后自行清除）。
-- **失败路径**：路由拒绝（better-sidebar 未挂载、父会话未运行等）或 `openTab` 抛错 → toast「侧边对话没有打开，请重试。」；线程已开、草稿没能写进去 → toast「侧边对话已打开，但引用没能写进它的输入框」。
+- **失败路径**：`sessions.fork` 拒绝、或页签两种地址都打不开 → toast「侧边对话没有打开，请重试。」；线程已开、草稿没能写进去 → toast「侧边对话已打开，但引用没能写进它的输入框」。原生页签打不开时先退回内置 `subagentchat` 地址，再失败才报错。
 
 ### 引用清单（右侧栏页面）
 
@@ -293,7 +295,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 | 同类 | 它做什么 | 我们的取舍 |
 | --- | --- | --- |
 | `@changfenhuang/dsh-annotation`（3513/月，148★） | 最短路径「选中→批注→逐条回应」；文件预览也能批注 | 保留评论+引用同一颗胶囊，多出清单/侧线程/修订；它的低摩擦值得学 |
-| `dsh-sidenote`（3752/月） | 原生侧栏 + 多侧聊 + 划选注释 + 结论回流/存为正式会话 | 已做「一条引用一条线程」与线程清单；缺 better-sidebar 时用 fork + 原生 subagentchat 兜底 |
+| `dsh-sidenote`（3752/月） | 原生侧栏 + 多侧聊 + 划选注释 + 结论回流/存为正式会话 | 已做「一条引用一条线程」与线程清单；默认就是原生页签（fork + 嵌入式会话），内置 subagentchat 是退路 |
 | `@kirkchinese/dsh-citeciter`（2028/月） | 每次划选一个持久只读 Topic + 草稿自动保存/多窗口合并 | 不做完整 Topic 系统；「新开线程」与草稿持久化已补 |
 | `dsh-quote-annotate-pro`（2126/月） | 发送后引用块常显 3 行 + 自动编号 + 回合尾引用 | 坚持胶囊+悬停卡；回合尾引用已补，常显块不做默认 |
 | `dsh-select-quote`（1212/月） | 待发批注按会话持久化，逐条编辑/删除/清空 | 聚合条已支持逐条编辑/移除、完整无障碍名与跨刷新恢复；删除优先用宿主 `consumeToken` 精确区间 |
@@ -304,7 +306,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 **2026-10-20 复扫补记**（同一份 6,084 条市场快照，补读上轮未收录的 11 款）：
 
 - `dsh-sidecard-ask`（3,217/月，10-10 上架）：把「划词 → 独立子代理作答 → 侧边卡片」做成完整承载链（better-sidebar → 原生右栏/内置浮层兜底），说明侧边问答已是独立赛道；我们的侧边对话仍是引用附属，不扩成通用问答。
-- `dsh-side-chat-plus`（1,920/月）与 `dsh-sidenote` 0.6：都把侧聊放进原生右栏；我们的「一条引用一条线程」仍是差异化，better-sidebar 缺失时已改用 `sessions.fork` + 内置 subagentchat 页兜底。
+- `dsh-side-chat-plus`（1,920/月）与 `dsh-sidenote` 0.6：都把侧聊放进原生右栏；我们的「一条引用一条线程」仍是差异化，默认已改成 `sessions.fork` + 自己的原生 `quote-sidechat` 页签（内置 subagentchat 与 better-sidebar 都是退路/增强）。
 - `dsh-quote-reply`（GitHub 安装）：把引用放到输入框上方的独立层，经 `systemPrompt.context` 注入、回合尾显示「引用(N)」；我们坚持把坐标写进消息文本，换取导出/审阅/跨刷新，不改架构。
 - `dsh-selection-quote`（594/月）与 `dsh-xwide-annotation`（1,148/月）：分别补了右键菜单/持续选区高亮与每条颜色/大纲；我们的清单已是大纲，颜色不是主线，右键菜单也不比现有浮层快。
 - `dsh-code-quote`（776/月，粘贴 `路径:行` + 代码 → chip + pre-step 快照）与 `dsh-quote-to-agent`（引用分派子代理）是相邻赛道，不并入；`dsh-web-annotator`/`dsh-image-annotate` 进一步证明图片/网页批注应独立成插件。
@@ -315,7 +317,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 - **「引用 + 评论合成单一可交互胶囊」**：仍是本插件独有；`dsh-annotation` 证明「选中→批注→逐条回应」有需求，差异在我们的**胶囊 + 清单 + 线程**组合，而不是单点机制。
 - **待发引用管理**：`dsh-select-quote` 的按会话持久化、逐条编辑/删除/清空是这一格的老大；本插件现在补齐了**逐条编辑**（`✎` 回填原引用与评论，旧芯片让位、新芯片原地插入）与**跨刷新恢复**（芯片索引落本机，宿主恢复草稿芯片后它们重新算是我们的引用），我们不提供「一键清空全部」——按条删除更不容易误伤，删除与编辑都在草稿上方的聚合条里做。
 - **代码引用回跳**：`@u2a5f` 已经读源文件算精确行号，`dsh-annotation` 能对文件预览批注并恢复；我们的卡片/清单现在显示 `文件预览 · path#Lx-Ly` 并能打开预览定位起始行、标出被引的行，还差 Markdown 预览的读源行号（要声明 `remote`，风险大于收益，先不做）。
-- **多侧线程/原生侧栏**：`dsh-sidenote`/`CiteCiter` 已把多 Topic、草稿保存做完整；我们现在是**一条引用一条线程**（浮层里「另开侧边对话」，清单页列出全部线程），并已加 **fork + 内置 subagentchat** 兜底；仍没有 better-sidebar 那种把线程藏出会话列表的能力。
+- **多侧线程/原生侧栏**：`dsh-sidenote`/`CiteCiter` 已把多 Topic、草稿保存做完整；我们现在是**一条引用一条线程**（浮层里「另开侧边对话」，清单页列出全部线程），默认后端是 **fork + 自己的原生 `quote-sidechat` 页签**（内置 subagentchat 是退路）；仍没有 better-sidebar 那种把线程藏出会话列表的能力。
 - **图片/截图**：`dsh-selection-toolbar` 与 Kimi 桌面端已经支持；我们仍是纯文本引用。
 - **「原地编辑已发送的批注」**：DSH 仍没有编辑已发送消息的 API（侦察确认 `editMessage`/`updateMessage`/`rewriteMessage` 全树 0 命中），本插件走**追加式修订**；`dsh-plugin-message-edit` 走的是另一条路（原地保存 + 分支重生成 + 版本时间线），两条路线不冲突。
 
@@ -324,7 +326,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：557 项离线断言（含真跑 `sessions.retain` / `setDraft` / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：574 项离线断言（含真跑 `sessions.retain` / `setDraft` / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 反过来也要说清楚：**本插件不做的**——不做翻译/解释/改写/飞书投递类选区动作；不做图片/截图引用（**明确取舍**：图片引用要的是另一套胶囊/卡片/附件语义，是第二个产品的量级，塞进这里只会把「文本引用带坐标」这条主线冲淡；`dsh-selection-toolbar` 与 Kimi 桌面端已经做了，真要做建议独立成插件）；不做完整 Topic 系统；不做常显大块引用。它只把「引用」这一件事做穿——但「做穿」包括发送后的管理、来源闭环和审阅，不只是浮层。
 
@@ -360,7 +362,7 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍 + 行范围标记 + 浮层不随座位失效，392 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍 + 行范围标记 + 浮层不随座位失效，409 项断言）
 test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 文件路径打开 + 侧边线程回流 + 审阅工作台（状态 / 标签 / 批量）+ JSON 导出 + 本地索引，153 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选）
 ```
@@ -411,7 +413,7 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 修订不改写引用原文本身、清空引用正文时确认按钮禁用、改后的正文随新芯片发出；
 **浮层不跟着座位生死**（`conversation.input.overlay` 没挂载也能选中出栏、挂上两个会话座位既不叠加也不丢监听、
 座位不在时用输入框自己的 `actions` 落芯片、无处可插时给 toast 而不是静默返回、effect 卸载/重装后监听恰好一份）；
-（共 392 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、无 better-sidebar 时 `sessions.fork` + 内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
+（共 409 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、原生 `quote-sidechat` 页签的注册 / 地址 / 标题 / retain-release、内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
 `test/capsule.html` 是同一套断言的真浏览器版（51 项），用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。这一版修好了它**缺失的 `<body>` 标签**——脚本在 `<head>` 里执行时 `document.body` 为 null，这个页面以前在真浏览器里是直接坏的；并补上真 `Range` 的链接/行内代码断言（真浏览器的 `cloneContents()` 返回的是 DocumentFragment，不是元素——序列化器只认元素的话，链接在真浏览器里会退化成纯文本；离线桩现在也用真片段，不再放过这一类），另外补了 `CSS.highlights` 选区保持与关闭清理。
 
 `test/panel.mjs` 单独跑引用清单页与侧边线程回流（153 项）：只认**持久**的 `user/message`（`transient`、助手消息、`data: null` 都跳过）、
@@ -430,16 +432,13 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 `bringThreadBack` 把结论写成**草稿**（原有草稿保留、空行隔开）、外壳没有 `setDraft` 时如实失败、没有线程时不乱写；
 `exportThread` 的文件名与整条线程内容、以及 MIME 是 Markdown。
 
-合计 **557 组**（check 12 + capsule 392 + panel 153），`npm test` 全绿。
+合计 **574 组**（check 12 + capsule 409 + panel 153），`npm test` 全绿。
 
 ## 已知限制
 
-- **侧边对话依赖两个半公开接口**：dsh-better-sidebar（实测 0.25.0；`meta` 种子通道自 0.12.0、原生右侧栏承载自 0.19.0 起可用）
-  的 `POST /sidebar/api/sidechat.start`（本插件靠「空 `question`」拿到一条**什么都不发**的新线程），
-  以及 DSH 客户端自己的输入框外壳 `SessionInputShell.setDraft`（把引用写成子会话的草稿）。
-  未安装、被禁用、或它的「侧边对话」页签在侧边卡片设置里被关掉时，浮层第三项**整个不渲染**；
-  两个接口升级后若失效都不会静默：开不了线程 → toast「侧边对话没有打开，请重试。」，写得进不去草稿 → toast「侧边对话已打开，但引用没能写进它的输入框」；
-  线程创建要求父会话处于运行态（历史归档会话会收到 409，同样落 toast）。
+- **侧边对话默认不依赖 better-sidebar，但原生页依赖宿主内部契约**（app.asar 0.2.1-rc.2 实测）：默认后端是 `sessions.fork`（复制主会话历史）+ 本插件注册的 `quote-sidechat` 右侧栏页签；页体把宿主的 `conversation.content`（`variant: "embedded"`）嵌进来，用 `resources.register` 提供 `dsh-resource://quote-sidechat/session/…` 地址，用 `sessions.retain(address)` 持有 child。
+  这些都不是公开文档的稳定 API（内置 `subagentchat` 页用的是同一套），DSH 升级后可能失效；失效时不会白屏或报错：注册不成功就退回内置 `subagentchat` 页，开不了线程 → toast「侧边对话没有打开，请重试。」，写得进不去草稿 → toast「侧边对话已打开，但引用没能写进它的输入框」。
+  想用 dsh-better-sidebar（实测 0.25.0）的隐藏线程，把 `sideChatBackend` 设成 `"better"`；它的 `POST /sidebar/api/sidechat.start` 与 `meta` 种子通道仍按旧路径工作，父会话未运行时会收到 409。
 - **「改这条引用」是追加，不是原地编辑**：DSH 的 transcript 只追加（侦察确认全树没有 `editMessage` / `updateMessage` / `rewriteMessage` / 回收 API，只有**尚未进入会话**的队列条目可改）。所以修订发出一条新引用（评论、引用正文都可改），旧胶囊只挂 `已修订` 标记——标记存在**本机** `localStorage`（`dsh-client-ui-quote:v1:quote-revised`，按 **`ref + 引用原文`** 归一键、上限 60 条），同一句话从两个不同位置引用时互不影响；没有 ref 的旧引用仍按原文键读写。它不会跨标签页、跨设备同步，也不进入模型上下文；模型看到的是那条改后的新引用。正文改过后键仍是旧原文：`已修订` 挂在**旧**胶囊上（它的卡片里显示改后的原文与评论），改后的新胶囊不挂标。
 - **代码引用的识别靠首行围栏**：`> ❝ ``` ` 开头的块按代码解析（围栏剥掉、胶囊等宽）。因此一条**普通**引用如果正文恰好以 ``` 或 `~~~` 开头（比如在 Markdown 文件预览里引用了源码），回读时也会被当成代码引用——显示上是等宽排版，文字不丢。
 - **标记形状的正文会被转义**：一行以 `❝` / `❞` / `※` 或反斜杠开头时，写入线格式前加一个反斜杠、回读时还原。因此引用一段本身含 `❞` 或 `※ │q1:` 形状的文档，不会再被当成评论分隔符或坐标行截断/丢行；旧版本发出的消息没有这层转义，仍按旧规则解析。
@@ -448,7 +447,7 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 - **Diff 引用的路径与行号同样是探测来的**：先在 diff 卡片里找 `data-diff-path` / `data-file-path` / `data-diff-file` 等头标签（优先读 `title`），再退回祖先属性；行号读 `data-line-number` / `data-diff-line` / `data-line`。宿主换一套 diff DOM 时只会丢路径/行号，引用本身仍按代码块发。
 - **多选插入按清单当前顺序写**：每条引用各成一颗芯片；宿主编辑器拒绝 chip 写入时整批退回一段文本块，不会重复插入已成功的条目。搜索框一变就清空勾选，避免“看不见的选中项”被插进去。
 - **回复徽章依赖模型守格式**：模型没按指令输出 `「引用N」` 就没有徽章——无损，只是少了联动；输出越界的编号（数错了）保持纯文本。徽章的编号以回复**之前最近的一条带胶囊的消息**为准；切分的是助手消息的文本节点，DSH 若改了助手消息的渲染形态，徽章增强器要跟着调（与胶囊的 `isQuoteRun` 同一条既有限制）。
-- 依赖 DSH 客户端的内部接口（`conversation.input.overlay` 槽位、`inputTriggers.registerSource`、`conversation.input.shell(id).insertReference` / `consumeToken`、scoped `slash/input-insert-reference`、`sessions.fork`、`sidebarRight.openResource`、
+- 依赖 DSH 客户端的内部接口（`conversation.input.overlay` 槽位、`inputTriggers.registerSource`、`conversation.input.shell(id).insertReference` / `consumeToken`、scoped `slash/input-insert-reference`、`sessions.fork`、`sidebarRight.openResource`、`resources.register` 与 `sessions.retain(address)`、`SessionProvider` / `conversation.content` 的 embedded 视图、
   `reference-chip` 节点），DSH 升级有可能失效。
 - **引用清单页依赖右侧栏的两个服务**（`sidebarRightTabs` 与 `sidebarRight`，实测 0.2.0-rc.2）；宿主没有它们时页面不注册、`Alt+L` 给一条 toast
   （「引用清单打不开：右侧栏服务不可用」）而不是报错。它的数据来自会话事件日志，**历史是分页的**：只列已加载的消息，更早的要按 `加载更早的消息`；
@@ -467,17 +466,17 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 
 - **回合级引用依赖宿主的回合尾槽位**：宿主把每条回合的尾部做成一个列表子槽位（`conversation.chat.turnTail`，`kind:"list"`、`scope:"session"`），本插件往里加一条。宿主没有这个槽位时按钮不出现——功能缺失，其它能力不受影响。
 - **引用清单的本机索引只在本机**：它兜的是「上下文压缩把消息裁掉」这一种丢失，记录不进模型上下文、不跨设备、不跨浏览器；没读过的引用它当然也不知道。
-- **侧边对话有两级后端**：优先 dsh-better-sidebar；未安装/禁用时降级为 `sessions.fork` + 宿主内置的 `dsh-resource://subagentchat/session/…` 页。fork 会复制主会话历史，并作为普通 fork 出现在会话列表；内置页的标题可能显示子会话 id（宿主读的是 subagent label，普通 fork 没有），但对话本身可用。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。两级都不可用时浮层里没有侧边对话那两行。
+- **侧边对话有一条原生主路 + 两条退路**：默认是本插件自己的 `quote-sidechat` 页签（fork + 宿主嵌入式会话）；宿主缺 `resources` / 页签注册面时退回内置 `dsh-resource://subagentchat/session/…` 页；`sideChatBackend: "better"` 时才走 dsh-better-sidebar 的隐藏线程。fork 会复制主会话历史，并作为普通 fork 出现在会话列表——**原生后端还不能把线程藏出会话列表**，这是 better-sidebar 唯一的独有能力。原生页签的标题取引用首行（本地重命名优先），不再显示 child id。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。三条路都不可用时浮层里没有侧边对话那两行。
 
 ## 下一步
 
 这一轮补掉了最后一个明确的代码缺口（宿主 `consumeToken` 精确删芯片）；剩下的是取舍与人工动作：
 
-- **侧边对话的降级链**：已接通 `sessions.fork` + 内置 subagentchat 页；剩余的是 fork 在会话列表的可见性与内置页标题（宿主不把普通 fork 当 subagent），需要宿主提供隐藏/标签能力，或改走 subagent 后端。
+- **侧边对话的降级链**：原生页签（fork + 嵌入式会话）已经是默认，标题问题已解决；剩余的是 fork 在会话列表的可见性（宿主不把普通 fork 当 subagent），需要宿主提供隐藏/标签能力，或继续用 better-sidebar 的隐藏线程。
 - **Markdown 预览的行号**：要精修就得读源文件，而客户端必须声明 `remote` 才能拿到它；声明错会让 client bundle 在不匹配的宿主上**静默失效**（`dsh-quote-annotate` 上游就是这么死的）。所以先不声明——文件仍然打开，只是落在顶部而不是行上。
 - **表格/列表/LaTeX 的结构保真**：链接与行内代码已做；表格要还原成 Markdown 表格，列表要还原成缩进，成本明显更高，留到有人真的需要时再做。
 - **图片/截图引用**：明确不做（理由见「本插件不做的」）。真要做请独立成插件：图片引用要的是另一套胶囊/卡片/附件语义。
-- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 557 项离线断言；真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。另外在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8790）里确认：工作区 link 与 **npm lab 发布包 `0.12.1-lab.15`** 都能进入 boot 列表，`window.__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见，`betterSidebar` 缺失而 `probe().nativeSideChat === true`——原生 fork 降级链的前置条件成立，发布产物的 manifest/打包路径也随真宿主一起验证过。欢迎页的交互点击被安全闸门拦下，因此下面五条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、另开侧边对话、JSON 导出。
+- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 574 项离线断言；原生侧聊页签的 `SessionProvider` / `conversation.content` 嵌入契约还需要在真实窗口里重开一次侧边对话确认（离线桩只覆盖注册、地址、标题与 retain/release，不渲染宿主组件）。真浏览器（1600×2000 视口）同一套断言上一轮复核 **51/51**。另外在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8790）里确认：工作区 link 与 **npm lab 发布包 `0.12.1-lab.15`** 都能进入 boot 列表，`window.__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见，`betterSidebar` 缺失而 `probe().nativeSideChat === true`——原生 fork 降级链的前置条件成立，发布产物的 manifest/打包路径也随真宿主一起验证过。欢迎页的交互点击被安全闸门拦下，因此下面五条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、另开侧边对话、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。
 
 ## 变更记录
@@ -495,9 +494,10 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 **dsh-client-ui-quote** — select any sentence in a DSH conversation and quote it into the composer, Kimi-Code style.
 The floating bar opens **under** the selection (above it only when there is no room below) and offers **Comment**,
 **Add to conversation**, and — the plugin's own addition — **Side chat**: the quote is written into the composer of one
-independent side thread per main session — dsh-better-sidebar's side chat when installed, otherwise a fork of the source
-session opened in the built-in subagent chat tab. Either way it inherits the main session's context and opens as a tab in
-DSH's native right sidebar, drawn in DeepSeek's whale blue. Nothing is sent — the question that
+independent side thread per main session — by default the plugin's own native right-sidebar page, which renders the host's
+embedded conversation for a fork of the source session; the built-in subagent chat is the fallback, and
+dsh-better-sidebar's hidden thread is opt-in via `sideChatBackend: "better"`. Either way it inherits the main session's
+context and opens as a tab in DSH's native right sidebar, drawn in DeepSeek's whale blue. Nothing is sent — the question that
 thread answers stays yours to write, and clicking again appends the next quote to the same thread's draft. The quoted
 text itself is editable in the comment box (trim the selection, correct a revision's wording), and a selection from the
 file preview or the terminal travels to the model as a fenced code block. The quote — and the comment, kept together in the same
@@ -511,7 +511,7 @@ Screenshots: [floating bar](docs/screenshots/bar.png) · [comment box](docs/scre
 Install with `dsh plugin --profile desktop add dsh-client-ui-quote` (published on npm; DSH >= 0.2.0-rc.2, web/desktop client).
 Test with `npm test`. MIT licensed.
 
-Kimi Code is where the interaction started, not the whole comparison. As of 2026-10 the DSH market has at least a dozen quote/annotation plugins — `dsh-annotation`, `dsh-sidenote`, `CiteCiter`, `dsh-quote-annotate-pro`, `dsh-select-quote`, `dsh-selection-toolbar`, and others. The floating bar is table stakes; the differentiator here is what happens after the quote is sent: a source highlight and ordinal, jump-back, a searchable review list, side-thread bring-back, revisions, and per-quote reply badges. The draft's `引用 ×N` bar removes a quote through the host's `consumeToken` span CAS (exact occurrence coordinates, draft-revision guarded), falling back to the editor's own Backspace path on hosts without that face, with a manual-backspace hint if neither applies. A preview/diff quote's file now appears as a clickable `path#Lx-Ly` line in the hover card and the quote list; clicking it opens the right sidebar's document preview at the range's first line through `sidebarRight.openResource`, focusing an already-open tab instead of duplicating it. A selection inside one rendered chat code block is quoted as a fenced block carrying the renderer's language, and degrades to a plain blockquote when the selection crosses the block boundary. A quote that is still in the draft can be edited or removed from the aggregate bar, and the chip index is kept locally so a reload does not lose the bar, the hover card or the file it points at. A code quote shows its source (`文件预览 · src/app.ts · L12-L48`) and opens the sidebar's document preview at that line. Side chats are bound per quote — the overlay offers “Open another side chat”, and the quote list shows every thread of the session; without better-sidebar the same flow forks the session and opens the built-in subagent chat tab. The quote list exports Markdown and JSON, keeps a local index so a context compaction cannot empty it, and a small whitelisted set of switches plus a `window.__dshQuote` handle sits behind it all. The Chinese section above carries the current 2026-10 market comparison; this plugin is not a Kimi Code clone.
+Kimi Code is where the interaction started, not the whole comparison. As of 2026-10 the DSH market has at least a dozen quote/annotation plugins — `dsh-annotation`, `dsh-sidenote`, `CiteCiter`, `dsh-quote-annotate-pro`, `dsh-select-quote`, `dsh-selection-toolbar`, and others. The floating bar is table stakes; the differentiator here is what happens after the quote is sent: a source highlight and ordinal, jump-back, a searchable review list, side-thread bring-back, revisions, and per-quote reply badges. The draft's `引用 ×N` bar removes a quote through the host's `consumeToken` span CAS (exact occurrence coordinates, draft-revision guarded), falling back to the editor's own Backspace path on hosts without that face, with a manual-backspace hint if neither applies. A preview/diff quote's file now appears as a clickable `path#Lx-Ly` line in the hover card and the quote list; clicking it opens the right sidebar's document preview at the range's first line through `sidebarRight.openResource`, focusing an already-open tab instead of duplicating it. A selection inside one rendered chat code block is quoted as a fenced block carrying the renderer's language, and degrades to a plain blockquote when the selection crosses the block boundary. A quote that is still in the draft can be edited or removed from the aggregate bar, and the chip index is kept locally so a reload does not lose the bar, the hover card or the file it points at. A code quote shows its source (`文件预览 · src/app.ts · L12-L48`) and opens the sidebar's document preview at that line. Side chats are bound per quote — the overlay offers “Open another side chat”, and the quote list shows every thread of the session; by default the same flow forks the session and opens the plugin's own native right-sidebar page (the host's embedded conversation), with the built-in subagent chat as a fallback and better-sidebar's hidden thread as an opt-in backend. The quote list exports Markdown and JSON, keeps a local index so a context compaction cannot empty it, and a small whitelisted set of switches plus a `window.__dshQuote` handle sits behind it all. The Chinese section above carries the current 2026-10 market comparison; this plugin is not a Kimi Code clone.
 
 Two wire-only extras ride on the same pipeline: a per-quote reply toggle in the comment box (the block carries a
 transport-only instruction, the model answers `「引用N」` by `「引用N」`, and each label becomes a badge that reopens

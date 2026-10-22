@@ -2,6 +2,11 @@
 
 ## Unreleased (lab)
 
+### Added
+
+- 侧边对话默认改走插件自己的原生右侧栏页签：`quote-sidechat` 页签类型 + `dsh-resource://quote-sidechat/session/…` 资源协议，页体嵌入宿主的 `conversation.content`（`variant: "embedded"`），标题取引用首行，不再依赖 dsh-better-sidebar；宿主缺注册面时退回内置 subagentchat 页，`sideChatBackend: "better"` 才走 better-sidebar 的隐藏线程。
+- 离线断言 **574 组**（check 12 + capsule 409 + panel 153）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
+
 ## 0.12.2 — 2026-10-22
 
 ### Changed
