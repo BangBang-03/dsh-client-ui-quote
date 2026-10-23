@@ -2,10 +2,16 @@
 
 ## Unreleased (lab)
 
+### Fixed
+
+- 等待晚到的 `inputTriggers` / `shortcuts` 服务，并在服务提供者卸载时释放旧注册、重载后在新实例注册引用源与四个命令。
+- 移除无法通过宿主校验的 Web 默认快捷键；保留 Web 命令及用户自定义能力，桌面仍为 `Alt+Q/C/B/L`。
+- 新增 10 项回归断言，覆盖服务晚到、独立替换为新实例、旧实例释放、新实例恰好注册一次、插件卸载清理，以及 Web 无默认绑定。
+
 ### Added
 
 - 侧边对话默认改走插件自己的原生右侧栏页签：`quote-sidechat` 页签类型 + `dsh-resource://quote-sidechat/session/…` 资源协议，页体嵌入宿主的 `conversation.content`（`variant: "embedded"`），标题取引用首行，不再依赖 dsh-better-sidebar；宿主缺注册面时退回内置 subagentchat 页，`sideChatBackend: "better"` 才走 better-sidebar 的隐藏线程。
-- 离线断言 **574 组**（check 12 + capsule 409 + panel 153）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
+- 离线断言 **584 组**（check 12 + capsule 418 + panel 154）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
 
 ## 0.12.2 — 2026-10-22
 

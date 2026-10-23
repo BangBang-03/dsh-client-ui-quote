@@ -1031,10 +1031,11 @@ try {
 		commands.map((entry) => entry.id).join(",")
 	);
 	check(
-		"every default is alt on every platform",
-		commands.every((entry) => Object.values(entry.defaults).every((binding) => binding.modifiers.length === 1 && binding.modifiers[0] === "alt"))
+		"desktop defaults retain Alt on all three platforms",
+		commands.every((entry) => ["macos", "windows", "linux"].every((platform) => JSON.stringify(entry.defaults["desktop:" + platform]?.modifiers) === JSON.stringify(["alt"])))
 	);
-	check("the quote row is Alt+Q", commands[0].defaults["web:windows"].code === "KeyQ", JSON.stringify(commands[0].defaults["web:windows"]));
+	check("Web commands have no default bindings", commands.every((entry) => Object.keys(entry.defaults).every((profile) => !profile.startsWith("web:"))));
+	check("the quote row is Alt+Q", commands[0].defaults["desktop:windows"].code === "KeyQ", JSON.stringify(commands[0].defaults["desktop:windows"]));
 	check("the comment row is Alt+C", commands[1].defaults["desktop:macos"].code === "KeyC", JSON.stringify(commands[1].defaults["desktop:macos"]));
 	check("the side chat row is Alt+B", commands[2].defaults["desktop:linux"].code === "KeyB", JSON.stringify(commands[2].defaults["desktop:linux"]));
 	check("Escape is never bound", commands.every((entry) => Object.values(entry.defaults).every((binding) => binding.code !== "Escape")));
@@ -3059,6 +3060,68 @@ try {
 		"uninstalling the page takes its type and style with it",
 		testing.nativeSideChatReady() === false && dom.document.getElementById("dsh-quote-sidechat-style") === null
 	);
+}
+
+// Optional services may arrive after the plugin and later be replaced.
+for (const effect of effects.slice().reverse()) effect.dispose?.();
+{
+	const fresh = spec.factory((name) => { if (name === "react") return reactStub; throw new Error(name); });
+	const services = new Map();
+	const waiting = new Map();
+	const owned = [];
+	const activeSources = new Set();
+	const commands = new Set();
+	const oldSourceCalls = [];
+	const oldCommandCalls = [];
+	const ctx = {
+		get: (name) => services.get(name),
+		effect(fn) { const dispose = fn(); owned.push(dispose); return dispose; },
+		inject(names, fn) { waiting.set(names.join(","), fn); },
+		locale: { register: () => () => {} },
+		slots: { inject: () => () => {}, register: () => () => {} }
+	};
+	fresh.apply(ctx);
+	check("missing optional services do not prevent runtime startup", window.__dshQuote.probe().running.runtime === 1);
+	services.set("inputTriggers", { registerSource(source) { oldSourceCalls.push(source.name); activeSources.add(source.name); return () => activeSources.delete(source.name); } });
+	services.set("shortcuts", { register(command) { oldCommandCalls.push(command.id); commands.add(command.id); return () => commands.delete(command.id); } });
+	const sourceEffects = [];
+	const shortcutEffects = [];
+	const child = (effects) => ({ ...ctx, effect(fn) { const dispose = fn(); effects.push(dispose); return dispose; } });
+	waiting.get("inputTriggers")?.(child(sourceEffects));
+	waiting.get("shortcuts")?.(child(shortcutEffects));
+	check("late inputTriggers registers the quote source without user interaction", activeSources.size === 1 && window.__dshQuote.probe().running.source);
+	check("late shortcuts registers all four commands", commands.size === 4);
+	for (const dispose of sourceEffects.splice(0)) dispose();
+	services.delete("inputTriggers");
+	check("source disposal releases only the source registration", activeSources.size === 0 && commands.size === 4 && !window.__dshQuote.probe().running.source);
+	const replacementSources = new Set();
+	const replacementCommands = new Set();
+	const sourceCalls = [];
+	const commandCalls = [];
+	services.set("inputTriggers", { registerSource(source) {
+		sourceCalls.push(source.name);
+		replacementSources.add(source.name);
+		return () => replacementSources.delete(source.name);
+	} });
+	waiting.get("inputTriggers")?.(child(sourceEffects));
+	check("a distinct source service receives one registration without touching shortcuts", activeSources.size === 0 && oldSourceCalls.join(",") === "quote"
+		&& sourceCalls.join(",") === "quote" && replacementSources.size === 1 && commands.size === 4 && window.__dshQuote.probe().running.source);
+	for (const dispose of shortcutEffects.splice(0)) dispose();
+	services.delete("shortcuts");
+	check("shortcut disposal releases all commands without releasing the source", commands.size === 0 && replacementSources.size === 1 && window.__dshQuote.probe().running.source);
+	services.set("shortcuts", { register(command) {
+		commandCalls.push(command.id);
+		replacementCommands.add(command.id);
+		return () => replacementCommands.delete(command.id);
+	} });
+	waiting.get("shortcuts")?.(child(shortcutEffects));
+	check("a distinct shortcut service receives each command exactly once", commands.size === 0 && oldCommandCalls.length === 4
+		&& commandCalls.slice().sort().join(",") === "ui-quote.comment,ui-quote.list,ui-quote.quote,ui-quote.sidechat"
+		&& replacementCommands.size === 4 && sourceCalls.length === 1 && replacementSources.size === 1);
+	for (const dispose of [...sourceEffects, ...shortcutEffects, ...owned].reverse()) dispose?.();
+	check("plugin teardown releases old and replacement registrations", activeSources.size === 0 && commands.size === 0
+		&& replacementSources.size === 0 && replacementCommands.size === 0
+		&& !window.__dshQuote.probe().running.source && window.__dshQuote.probe().running.runtime === 0);
 }
 
 console.log(
