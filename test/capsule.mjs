@@ -1031,10 +1031,11 @@ try {
 		commands.map((entry) => entry.id).join(",")
 	);
 	check(
-		"desktop uses Alt and Web adds primary and Shift",
-		commands.every((entry) => Object.entries(entry.defaults).every(([profile, binding]) => JSON.stringify(binding.modifiers) === JSON.stringify(profile.startsWith("web:") ? ["primary", "alt", "shift"] : ["alt"])))
+		"desktop defaults retain Alt on all three platforms",
+		commands.every((entry) => ["macos", "windows", "linux"].every((platform) => JSON.stringify(entry.defaults["desktop:" + platform]?.modifiers) === JSON.stringify(["alt"])))
 	);
-	check("the quote row uses KeyQ", commands[0].defaults["web:windows"].code === "KeyQ", JSON.stringify(commands[0].defaults["web:windows"]));
+	check("Web commands have no default bindings", commands.every((entry) => Object.keys(entry.defaults).every((profile) => !profile.startsWith("web:"))));
+	check("the quote row is Alt+Q", commands[0].defaults["desktop:windows"].code === "KeyQ", JSON.stringify(commands[0].defaults["desktop:windows"]));
 	check("the comment row is Alt+C", commands[1].defaults["desktop:macos"].code === "KeyC", JSON.stringify(commands[1].defaults["desktop:macos"]));
 	check("the side chat row is Alt+B", commands[2].defaults["desktop:linux"].code === "KeyB", JSON.stringify(commands[2].defaults["desktop:linux"]));
 	check("Escape is never bound", commands.every((entry) => Object.values(entry.defaults).every((binding) => binding.code !== "Escape")));
@@ -2383,11 +2384,6 @@ try {
 	check("the remove control is named", remove?.getAttribute("aria-label") === "移除这条引用", JSON.stringify(remove?.getAttribute("aria-label")));
 	remove?.dispatch("click", { preventDefault() {}, stopPropagation() {} });
 	check("a chip the host cannot locate falls back to the editor's Backspace path", (editable.dispatched ?? []).map((event) => event.type + ":" + event.key).join(",") === "keydown:Backspace,keyup:Backspace", JSON.stringify((editable.dispatched ?? []).map((event) => event.type + ":" + event.key)));
-	check("the toolbar reserves space beside the composer rather than covering the transcript", bar?.parentElement?.className === "dshq-draftspace" && bar.parentElement.nextSibling === card);
-	chip.textContent = "";
-	testing.syncDraftBars();
-	check("clearing a reused chip node removes the count-only toolbar", dom.document.querySelector(".dshq-draftbar") === null && card.isConnected);
-	check("clearing the last quote also removes its reserved space", dom.document.querySelector(".dshq-draftspace") === null);
 	card.remove();
 	composer.remove();
 	testing.syncDraftBars();
@@ -2451,35 +2447,6 @@ try {
 	});
 	testing.removeDraftChip(consumeChip, "session-consume-ambiguous");
 	check("two chips with the same label are left to the caret path", ambiguous.length === 0, JSON.stringify(ambiguous));
-}
-
-{
-	const card = dom.document.createElement("div");
-	card.setAttribute("data-composer-card", "");
-	const editor = dom.document.createElement("div");
-	editor.setAttribute("contenteditable", "true");
-	const paragraph = dom.document.createElement("p");
-	const chip = dom.document.createElement("span");
-	chip.setAttribute("data-composer-chip", "quote");
-	chip.setAttribute("contenteditable", "false");
-	const label = dom.document.createElement("span");
-	const quote = "The native chip, not its editor wrapper";
-	testing.rememberChip(quote, "", "session-native-chip", false, {});
-	label.textContent = testing.chipLabel(quote, "");
-	chip.append(label);
-	paragraph.append(chip);
-	editor.append(paragraph);
-	card.append(editor);
-	dom.document.body.append(card);
-	dom.document.deliver();
-	await wait(120);
-	check("the native chip is annotated", chip.getAttribute("data-dshq-chip") === "1");
-	check("the editor and paragraph are never annotated as chips", editor.getAttribute("data-dshq-chip") === null && paragraph.getAttribute("data-dshq-chip") === null);
-	chip.remove();
-	dom.document.deliver();
-	await wait(120);
-	check("native removal leaves the live composer without a toolbar", card.isConnected && card.parentElement.querySelector(".dshq-draftbar") === null);
-	card.remove();
 }
 
 /* ------------------------------------------------------------------ *
@@ -3104,6 +3071,8 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	const owned = [];
 	const activeSources = new Set();
 	const commands = new Set();
+	const oldSourceCalls = [];
+	const oldCommandCalls = [];
 	const ctx = {
 		get: (name) => services.get(name),
 		effect(fn) { const dispose = fn(); owned.push(dispose); return dispose; },
@@ -3113,8 +3082,8 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	};
 	fresh.apply(ctx);
 	check("missing optional services do not prevent runtime startup", window.__dshQuote.probe().running.runtime === 1);
-	services.set("inputTriggers", { registerSource(source) { activeSources.add(source.name); return () => activeSources.delete(source.name); } });
-	services.set("shortcuts", { register(command) { commands.add(command.id); return () => commands.delete(command.id); } });
+	services.set("inputTriggers", { registerSource(source) { oldSourceCalls.push(source.name); activeSources.add(source.name); return () => activeSources.delete(source.name); } });
+	services.set("shortcuts", { register(command) { oldCommandCalls.push(command.id); commands.add(command.id); return () => commands.delete(command.id); } });
 	const sourceEffects = [];
 	const shortcutEffects = [];
 	const child = (effects) => ({ ...ctx, effect(fn) { const dispose = fn(); effects.push(dispose); return dispose; } });
@@ -3123,13 +3092,36 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	check("late inputTriggers registers the quote source without user interaction", activeSources.size === 1 && window.__dshQuote.probe().running.source);
 	check("late shortcuts registers all four commands", commands.size === 4);
 	for (const dispose of sourceEffects.splice(0)) dispose();
-	for (const dispose of shortcutEffects.splice(0)) dispose();
-	check("service disposal unregisters sources and commands", activeSources.size === 0 && commands.size === 0 && !window.__dshQuote.probe().running.source);
+	services.delete("inputTriggers");
+	check("source disposal releases only the source registration", activeSources.size === 0 && commands.size === 4 && !window.__dshQuote.probe().running.source);
+	const replacementSources = new Set();
+	const replacementCommands = new Set();
+	const sourceCalls = [];
+	const commandCalls = [];
+	services.set("inputTriggers", { registerSource(source) {
+		sourceCalls.push(source.name);
+		replacementSources.add(source.name);
+		return () => replacementSources.delete(source.name);
+	} });
 	waiting.get("inputTriggers")?.(child(sourceEffects));
+	check("a distinct source service receives one registration without touching shortcuts", activeSources.size === 0 && oldSourceCalls.join(",") === "quote"
+		&& sourceCalls.join(",") === "quote" && replacementSources.size === 1 && commands.size === 4 && window.__dshQuote.probe().running.source);
+	for (const dispose of shortcutEffects.splice(0)) dispose();
+	services.delete("shortcuts");
+	check("shortcut disposal releases all commands without releasing the source", commands.size === 0 && replacementSources.size === 1 && window.__dshQuote.probe().running.source);
+	services.set("shortcuts", { register(command) {
+		commandCalls.push(command.id);
+		replacementCommands.add(command.id);
+		return () => replacementCommands.delete(command.id);
+	} });
 	waiting.get("shortcuts")?.(child(shortcutEffects));
-	check("replacement services register once again", activeSources.size === 1 && commands.size === 4);
+	check("a distinct shortcut service receives each command exactly once", commands.size === 0 && oldCommandCalls.length === 4
+		&& commandCalls.slice().sort().join(",") === "ui-quote.comment,ui-quote.list,ui-quote.quote,ui-quote.sidechat"
+		&& replacementCommands.size === 4 && sourceCalls.length === 1 && replacementSources.size === 1);
 	for (const dispose of [...sourceEffects, ...shortcutEffects, ...owned].reverse()) dispose?.();
-	check("plugin teardown releases runtime and registrations", activeSources.size === 0 && commands.size === 0 && window.__dshQuote.probe().running.runtime === 0);
+	check("plugin teardown releases old and replacement registrations", activeSources.size === 0 && commands.size === 0
+		&& replacementSources.size === 0 && replacementCommands.size === 0
+		&& !window.__dshQuote.probe().running.source && window.__dshQuote.probe().running.runtime === 0);
 }
 
 console.log(

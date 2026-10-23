@@ -4,16 +4,14 @@
 
 ### Fixed
 
-- Web 默认快捷键改为 `Cmd/Ctrl+Alt+Shift+Q/C/B/L`，满足宿主对所有平台的注册校验并避开侧栏默认键位；桌面保留 `Alt+Q/C/B/L`。
-- 等待晚到的 inputTriggers / shortcuts 服务，并在服务重载后重新注册引用源与四个快捷键。
-- 草稿聚合条在输入框前预留空间，不再以全局最高层浮层覆盖消息操作或设置弹窗。
-- 只识别原生引用芯片或最内层标签，并过滤已失效的引用标记；删除引用或清空草稿后不再留下空的“引用 ×1”。
-- 新增 13 项回归断言，覆盖服务晚到与替换、原生编辑器祖先误识别、节点复用清空和布局占位清理。
+- 等待晚到的 `inputTriggers` / `shortcuts` 服务，并在服务提供者卸载时释放旧注册、重载后在新实例注册引用源与四个命令。
+- 移除无法通过宿主校验的 Web 默认快捷键；保留 Web 命令及用户自定义能力，桌面仍为 `Alt+Q/C/B/L`。
+- 新增 10 项回归断言，覆盖服务晚到、独立替换为新实例、旧实例释放、新实例恰好注册一次、插件卸载清理，以及 Web 无默认绑定。
 
 ### Added
 
 - 侧边对话默认改走插件自己的原生右侧栏页签：`quote-sidechat` 页签类型 + `dsh-resource://quote-sidechat/session/…` 资源协议，页体嵌入宿主的 `conversation.content`（`variant: "embedded"`），标题取引用首行，不再依赖 dsh-better-sidebar；宿主缺注册面时退回内置 subagentchat 页，`sideChatBackend: "better"` 才走 better-sidebar 的隐藏线程。
-- 离线断言 **587 组**（check 12 + capsule 421 + panel 154）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
+- 离线断言 **584 组**（check 12 + capsule 418 + panel 154）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
 
 ## 0.12.2 — 2026-10-22
 
