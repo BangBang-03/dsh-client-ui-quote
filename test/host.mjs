@@ -72,16 +72,26 @@ const closedLog = [
 const { seed: plainSeed, inheritedEventCount: plainCut } = buildThreadSeed(closedLog, { label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
 check(
 	"the seed carries no copied history",
-	plainSeed.length === 3 &&
-		plainSeed.map((event) => event.type).join(",") === "session/end-seed,user/message,subagent/descriptor",
+	plainSeed.length === 7 &&
+		plainSeed.map((event) => event.type).join(",") === "session/end-seed,turn/start,step/start,user/message,step/end,turn/end,subagent/descriptor",
 	plainSeed.map((event) => event.type).join(",")
+);
+check(
+	"the context rides inside one closed turn, so the session is not blank",
+	plainSeed[1].type === "turn/start" &&
+		plainSeed[1].data.turn === 1 &&
+		plainSeed[2].type === "step/start" &&
+		plainSeed[4].type === "step/end" &&
+		plainSeed[5].type === "turn/end" &&
+		plainSeed[5].data.reason.kind === "done",
+	JSON.stringify(plainSeed.slice(1, 6).map((event) => event.type))
 );
 check(
 	"the inherited cut is the empty prefix at zero",
 	plainCut === 0 && plainSeed[0].type === "session/end-seed" && plainSeed[0].data.inherited === true,
 	JSON.stringify({ cut: plainCut, marker: plainSeed[0] })
 );
-const contextEvent = plainSeed[1];
+const contextEvent = plainSeed[3];
 const contextText = contextEvent?.data?.content?.[0]?.text ?? "";
 check(
 	"the one message is injected context, not a user prompt",
@@ -125,19 +135,19 @@ check(
 	"an empty parent still yields a usable context",
 	(() => {
 		const { seed } = buildThreadSeed([], { label: "Side: 空" });
-		const text = seed[1].data.content[0].text;
-		return text.includes("还没有可引用的文字") && seed.length === 3;
+		const text = seed[3].data.content[0].text;
+		return text.includes("还没有可引用的文字") && seed.length === 7;
 	})(),
 	"ok"
 );
 check(
 	"the descriptor is last and names the quote and our provider",
-	plainSeed[2].type === "subagent/descriptor" &&
-		plainSeed[2].data.version === 3 &&
-		plainSeed[2].data.mode === "continuable" &&
-		plainSeed[2].data.provider === "ui-quote" &&
-		plainSeed[2].data.label === "Side: 第一段",
-	JSON.stringify(plainSeed[2].data)
+	plainSeed[6].type === "subagent/descriptor" &&
+		plainSeed[6].data.version === 3 &&
+		plainSeed[6].data.mode === "continuable" &&
+		plainSeed[6].data.provider === "ui-quote" &&
+		plainSeed[6].data.label === "Side: 第一段",
+	JSON.stringify(plainSeed[6].data)
 );
 check(
 	"the descriptor sits after the inherited cut, which the host validates",
@@ -146,10 +156,10 @@ check(
 );
 check(
 	"the descriptor carries the parent's route",
-	plainSeed[2].data.agentProvider === "p" &&
-		plainSeed[2].data.agentModel === "m" &&
-		plainSeed[2].data.agentReasoningEffort === "high",
-	JSON.stringify(plainSeed[2].data)
+	plainSeed[6].data.agentProvider === "p" &&
+		plainSeed[6].data.agentModel === "m" &&
+		plainSeed[6].data.agentReasoningEffort === "high",
+	JSON.stringify(plainSeed[6].data)
 );
 check(
 	"the seed's sequence stays contiguous from zero",
@@ -158,18 +168,18 @@ check(
 );
 
 // The parent may itself be a side thread: no descriptor is copied either way,
-// so a nested thread is the same three events.
+// so a nested thread is the same seven events.
 const nestedLog = closedLog.concat([
 	{ type: "subagent/descriptor", seq: 9, time: 10, data: { version: 3, mode: "continuable", provider: "sidechat", label: "Side: parent" } }
 ]);
 const { seed: nestedSeed, inheritedEventCount: nestedCut } = buildThreadSeed(nestedLog, { label: "Side: child", now: 70 });
 check(
-	"a nested parent yields the same three-event seed",
+	"a nested parent yields the same seven-event seed",
 	nestedCut === 0 &&
-		nestedSeed.length === 3 &&
+		nestedSeed.length === 7 &&
 		nestedSeed.filter((event) => event.type === "subagent/descriptor").length === 1 &&
-		nestedSeed[2].data.label === "Side: child" &&
-		!nestedSeed[1].data.content[0].text.includes("Side: parent"),
+		nestedSeed[6].data.label === "Side: child" &&
+		!nestedSeed[3].data.content[0].text.includes("Side: parent"),
 	JSON.stringify(nestedSeed.map((event) => event.type))
 );
 
