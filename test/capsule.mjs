@@ -3090,6 +3090,16 @@ try {
 		JSON.stringify({ promoted, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
 	);
 
+	// 同一段文字先在主会话发过、又送进侧聊一次：侧聊那次保存带 draft，但已经
+	// 转正的坐标不能被降级——否则刚亮起来的高亮会凭空消失。
+	const reDraft = testing.saveSource(draftQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-draft", turn: "7" }, { draft: true });
+	testing.paintAnchors();
+	check(
+		"a sent coordinate is not demoted by quoting it into a side chat",
+		reDraft !== null && reDraft.draft === undefined && highlightRegistry.get("dshq-quote")?.ranges?.length === 2,
+		JSON.stringify({ draft: reDraft?.draft, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
 	const longQuote = "长".repeat(200);
 	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
 	testing.rememberQuoteText(longRef, longQuote);
