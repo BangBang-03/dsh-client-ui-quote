@@ -983,6 +983,61 @@ try {
 			JSON.stringify(hiddenState.draft)
 		);
 
+		// A healthy thread costs exactly one retain before it is reused, so a
+		// broken one can be told apart below without guessing.
+		installShell("session-hidden-1");
+		sessionReadImpl = () => ({
+			ready: Promise.resolve(),
+			binding: { session: { eventSource: { getSnapshot: () => ({ entries: [] }) }, getSnapshot: () => ({ hasMore: false }) } },
+			release() {}
+		});
+		const readsBefore = sessionReads.length;
+		const startsBefore = fetches.filter((entry) => entry.payload.probe !== true).length;
+		await testing.hiddenSideChatRequest("session-hidden-main", "第三段引用", false, null, "", "reuse", "第三段引用");
+		check(
+			"a healthy hidden thread is reused after one retain",
+			sessionReads.length === readsBefore + 1 &&
+				fetches.filter((entry) => entry.payload.probe !== true).length === startsBefore &&
+				JSON.stringify(sessionReads.at(-1)?.address) === JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(sessionReads.at(-1))
+		);
+
+		// The host refusing the address is the one signal that the child is
+		// unusable (an older build wrote its descriptor before the inherited
+		// cut). Reopening it can never load, so the next click mints a new one.
+		const staleMain = "session-hidden-stale";
+		const staleThread = "session-hidden-stale-child";
+		testing.rememberThreadTarget(staleThread, { kind: "hidden", parentId: staleMain });
+		testing.rememberSideThread(staleMain, staleThread, { kind: "hidden", parentId: staleMain });
+		installShell("session-hidden-fresh");
+		sessionReadImpl = (address) => {
+			if (address !== null && typeof address === "object" && address.childSessionId === staleThread) throw new Error("subagent descriptor is unavailable");
+			return null;
+		};
+		globalThis.fetch = async (url, options) => {
+			const payload = JSON.parse(options.body);
+			fetches.push({ url, payload });
+			if (payload.probe === true) {
+				return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+			}
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-fresh", parentId: staleMain } }) };
+		};
+		openedResources.length = 0;
+		const repaired = await testing.hiddenSideChatRequest(staleMain, "旧线程引用", false, null, "", "reuse", "旧线程引用");
+		check(
+			"a hidden thread the host refuses is replaced, not reopened",
+			repaired === true &&
+				testing.storedSideThread(staleMain) === "session-hidden-fresh" &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).includes("session-hidden-fresh"),
+			JSON.stringify({ stored: testing.storedSideThread(staleMain), opened: openedResources })
+		);
+		check(
+			"the unreadable thread's parent binding is dropped",
+			testing.targetOfThread(staleThread).kind === "fork",
+			JSON.stringify(testing.targetOfThread(staleThread))
+		);
+
 		// Reading the thread goes through the subagent address.
 		sessionReadImpl = () => {
 			return {

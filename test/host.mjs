@@ -63,30 +63,42 @@ const closedLog = [
 	{ type: "step/end", seq: 4, time: 5, data: { turn: 1, step: 1 } },
 	{ type: "turn/end", seq: 5, time: 6, data: { turn: 1, reason: { kind: "done" } } }
 ];
-const plainSeed = buildThreadSeed(closedLog, { cwd: "C:/work", label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
+const { seed: plainSeed, inheritedEventCount: plainCut } = buildThreadSeed(closedLog, { cwd: "C:/work", label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
 check(
 	"a closed parent log is copied verbatim",
 	JSON.stringify(plainSeed.slice(0, closedLog.length)) === JSON.stringify(closedLog),
 	JSON.stringify(plainSeed.slice(0, closedLog.length))
 );
 check(
-	"the seed appends the working directory and our descriptor",
-	plainSeed.length === closedLog.length + 2 &&
-		plainSeed[closedLog.length].type === "working-directory/change" &&
-		plainSeed[closedLog.length].data.cwd === "C:/work" &&
-		plainSeed[closedLog.length + 1].type === "subagent/descriptor" &&
-		plainSeed[closedLog.length + 1].data.version === 3 &&
-		plainSeed[closedLog.length + 1].data.mode === "continuable" &&
-		plainSeed[closedLog.length + 1].data.provider === "ui-quote" &&
-		plainSeed[closedLog.length + 1].data.label === "Side: 第一段",
+	"the copy ends at a marked inherited cut",
+	plainCut === closedLog.length &&
+		plainSeed[plainCut].type === "session/end-seed" &&
+		plainSeed[plainCut].data.inherited === true,
+	JSON.stringify({ cut: plainCut, marker: plainSeed[plainCut] })
+);
+check(
+	"the seed appends the working directory and our descriptor after the cut",
+	plainSeed.length === closedLog.length + 3 &&
+		plainSeed[plainCut + 1].type === "working-directory/change" &&
+		plainSeed[plainCut + 1].data.cwd === "C:/work" &&
+		plainSeed[plainCut + 2].type === "subagent/descriptor" &&
+		plainSeed[plainCut + 2].data.version === 3 &&
+		plainSeed[plainCut + 2].data.mode === "continuable" &&
+		plainSeed[plainCut + 2].data.provider === "ui-quote" &&
+		plainSeed[plainCut + 2].data.label === "Side: 第一段",
 	JSON.stringify(plainSeed.slice(closedLog.length))
 );
 check(
+	"the descriptor sits after the inherited cut, which the host validates",
+	plainSeed.findIndex((event) => event.type === "subagent/descriptor") > plainCut,
+	JSON.stringify({ cut: plainCut, at: plainSeed.findIndex((event) => event.type === "subagent/descriptor") })
+);
+check(
 	"the descriptor carries the parent's route",
-	plainSeed[closedLog.length + 1].data.agentProvider === "p" &&
-		plainSeed[closedLog.length + 1].data.agentModel === "m" &&
-		plainSeed[closedLog.length + 1].data.agentReasoningEffort === "high",
-	JSON.stringify(plainSeed[closedLog.length + 1].data)
+	plainSeed[plainCut + 2].data.agentProvider === "p" &&
+		plainSeed[plainCut + 2].data.agentModel === "m" &&
+		plainSeed[plainCut + 2].data.agentReasoningEffort === "high",
+	JSON.stringify(plainSeed[plainCut + 2].data)
 );
 check(
 	"the seed's sequence stays contiguous from zero",
@@ -95,16 +107,18 @@ check(
 );
 
 const openLog = closedLog.slice(0, 4);
-const openSeed = buildThreadSeed(openLog, { label: "Side: 开着", now: 50 });
+const { seed: openSeed, inheritedEventCount: openCut } = buildThreadSeed(openLog, { label: "Side: 开着", now: 50 });
 check(
-	"an open step is closed before the inherited cut",
-	openSeed.length === openLog.length + 3 &&
-		openSeed[4].type === "step/end" &&
-		openSeed[4].data.turn === 1 &&
-		openSeed[4].data.step === 1 &&
-		openSeed[5].type === "turn/end" &&
-		openSeed[5].data.reason.kind === "interrupted" &&
-		openSeed[6].type === "subagent/descriptor",
+	"an open step is closed after the inherited cut",
+	openCut === openLog.length &&
+		openSeed.length === openLog.length + 4 &&
+		openSeed[openCut].type === "session/end-seed" &&
+		openSeed[5].type === "step/end" &&
+		openSeed[5].data.turn === 1 &&
+		openSeed[5].data.step === 1 &&
+		openSeed[6].type === "turn/end" &&
+		openSeed[6].data.reason.kind === "interrupted" &&
+		openSeed[7].type === "subagent/descriptor",
 	JSON.stringify(openSeed.slice(openLog.length))
 );
 
@@ -114,11 +128,13 @@ const danglingLog = closedLog.concat([
 	{ type: "tool/call", seq: 8, time: 9, data: { callId: "call-1", name: "read" } },
 	{ type: "agent/inbox/spliced", seq: 9, time: 10, data: { target: "next-turn", start: 0, inserted: [] } }
 ]);
-const danglingSeed = buildThreadSeed(danglingLog, { label: "Side: 悬挂", now: 60 });
+const { seed: danglingSeed, inheritedEventCount: danglingCut } = buildThreadSeed(danglingLog, { label: "Side: 悬挂", now: 60 });
 check(
 	"a dangling tool call cuts the open turn, not the whole log",
-	danglingSeed.length === closedLog.length + 1 &&
-		danglingSeed[closedLog.length].type === "subagent/descriptor" &&
+	danglingCut === closedLog.length &&
+		danglingSeed.length === closedLog.length + 2 &&
+		danglingSeed[danglingCut].type === "session/end-seed" &&
+		danglingSeed[closedLog.length + 1].type === "subagent/descriptor" &&
 		danglingSeed.every((event, index) => event.seq === index),
 	JSON.stringify(danglingSeed.slice(closedLog.length))
 );
@@ -131,13 +147,16 @@ check(
 const nestedLog = closedLog.concat([
 	{ type: "subagent/descriptor", seq: 6, time: 7, data: { version: 3, mode: "continuable", provider: "sidechat", label: "Side: parent" } }
 ]);
-const nestedSeed = buildThreadSeed(nestedLog, { label: "Side: child", now: 70 });
+const { seed: nestedSeed, inheritedEventCount: nestedCut } = buildThreadSeed(nestedLog, { label: "Side: child", now: 70 });
 check(
-	"a parent descriptor is replaced in place, so ours is authoritative",
-	nestedSeed.filter((event) => event.type === "subagent/descriptor").length === 1 &&
-		nestedSeed[6].data.label === "Side: child" &&
-		nestedSeed[6].data.provider === "ui-quote",
-	JSON.stringify(nestedSeed[6])
+	"a nested thread keeps the parent's descriptor inherited and ours last",
+	nestedCut === nestedLog.length &&
+		nestedSeed[6].data.label === "Side: parent" &&
+		nestedSeed.at(-1).type === "subagent/descriptor" &&
+		nestedSeed.at(-1).data.label === "Side: child" &&
+		nestedSeed.at(-1).data.provider === "ui-quote" &&
+		nestedSeed.at(-1).seq > nestedCut,
+	JSON.stringify(nestedSeed.slice(nestedLog.length))
 );
 
 let gapError = null;
@@ -219,9 +238,16 @@ check(
 	JSON.stringify(options.meta)
 );
 check(
-	"the inherited count is the seed's own length",
-	options.inheritedEventCount === options.seed.length && options.seed.every((event, index) => event.seq === index),
+	"the inherited count is the marked cut, not the whole seed",
+	options.inheritedEventCount === options.seed.findIndex((event) => event.type === "session/end-seed" && event.data.inherited === true) &&
+		options.inheritedEventCount < options.seed.length &&
+		options.seed.every((event, index) => event.seq === index),
 	String(options.inheritedEventCount)
+);
+check(
+	"the descriptor the host folds is the child's own",
+	options.seed.findIndex((event) => event.type === "subagent/descriptor") > options.inheritedEventCount,
+	JSON.stringify({ cut: options.inheritedEventCount, at: options.seed.findIndex((event) => event.type === "subagent/descriptor") })
 );
 check(
 	"the child requests the parent's current route, not the stale creation default",

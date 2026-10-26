@@ -49,8 +49,8 @@
 
 | # | 红线 | 为什么 | 违规长什么样 |
 | --- | --- | --- | --- |
-| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 638 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
-| R17 | 数字以实跑为准：check **12** 组 + capsule **436** + panel **153** + host **37** = **638**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
+| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 644 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
+| R17 | 数字以实跑为准：check **12** 组 + capsule **439** + panel **153** + host **40** = **644**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
 | R20 | 分支：**`lab` 是 GitHub 默认分支与唯一开发线，平时所有提交只进 `lab`，`lab` 应当领先 `main`**；`main` 只是备份，仅在发版/里程碑时 `merge --ff-only lab` 追上，平时不往 main 提交。已推送的 `lab` 不 amend / 不 rebase；不 `push --force`；进 `main` 的 `package.json` 不能是 `-lab.N` | 改写远端历史会让同一分支出现两条平行提交，CI 与其它 clone 全部对不上；main 若与 lab 同步推进就不再是"以防万一"的备份 | 在 main 直接提交；平时把 lab 与 main 一起推平；`rebase` 已推分支；强推 |
@@ -91,7 +91,7 @@
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7394）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138；`locale/zh.json`、`locale/en.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | README「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`；分支与通道见 R20/R21 | `npm test` 638 + 远端 `lab`/`main`/标签一致 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`；分支与通道见 R20/R21 | `npm test` 644 + 远端 `lab`/`main`/标签一致 |
 
 ### 2.2 按症状找位置
 
@@ -112,6 +112,7 @@
 | 侧边对话整项消失 | `sideChatAvailable`、`sideChatBackend`、`builtinSideChatState`、`nativeSideChatAvailable` | 探针失败且 fork / better 也不可用（设计如此，不报错） |
 | 侧边对话开了但没草稿 | `prefillDraft`、`writeDraft`、`displayedThreadId` | 子会话外壳还没挂载（200ms 轮询）；隐藏线程用内置 `subagentchat` 页，外壳可能晚于 5 秒；外壳版本没有 `setDraft` |
 | 隐藏线程创建失败 / 显示成普通 fork | 宿主半 `apply`、`startSideChat`、`probeBuiltinSideChat`、`probe().sideChatBuiltin` | `webServer` / `agents` / `connection` 没就绪；父会话不在线（409）；`agents.create` 拒绝；客户端按设计退回 fork |
+| 侧聊显示「历史加载失败：subagent descriptor is unavailable」 | 宿主半 `buildThreadSeed` 的继承切点与 `inheritedEventCount`；客户端 `hiddenThreadReadable` | descriptor 的 `seq` 落在 `inheritedEventCount` 之前（没标 `session/end-seed{inherited:true}`，或标记被补在末尾）；这类子会话永远读不出来，客户端下一次点会丢弃它并新建 |
 | 线程在 better-sidebar 与我们的清单里重复 | `SIDECHAT_LABEL_PREFIX`、`knownSideThreadIds`、`targetOfThread` | 两边共享 `Side: ` 持久约定，这是有意为之；不是两套数据互相覆盖 |
 | 英文界面混中文 | `zh`/`en` 成对检查、`translateFor` 2119 | 只加了一边；导出函数里写死中文 |
 | `npm test` 挂了 | 先看是哪一套：check / capsule / panel | 新增 DOM API 没垫片；新增词条没进两份字典；manifest 字段动了 |
@@ -128,9 +129,9 @@
 | `icon.svg` | 插件页卡片图标（相对路径、≤ 256 KiB、realpath 必须留在包内） |
 | `locale/zh.json`、`locale/en.json` | 插件页卡片文案；`en.json` 是扫描锚点 |
 | `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer |
-| `test/capsule.mjs` | 436 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、高亮、草稿条、隐藏侧聊 / fork / better、徽章、diff） |
+| `test/capsule.mjs` | 439 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、高亮、草稿条、隐藏侧聊 / fork / better、徽章、diff） |
 | `test/panel.mjs` | 153 组：清单页（解析、搜索、导出、读取、注册、审阅、JSON、本机索引、线程回流） |
-| `test/host.mjs` | 37 组：宿主半（种子 / 回合收口 / 悬挂工具调用 / descriptor / `agents.create` / 探针 / 围栏 / 路由注册与卸载） |
+| `test/host.mjs` | 40 组：宿主半（种子 / 回合收口 / 悬挂工具调用 / descriptor / `agents.create` / 探针 / 围栏 / 路由注册与卸载） |
 | `test/dom.mjs` | 最小 DOM / MutationObserver / Range / localStorage 垫片；新 API 先补这里 |
 | `test/capsule.html` | 真浏览器版（51 项），`file://` 打开，结果写进标题与 `#probe-out` |
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
@@ -141,7 +142,7 @@
 
 ```bash
 node --check lib/client.js                 # 语法门（CI 也先跑这个）
-npm test                                   # check + capsule + panel + host，638 组
+npm test                                   # check + capsule + panel + host，644 组
 node test/check.mjs                        # 只跑清单/契约
 node test/capsule.mjs                      # 只跑发送后链路
 node test/panel.mjs                        # 只跑清单页
