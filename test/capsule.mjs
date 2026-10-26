@@ -1265,7 +1265,7 @@ try {
 		forkCalls.push(opts);
 		return "session-native-menu-1";
 	};
-	testing.startRevision("端到端降级引用", "", "session-native-menu", null, false);
+	testing.startRevision("端到端降级引用", "", "session-native-menu", null, false, { v: 1, s: "session-wire", a: "data-chat-anchor-key", k: "row-wire", t: "3", n: 1 });
 	testing.openSideChat();
 	await wait(120);
 	check(
@@ -1276,6 +1276,30 @@ try {
 			menuState.draft === "> 端到端降级引用",
 		JSON.stringify({ forkCalls, openedResources, draft: menuState.draft })
 	);
+	// The quote only went into a draft: the source must stay unmarked until the
+	// reader actually sends it there — the row below would paint, so the flag is
+	// what is being measured, not a missing sentence.
+	const wirePane = dom.document.createElement("div");
+	wirePane.setAttribute("data-conversation-content", "");
+	wirePane.setAttribute("data-conversation-session", "session-wire");
+	const wireRow = dom.document.createElement("div");
+	wireRow.setAttribute("data-chat-anchor-key", "row-wire");
+	wireRow.setAttribute("data-chat-turn", "3");
+	wireRow.setAttribute("data-chat-role", "assistant");
+	wireRow.textContent = "前文 端到端降级引用 后文";
+	wirePane.append(wireRow);
+	dom.document.body.append(wirePane);
+	testing.paintAnchors();
+	const quotedButUnmarked = highlightRegistry.has("dshq-quote") === false;
+	testing.promoteSource({ v: 1, s: "session-wire", a: "data-chat-anchor-key", k: "row-wire", t: "3", n: 1 }, "端到端降级引用");
+	testing.paintAnchors();
+	check(
+		"a side chat leaves the source unmarked until its quote is sent",
+		quotedButUnmarked && highlightRegistry.get("dshq-quote")?.ranges?.length === 1,
+		JSON.stringify({ unmarked: quotedButUnmarked, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	wirePane.remove();
+	testing.paintAnchors();
 	openedResources.length = 0;
 	nativeForkImpl = async (opts) => {
 		forkCalls.push(opts);
@@ -2318,6 +2342,20 @@ try {
 	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
 	check("Escape closes the bar", barOf()?.dataset.visible === "false", JSON.stringify(barOf()?.dataset.visible));
 	check("closing the bar clears the source highlight", highlightRegistry.has("dshq-selection") === false);
+	// The bar calls preventDefault() on its own mousedown so the transcript
+	// selection survives while a row is aimed at — which is exactly why it has
+	// to hand the selection back when it leaves without an action. Otherwise the
+	// reader who picks a row and backs out is left with a selection nothing can
+	// clear.
+	selectIn(firstPane.run, "浮层要跟着手走的原文");
+	check("the selection is live before a row is aimed at", dom.document.selection !== null);
+	barOf().dispatch("mousedown", { target: barOf().querySelector('[data-action="add"]'), preventDefault() {} });
+	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
+	check(
+		"dismissing the bar hands back the selection it kept alive",
+		dom.document.selection === null && barOf()?.dataset.visible === "false",
+		JSON.stringify({ selection: dom.document.selection === null, visible: barOf()?.dataset.visible })
+	);
 	if (overlay !== undefined) {
 		overlay.Component({ sessionId: "session-bar", inputActions: { captureInsertion: () => ({ draftRev: 1 }) } });
 		overlay.Component({ sessionId: "session-bar-2", inputActions: { captureInsertion: () => ({ draftRev: 2 }) } });
@@ -3013,6 +3051,43 @@ try {
 		"inline text nodes still match without an inserted space",
 		inlineRange?.start?.node === spanA.firstChild && inlineRange?.end?.node === spanB.firstChild && inlineRange?.end?.offset === 3,
 		JSON.stringify({ start: inlineRange?.start?.node?.nodeValue, end: inlineRange?.end?.node?.nodeValue })
+	);
+
+	// 侧边对话里那句引用还没发出去：坐标照样要存（卡片、跳回都要它），但原文上
+	// 不许留下任何标记——读者可能把侧边对话关掉，那时高亮就成了无主的黄条。
+	const draftRow = dom.document.createElement("div");
+	draftRow.setAttribute("data-chat-anchor-key", "row-draft");
+	draftRow.setAttribute("data-chat-turn", "7");
+	draftRow.textContent = "前文 还没发出去的侧聊引用 后文";
+	pane.append(draftRow);
+	const draftQuote = "还没发出去的侧聊引用";
+	const draftSaved = testing.saveSource(draftQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-draft", turn: "7" }, { draft: true });
+	check(
+		"a coordinate saved for a draft still carries its ordinal",
+		draftSaved !== null && draftSaved.n === 1 && draftSaved.draft === true,
+		JSON.stringify(draftSaved)
+	);
+	check(
+		"the draft flag is stored, so a reload cannot resurrect the mark",
+		String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").includes(draftQuote) &&
+			String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").includes('"draft":true'),
+		String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").slice(0, 120)
+	);
+	testing.paintAnchors();
+	check(
+		"a draft coordinate is not painted on the source",
+		highlightRegistry.get("dshq-quote")?.ranges?.length === 1 && layer?.querySelectorAll(".dshq-anchor-badge").length === 1,
+		JSON.stringify({ ranges: highlightRegistry.get("dshq-quote")?.ranges?.length, badges: layer?.querySelectorAll(".dshq-anchor-badge").length })
+	);
+	const draftRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-draft", t: "7", n: draftSaved?.n };
+	const promoted = testing.promoteSource(draftRef, draftQuote);
+	testing.paintAnchors();
+	check(
+		"the quote turning up in a transcript promotes its mark",
+		promoted === true &&
+			highlightRegistry.get("dshq-quote")?.ranges?.length === 2 &&
+			layer?.querySelectorAll(".dshq-anchor-badge").length === 2,
+		JSON.stringify({ promoted, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
 	);
 
 	const longQuote = "长".repeat(200);
