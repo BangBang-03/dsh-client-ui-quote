@@ -952,8 +952,8 @@ try {
 			JSON.stringify(openedResources)
 		);
 		check(
-			"the hidden draft opens with the boundary the seed needs",
-			hiddenState.draft.startsWith("Side conversation boundary.") && hiddenState.draft.endsWith("> 隐藏引用"),
+			"the hidden draft holds only the quote, not a boundary preamble",
+			hiddenState.draft.startsWith("> 隐藏引用") && hiddenState.draft.includes("Side conversation boundary.") === false,
 			JSON.stringify(hiddenState.draft)
 		);
 		check(
@@ -983,8 +983,8 @@ try {
 			JSON.stringify(hiddenState.draft)
 		);
 		check(
-			"the boundary is written once per draft, not once per quote",
-			hiddenState.draft.split("Side conversation boundary.").length - 1 === 1,
+			"no boundary text is ever written into the thread's composer",
+			hiddenState.draft.includes("Side conversation boundary.") === false,
 			JSON.stringify(hiddenState.draft)
 		);
 
@@ -2240,6 +2240,13 @@ try {
 	check(
 		"the bar offers the actions",
 		barOf()?.querySelector('[data-action="add"]') !== null && barOf()?.querySelector('[data-action="comment"]') !== null
+	);
+	check(
+		"the side chat is one row, never two competing entries",
+		barOf()?.querySelector('[data-action="sidechatNew"]') === null &&
+			barOf()?.querySelector(".dshq-row-sidechat-new") === null &&
+			(barOf()?.querySelectorAll('[data-action^="sidechat"]') ?? []).length <= 1,
+		JSON.stringify((barOf()?.querySelectorAll('[data-action^="sidechat"]') ?? []).map((row) => row.getAttribute("data-action")))
 	);
 
 	// 2. A slot comes and goes — the listeners are not tied to it.

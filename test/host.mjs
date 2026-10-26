@@ -26,7 +26,7 @@ function check(name, ok, detail) {
 	return false;
 }
 
-const { buildThreadSeed, threadLabel, parentSelection, presetOf, startSideChat, handleSideChatRequest } = __testing;
+const { buildThreadSeed, transcriptOf, threadLabel, parentSelection, presetOf, startSideChat, handleSideChatRequest } = __testing;
 
 // ---- labels and the parent's route ---------------------------------------
 check("a label carries the shared side-thread prefix", threadLabel("  第一段\n引用  ") === "Side: 第一段 引用", threadLabel("  第一段\n引用  "));
@@ -55,38 +55,89 @@ check(
 check("a header preset is the fallback", presetOf({ agentPreset: "header" }, []) === "header");
 
 // ---- the seed ------------------------------------------------------------
+// A side thread opens with ONE injected-context message, not a copy of the
+// parent log: the chat UI folds that into a single context row, and the model
+// still reads the parent's own words as background.
 const closedLog = [
 	{ type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
 	{ type: "step/start", seq: 1, time: 2, data: { turn: 1, step: 1 } },
-	{ type: "user/message", seq: 2, time: 3, data: { content: [{ type: "text", text: "问题" }] } },
-	{ type: "assistant/message", seq: 3, time: 4, data: { message: { content: [{ type: "text", text: "回答" }] } }, surfaceOp: "append" },
+	{ type: "user/message", seq: 2, time: 3, data: { id: "m1", role: "user", source: { kind: "user" }, content: [{ type: "text", text: "第一个问题" }] }, surfaceOp: "append" },
+	{ type: "assistant/message", seq: 3, time: 4, data: { message: { id: "m2", role: "assistant", source: { kind: "model", provider: "p", model: "m" }, content: [{ type: "text", text: "第一个回答" }] } }, surfaceOp: "append" },
 	{ type: "step/end", seq: 4, time: 5, data: { turn: 1, step: 1 } },
-	{ type: "turn/end", seq: 5, time: 6, data: { turn: 1, reason: { kind: "done" } } }
+	{ type: "turn/end", seq: 5, time: 6, data: { turn: 1, reason: { kind: "done" } } },
+	{ type: "user/message", seq: 6, time: 7, data: { id: "m3", role: "user", source: { kind: "runtime-context", form: "snapshot" }, content: [{ type: "text", text: "Current runtime context. 不该出现在侧聊里" }] }, surfaceOp: "append" },
+	{ type: "tool/call", seq: 7, time: 8, data: { callId: "c1", name: "read" } },
+	{ type: "user/message", seq: 8, time: 9, data: { id: "m4", role: "user", source: { kind: "user" }, content: [{ type: "text", text: "最后一句问题" }] }, surfaceOp: "append" }
 ];
-const { seed: plainSeed, inheritedEventCount: plainCut } = buildThreadSeed(closedLog, { cwd: "C:/work", label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
+const { seed: plainSeed, inheritedEventCount: plainCut } = buildThreadSeed(closedLog, { label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
 check(
-	"a closed parent log is copied verbatim",
-	JSON.stringify(plainSeed.slice(0, closedLog.length)) === JSON.stringify(closedLog),
-	JSON.stringify(plainSeed.slice(0, closedLog.length))
+	"the seed carries no copied history",
+	plainSeed.length === 3 &&
+		plainSeed.map((event) => event.type).join(",") === "session/end-seed,user/message,subagent/descriptor",
+	plainSeed.map((event) => event.type).join(",")
 );
 check(
-	"the copy ends at a marked inherited cut",
-	plainCut === closedLog.length &&
-		plainSeed[plainCut].type === "session/end-seed" &&
-		plainSeed[plainCut].data.inherited === true,
-	JSON.stringify({ cut: plainCut, marker: plainSeed[plainCut] })
+	"the inherited cut is the empty prefix at zero",
+	plainCut === 0 && plainSeed[0].type === "session/end-seed" && plainSeed[0].data.inherited === true,
+	JSON.stringify({ cut: plainCut, marker: plainSeed[0] })
+);
+const contextEvent = plainSeed[1];
+const contextText = contextEvent?.data?.content?.[0]?.text ?? "";
+check(
+	"the one message is injected context, not a user prompt",
+	contextEvent?.type === "user/message" &&
+		contextEvent.surfaceOp === "append" &&
+		contextEvent.data.role === "user" &&
+		contextEvent.data.source.kind === "session-context" &&
+		typeof contextEvent.data.id === "string" &&
+		contextEvent.data.id.startsWith("ctx-"),
+	JSON.stringify(contextEvent?.data?.source)
 );
 check(
-	"the seed appends the working directory and our descriptor after the cut",
-	plainSeed.length === closedLog.length + 3 &&
-		plainSeed[plainCut + 1].type === "working-directory/change" &&
-		plainSeed[plainCut + 1].data.cwd === "C:/work" &&
-		plainSeed[plainCut + 2].type === "subagent/descriptor" &&
-		plainSeed[plainCut + 2].data.version === 3 &&
-		plainSeed[plainCut + 2].data.mode === "continuable" &&
-		plainSeed[plainCut + 2].data.provider === "ui-quote" &&
-		plainSeed[plainCut + 2].data.label === "Side: 第一段",
-	JSON.stringify(plainSeed.slice(closedLog.length))
+	"the context carries the parent's own words, newest last",
+	contextText.includes("用户：第一个问题") &&
+		contextText.includes("助手：第一个回答") &&
+		contextText.indexOf("第一个问题") < contextText.indexOf("最后一句问题") &&
+		contextText.trimEnd().endsWith("接下来只回答我在引用之后提出的问题；引用本身来自主会话。"),
+	contextText.slice(0, 240)
+);
+check(
+	"injected context and tool traffic stay out of the transcript",
+	!contextText.includes("Current runtime context") && !contextText.includes("read"),
+	contextText.slice(0, 240)
+);
+check(
+	"the transcript is capped from the newest end",
+	(() => {
+		const long = Array.from({ length: 40 }, (_, index) => ({
+			type: "user/message",
+			seq: index,
+			time: index,
+			data: { id: "m" + index, role: "user", source: { kind: "user" }, content: [{ type: "text", text: "第" + index + "条" + "x".repeat(50) }] },
+			surfaceOp: "append"
+		}));
+		const text = transcriptOf(long, 400);
+		return text.length <= 400 && text.includes("第39条") && !text.includes("第0条");
+	})(),
+	"bounded"
+);
+check(
+	"an empty parent still yields a usable context",
+	(() => {
+		const { seed } = buildThreadSeed([], { label: "Side: 空" });
+		const text = seed[1].data.content[0].text;
+		return text.includes("还没有可引用的文字") && seed.length === 3;
+	})(),
+	"ok"
+);
+check(
+	"the descriptor is last and names the quote and our provider",
+	plainSeed[2].type === "subagent/descriptor" &&
+		plainSeed[2].data.version === 3 &&
+		plainSeed[2].data.mode === "continuable" &&
+		plainSeed[2].data.provider === "ui-quote" &&
+		plainSeed[2].data.label === "Side: 第一段",
+	JSON.stringify(plainSeed[2].data)
 );
 check(
 	"the descriptor sits after the inherited cut, which the host validates",
@@ -95,10 +146,10 @@ check(
 );
 check(
 	"the descriptor carries the parent's route",
-	plainSeed[plainCut + 2].data.agentProvider === "p" &&
-		plainSeed[plainCut + 2].data.agentModel === "m" &&
-		plainSeed[plainCut + 2].data.agentReasoningEffort === "high",
-	JSON.stringify(plainSeed[plainCut + 2].data)
+	plainSeed[2].data.agentProvider === "p" &&
+		plainSeed[2].data.agentModel === "m" &&
+		plainSeed[2].data.agentReasoningEffort === "high",
+	JSON.stringify(plainSeed[2].data)
 );
 check(
 	"the seed's sequence stays contiguous from zero",
@@ -106,69 +157,21 @@ check(
 	plainSeed.map((event) => event.seq).join(",")
 );
 
-const openLog = closedLog.slice(0, 4);
-const { seed: openSeed, inheritedEventCount: openCut } = buildThreadSeed(openLog, { label: "Side: 开着", now: 50 });
-check(
-	"an open step is closed after the inherited cut",
-	openCut === openLog.length &&
-		openSeed.length === openLog.length + 4 &&
-		openSeed[openCut].type === "session/end-seed" &&
-		openSeed[5].type === "step/end" &&
-		openSeed[5].data.turn === 1 &&
-		openSeed[5].data.step === 1 &&
-		openSeed[6].type === "turn/end" &&
-		openSeed[6].data.reason.kind === "interrupted" &&
-		openSeed[7].type === "subagent/descriptor",
-	JSON.stringify(openSeed.slice(openLog.length))
-);
-
-const danglingLog = closedLog.concat([
-	{ type: "turn/start", seq: 6, time: 7, data: { turn: 2 } },
-	{ type: "step/start", seq: 7, time: 8, data: { turn: 2, step: 1 } },
-	{ type: "tool/call", seq: 8, time: 9, data: { callId: "call-1", name: "read" } },
-	{ type: "agent/inbox/spliced", seq: 9, time: 10, data: { target: "next-turn", start: 0, inserted: [] } }
-]);
-const { seed: danglingSeed, inheritedEventCount: danglingCut } = buildThreadSeed(danglingLog, { label: "Side: 悬挂", now: 60 });
-check(
-	"a dangling tool call cuts the open turn, not the whole log",
-	danglingCut === closedLog.length &&
-		danglingSeed.length === closedLog.length + 2 &&
-		danglingSeed[danglingCut].type === "session/end-seed" &&
-		danglingSeed[closedLog.length + 1].type === "subagent/descriptor" &&
-		danglingSeed.every((event, index) => event.seq === index),
-	JSON.stringify(danglingSeed.slice(closedLog.length))
-);
-check(
-	"the trailing inbox splice leaves with the cut turn",
-	danglingSeed.every((event) => event.type !== "agent/inbox/spliced") && danglingSeed.some((event) => event.type === "turn/end"),
-	danglingSeed.map((event) => event.type).join(",")
-);
-
+// The parent may itself be a side thread: no descriptor is copied either way,
+// so a nested thread is the same three events.
 const nestedLog = closedLog.concat([
-	{ type: "subagent/descriptor", seq: 6, time: 7, data: { version: 3, mode: "continuable", provider: "sidechat", label: "Side: parent" } }
+	{ type: "subagent/descriptor", seq: 9, time: 10, data: { version: 3, mode: "continuable", provider: "sidechat", label: "Side: parent" } }
 ]);
 const { seed: nestedSeed, inheritedEventCount: nestedCut } = buildThreadSeed(nestedLog, { label: "Side: child", now: 70 });
 check(
-	"a nested thread keeps the parent's descriptor inherited and ours last",
-	nestedCut === nestedLog.length &&
-		nestedSeed[6].data.label === "Side: parent" &&
-		nestedSeed.at(-1).type === "subagent/descriptor" &&
-		nestedSeed.at(-1).data.label === "Side: child" &&
-		nestedSeed.at(-1).data.provider === "ui-quote" &&
-		nestedSeed.at(-1).seq > nestedCut,
-	JSON.stringify(nestedSeed.slice(nestedLog.length))
+	"a nested parent yields the same three-event seed",
+	nestedCut === 0 &&
+		nestedSeed.length === 3 &&
+		nestedSeed.filter((event) => event.type === "subagent/descriptor").length === 1 &&
+		nestedSeed[2].data.label === "Side: child" &&
+		!nestedSeed[1].data.content[0].text.includes("Side: parent"),
+	JSON.stringify(nestedSeed.map((event) => event.type))
 );
-
-let gapError = null;
-try {
-	buildThreadSeed([
-		{ type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
-		{ type: "turn/end", seq: 2, time: 2, data: { turn: 1 } }
-	], { label: "Side: gap" });
-} catch (error) {
-	gapError = error;
-}
-check("a windowed log is refused instead of mis-seeded", gapError !== null && gapError.status === 400, gapError === null ? "no error" : String(gapError.status));
 
 // ---- creating one hidden child ------------------------------------------
 const parentEvents = closedLog.concat([
@@ -239,7 +242,9 @@ check(
 );
 check(
 	"the inherited count is the marked cut, not the whole seed",
-	options.inheritedEventCount === options.seed.findIndex((event) => event.type === "session/end-seed" && event.data.inherited === true) &&
+	options.inheritedEventCount === 0 &&
+		options.seed[0].type === "session/end-seed" &&
+		options.seed[0].data.inherited === true &&
 		options.inheritedEventCount < options.seed.length &&
 		options.seed.every((event, index) => event.seq === index),
 	String(options.inheritedEventCount)
