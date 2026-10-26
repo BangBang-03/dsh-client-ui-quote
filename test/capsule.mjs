@@ -1189,6 +1189,16 @@ try {
 			JSON.stringify(list.threads.map((entry) => entry.threadId))
 		);
 		check(
+			"the page's default thread is the remembered one",
+			testing.defaultThreadForSession("session-hidden-main") === "session-hidden-1",
+			JSON.stringify(testing.defaultThreadForSession("session-hidden-main"))
+		);
+		check(
+			"a session with no stored thread has no default",
+			testing.defaultThreadForSession("session-hidden-nothing") === null,
+			JSON.stringify(testing.defaultThreadForSession("session-hidden-nothing"))
+		);
+		check(
 			"a scanned thread remembers its parent",
 			JSON.stringify(testing.targetOfThread("session-hidden-scan")) === JSON.stringify({ kind: "hidden", parentId: "session-hidden-main" }),
 			JSON.stringify(testing.targetOfThread("session-hidden-scan"))

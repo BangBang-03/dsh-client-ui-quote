@@ -515,6 +515,12 @@ check(
 	JSON.stringify(testing.quoteRowMarkdown({ quote: "SELECT 1;", comment: "", time: "", code: true, fence: "src/app.ts#L12-L48" }))
 );
 check(
+	"a code quote that itself contains a fence copies with ~~~ instead",
+	testing.quoteRowMarkdown({ quote: "```\nSELECT 1;\n```", comment: "", time: "", code: true, fence: "" }) ===
+		"~~~\n```\nSELECT 1;\n```\n~~~",
+	JSON.stringify(testing.quoteRowMarkdown({ quote: "```\nSELECT 1;\n```", comment: "", time: "", code: true, fence: "" }))
+);
+check(
 	"a quote with no coordinates still copies as a plain blockquote",
 	testing.quoteRowMarkdown({ quote: "只有原文", comment: "", time: "", code: false, fence: "" }) === "> 只有原文",
 	JSON.stringify(testing.quoteRowMarkdown({ quote: "只有原文", comment: "", time: "", code: false, fence: "" }))

@@ -2,9 +2,9 @@
  * Host-half harness: the one capability lib/index.js contributes.
  *
  * The client bundle cannot create a hidden side thread — the public session
- * RPCs take neither a seed nor an origin. The host half builds the seed from
- * the parent's log and asks the AgentRegistry for a child marked
- * `origin: "subagent"`. Everything here is offline: the registry, the preset
+ * RPCs take neither a seed nor an origin. The host half synthesizes one context
+ * message from the parent's own words, asks the AgentRegistry for a child
+ * marked `origin: "subagent"`, and marks the inherited cut before it. Everything here is offline: the registry, the preset
  * service, the title service and the HTTP request/response are stubs, so the
  * exact options the host would receive are asserted byte for byte.
  *
@@ -130,6 +130,39 @@ check(
 		return text.length <= 400 && text.includes("第39条") && !text.includes("第0条");
 	})(),
 	"bounded"
+);
+check(
+	"one message longer than the whole budget is truncated, not dropped",
+	(() => {
+		const huge = [
+			{
+				type: "user/message",
+				seq: 0,
+				time: 0,
+				data: { id: "m-long", role: "user", source: { kind: "user" }, content: [{ type: "text", text: "长".repeat(500) }] },
+				surfaceOp: "append"
+			}
+		];
+		const text = transcriptOf(huge, 120);
+		return text.startsWith("用户：") && text.length <= 120 && text.endsWith("…");
+	})(),
+	"truncated"
+);
+check(
+	"a missing or nonsensical budget falls back to the default cap",
+	(() => {
+		const one = [
+			{
+				type: "user/message",
+				seq: 0,
+				time: 0,
+				data: { id: "m-one", role: "user", source: { kind: "user" }, content: [{ type: "text", text: "一句话" }] },
+				surfaceOp: "append"
+			}
+		];
+		return transcriptOf(one, Number.NaN) === "用户：一句话" && transcriptOf(one, 0) === "用户：一句话" && transcriptOf(one, undefined) === "用户：一句话";
+	})(),
+	"guarded"
 );
 check(
 	"an empty parent still yields a usable context",
