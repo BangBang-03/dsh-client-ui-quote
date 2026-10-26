@@ -745,10 +745,18 @@ const bindHostThread = (sessionId, threadId) => {
 };
 /** Install one session's input shell (`draftFace: false` = a version mismatch). */
 const installShell = (sessionId, options = {}) => {
-	const state = { draft: options.draft ?? "" };
+	const state = { draft: options.draft ?? "", chips: [] };
 	const shell = { state: { getSnapshot: () => ({ draft: state.draft }) } };
 	if (options.draftFace === "actions") shell.actions = { setDraft: (text) => { state.draft = text; } };
 	else if (options.draftFace !== false) shell.setDraft = (text) => { state.draft = text; };
+	// A host composer that can hold an atomic reference node (the chip face).
+	if (options.chipFace === true) {
+		shell.actions = { ...(shell.actions ?? {}), captureInsertion: () => ({ start: 0, end: 0, draftRev: 1 }) };
+		shell.insertReference = (attachment) => {
+			state.chips.push(attachment);
+			return true;
+		};
+	}
 	shells.set(sessionId, shell);
 	return state;
 };
@@ -977,6 +985,29 @@ try {
 			"the hidden draft holds only the quote, not a boundary preamble",
 			hiddenState.draft.startsWith("> 隐藏引用") && hiddenState.draft.includes("Side conversation boundary.") === false,
 			JSON.stringify(hiddenState.draft)
+		);
+
+		// A blockquote in the composer reads like something the reader typed — it
+		// would be sent as their own words. The thread's composer takes the chip
+		// face when the host has one, so the quote stays a reference.
+		const chipThread = installShell("session-chip-side", { chipFace: true });
+		const chipWritten = await testing.prefillQuoteDraft("session-chip-side", "被引用的原话", false, null, "", { path: null, lang: "", origin: "chat" });
+		check(
+			"the side thread's quote lands as a reference chip",
+			chipWritten === true && chipThread.chips.length === 1 && chipThread.draft === "",
+			JSON.stringify({ chips: chipThread.chips.length, draft: chipThread.draft })
+		);
+		check(
+			"the chip carries the wire form and a readable label",
+			String(chipThread.chips[0]?.ref).includes("❝ 被引用的原话") && chipThread.chips[0]?.label === "被引用的原话",
+			JSON.stringify(chipThread.chips[0])
+		);
+		const plainThread = installShell("session-plain-side");
+		const plainWritten = await testing.prefillQuoteDraft("session-plain-side", "被引用的原话", false, null, "", {});
+		check(
+			"a shell without the chip face still gets the blockquote draft",
+			plainWritten === true && plainThread.chips.length === 0 && plainThread.draft === "> 被引用的原话",
+			JSON.stringify({ ok: plainWritten, draft: plainThread.draft })
 		);
 		check(
 			"the hidden thread is remembered with its parent",

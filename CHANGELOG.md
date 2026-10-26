@@ -6,10 +6,11 @@
 
 - 侧边对话默认内置隐藏线程，不再需要安装 dsh-better-sidebar：宿主半注册 `POST /ui-quote/api/sidechat.start`（同源围栏），从在线父会话复制种子，用宿主 `agents.create` 建 `origin: "subagent"` 子会话，并在宿主内置 `subagentchat` 页签打开；descriptor 与会话标题使用与 better-sidebar 共享的 `Side: ` 约定，装不装它都不冲突。宿主半不可用（旧宿主 / 父会话不在线 / 创建被拒）时自动退回 `sessions.fork` + 本插件原生 `quote-sidechat` 页签；`sideChatBackend: "better"` 才优先走 better-sidebar。
 - 侧边线程记忆与清单：新增 `dsh-client-ui-quote:v1:sidechat-target` 记录隐藏线程的父会话；读取线程时用 subagent 地址 `{parentSessionId, childSessionId, mode:"continuable"}`；线程列表同时扫描会话列表里的 `Side:` 子会话，所以 better-sidebar（或旧版本）创建的线程也能在本插件里打开、带回和导出。
-- 离线断言 **659 组**（check 12 + capsule 446 + panel 159 + host 42）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言，以及宿主半的种子复制 / 继承切点 / 回合收口 / 悬挂工具调用截断 / `agents.create` 参数 / 探针与围栏断言。
+- 离线断言 **662 组**（check 12 + capsule 449 + panel 159 + host 42）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言，以及宿主半的种子复制 / 继承切点 / 回合收口 / 悬挂工具调用截断 / `agents.create` 参数 / 探针与围栏断言。
 
 ### Fixed
 
+- 侧聊草稿里的引用看起来像「我自己打的字」：之前只把引用写成 `> 原文` 的块引用塞进输入框，发出去就成了用户自己的话。现在侧聊草稿**优先用原生引用芯片**（`insertReference`，与主输入框同一条路径），芯片可见地属于引用来源、发送时也会还原成线格式；只有宿主没有芯片面时才退回块引用，且第二次追加不会覆盖已有草稿。
 - 胶囊的悬停卡片也加了「复制为 Markdown」：同一个 `quoteRowMarkdown` 载荷，无论这条引用有没有坐标都能用（有坐标时出处行就是 `引自第 N 轮 · 助手`）。
 - 引用清单每行多一个「复制」：把**单条**引用复制成 Markdown（原文块引用或代码围栏、评论、`引自第 N 轮 · 助手` 出处），可以直接粘进 PR / issue / 别的会话。之前只有整页导出，单条引用拿不出去——这是竞品调研里唯一明确的能力缺口（Aider `/copy-context`、Zed/Cline 的「带出处」都是这个形态）。
 - 侧聊页打开后是一片「探索未至之境」欢迎页、输入框里也没有引用：宿主把「一个 turn 都没有」的会话算成 blank，blank 会话渲染欢迎页而不是聊天页（没有输入框，`prefillDraft` 无处可落）。种子现在把隐性上下文包进一个**已收口的小回合**（`turn/start` → `step/start` → 上下文消息 → `step/end` → `turn/end{done}`），会话不再是 blank，页签进正常聊天态；形状版本戳同时升到 v4，之前建出来的空白线程会在下一次点击时被替换。
