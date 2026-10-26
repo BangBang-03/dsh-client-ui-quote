@@ -4,8 +4,13 @@
 
 ### Added
 
-- 侧边对话默认改走插件自己的原生右侧栏页签：`quote-sidechat` 页签类型 + `dsh-resource://quote-sidechat/session/…` 资源协议，页体嵌入宿主的 `conversation.content`（`variant: "embedded"`），标题取引用首行，不再依赖 dsh-better-sidebar；宿主缺注册面时退回内置 subagentchat 页，`sideChatBackend: "better"` 才走 better-sidebar 的隐藏线程。
-- 离线断言 **574 组**（check 12 + capsule 409 + panel 153）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言。
+- 侧边对话默认内置隐藏线程，不再需要安装 dsh-better-sidebar：宿主半注册 `POST /ui-quote/api/sidechat.start`（同源围栏），从在线父会话复制种子，用宿主 `agents.create` 建 `origin: "subagent"` 子会话，并在宿主内置 `subagentchat` 页签打开；descriptor 与会话标题使用与 better-sidebar 共享的 `Side: ` 约定，装不装它都不冲突。宿主半不可用（旧宿主 / 父会话不在线 / 创建被拒）时自动退回 `sessions.fork` + 本插件原生 `quote-sidechat` 页签；`sideChatBackend: "better"` 才优先走 better-sidebar。
+- 侧边线程记忆与清单：新增 `dsh-client-ui-quote:v1:sidechat-target` 记录隐藏线程的父会话；读取线程时用 subagent 地址 `{parentSessionId, childSessionId, mode:"continuable"}`；线程列表同时扫描会话列表里的 `Side:` 子会话，所以 better-sidebar（或旧版本）创建的线程也能在本插件里打开、带回和导出。
+- 离线断言 **638 组**（check 12 + capsule 436 + panel 153 + host 37）；新增原生页签的地址解析、标题、资源 retain/release、页签注册与卸载断言，以及宿主半的种子复制 / 回合收口 / 悬挂工具调用截断 / `agents.create` 参数 / 探针与围栏断言。
+
+### Fixed
+
+- 正文以 ``` 或 `~~~` 开头的普通引用在回读时丢了首行：识别代码引用只看首行围栏，却没有要求块尾有配对的收尾围栏，于是引用一段 Markdown 源码时那行被当围栏剥掉（只有一行的引用会整条消失，胶囊、悬停卡片与引用清单都少字）。现在围栏必须成对才算传输层——写出去的代码引用收尾围栏始终成对，旧消息解析不变；不成对的孤围栏按正文还原。
 
 ## 0.12.2 — 2026-10-22
 

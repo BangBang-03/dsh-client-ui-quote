@@ -111,6 +111,11 @@ let nativeForkImpl = async (opts) => {
 	return "session-native-default";
 };
 let bindingImpl = () => null;
+// Hidden side threads are read through a subagent address, so the harness
+// records what `retain` was handed; the session-list scan reads byId.
+const sessionReads = [];
+let sessionReadImpl = () => null;
+let sessionListById = {};
 const sessionsStub = {
 	fork: (opts) => nativeForkImpl(opts),
 	rename: async (id, title) => {
@@ -118,7 +123,12 @@ const sessionsStub = {
 		return { ok: true, value: { title, seq: 1 } };
 	},
 	binding: (id) => bindingImpl(id),
-	scope: (id) => bindingImpl(id)?.ctx ?? null
+	scope: (id) => bindingImpl(id)?.ctx ?? null,
+	retain(address, options) {
+		sessionReads.push({ address, options });
+		return sessionReadImpl(address, options);
+	},
+	list: { getSnapshot: () => ({ byId: sessionListById }) }
 };
 exports_.apply({
 	effect(fn, label) {
@@ -207,6 +217,95 @@ check(
 	"a plain quote round-trips byte for byte",
 	testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", ""))?.[0]?.quote === "第一行\n\n第二行",
 	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", "")))
+);
+// A plain quote whose text happens to START with a fence must not lose that
+// line: the fence only counts as transport when the block CLOSES it, and the
+// writer always closes a code block's fence. Before this rule the first line
+// was swallowed (a one-line quote like "```js" lost its whole body) and the
+// quote was read back as code.
+check(
+	"a plain quote that starts with a fence keeps the fence as text",
+	testing.splitQuoteRuns(testing.quoteBlock("```js", ""))?.[0]?.quote === "```js" &&
+		testing.splitQuoteRuns(testing.quoteBlock("```js", ""))?.[0]?.code === null,
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("```js", "")))
+);
+check(
+	"a plain quote that starts with a tilde fence keeps it too",
+	testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", ""))?.[0]?.quote === "~~~\nhello" &&
+		testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", ""))?.[0]?.code === null,
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", "")))
+);
+check(
+	"a plain quote whose fence carries an info string keeps it as text",
+	testing.splitQuoteRuns(testing.quoteBlock("``` src/app.ts", ""))?.[0]?.quote === "``` src/app.ts",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("``` src/app.ts", "")))
+);
+check(
+	"a plain quote that starts with a fence keeps its comment too",
+	testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论"))?.[0]?.quote === "```js" &&
+		testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论"))?.[0]?.comment === "我的评论",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论")))
+);
+check(
+	"a code quote still reads back as code with the fence stripped",
+	testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true))?.[0]?.quote === "const x = 1;" &&
+		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true))?.[0]?.code === "",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true)))
+);
+// R7: the wire format only grows, so every message an older version wrote has
+// to keep parsing exactly as it did. Every writer emitted the closing fence
+// unconditionally, so a code quote's fences were always paired - which is
+// what lets the reader require the twin.
+check(
+	"a code quote with a language still reads back as code",
+	testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```")?.[0]?.quote === "const x = 1;" &&
+		testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```")?.[0]?.code === "ts",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```"))
+);
+check(
+	"a code quote with a file in the fence info still reads back as code",
+	testing.splitQuoteRuns("> ❝ ``` src/app.ts#L12-L48\n> const x = 1;\n> ```")?.[0]?.code === "src/app.ts#L12-L48",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ``` src/app.ts#L12-L48\n> const x = 1;\n> ```"))
+);
+check(
+	"an old code quote whose body holds a fence still reads back whole",
+	testing.splitQuoteRuns("> ❝ ~~~\n> ```\n> x = 1\n> ```\n> ~~~")?.[0]?.quote === "```\nx = 1\n```",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ~~~\n> ```\n> x = 1\n> ```\n> ~~~"))
+);
+check(
+	"an old plain quote still reads back with its escaped marks",
+	testing.splitQuoteRuns("> ❝ \\❞ 其实是正文")?.[0]?.quote === "❞ 其实是正文" &&
+		testing.splitQuoteRuns("> ❝ \\※ 其实是正文")?.[0]?.quote === "※ 其实是正文",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ \\❞ 其实是正文"))
+);
+check(
+	"the quote list keeps a fence-shaped quote whole too",
+	testing.quoteRowsFromEntries([
+		{
+			type: "event",
+			event: {
+				type: "user/message",
+				seq: 7,
+				time: "",
+				id: "m1",
+				data: { content: [{ type: "text", text: "> ❝ ```js" }] }
+			}
+		}
+	])?.[0]?.quote === "```js",
+	JSON.stringify(
+		testing.quoteRowsFromEntries([
+			{
+				type: "event",
+				event: {
+					type: "user/message",
+					seq: 7,
+					time: "",
+					id: "m1",
+					data: { content: [{ type: "text", text: "> ❝ ```js" }] }
+				}
+			}
+		])
+	)
 );
 check(
 	"a code quote round-trips byte for byte",
@@ -591,6 +690,9 @@ check("uninstall unhooks the composer chip", chipElement.getAttribute("data-dshq
 check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
 // ---- 侧边对话: the wire, driven end to end --------------------------------
+// The built-in hidden-thread route is exercised in its own block below; the
+// better-sidebar and fork paths start from a host that does not answer it.
+testing.setBuiltinSideChatState("unavailable");
 // The third row's action is sideChatRequest(service, sessionId, text): it opens
 // the session's side thread through better-sidebar — created on the first
 // quote, reused afterwards — and then writes the quote into that thread's own
@@ -727,15 +829,16 @@ try {
 		JSON.stringify(toastNode()?.textContent)
 	);
 
-	// The memory itself: ours is written, the host's binding wins, an empty id
-	// only forgets ours.
+	// The memory itself: ours is written and wins (it is the map that knows
+	// hidden threads), the host's binding is the old-build fallback, and an
+	// empty id only forgets ours.
 	testing.rememberSideThread("session-q8", "session-side-8");
 	const ownMap = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:sidechat-thread"));
 	check("the plugin keeps its own thread map", ownMap?.["session-q8"]?.threadId === "session-side-8", JSON.stringify(ownMap));
 	bindHostThread("session-q8", "session-side-8-host");
-	check("the host's binding wins over ours", testing.storedSideThread("session-q8") === "session-side-8-host");
+	check("our own binding wins over the host's", testing.storedSideThread("session-q8") === "session-side-8");
 	testing.rememberSideThread("session-q8", "");
-	check("forgetting a session leaves the host's binding alone", testing.storedSideThread("session-q8") === "session-side-8-host");
+	check("forgetting ours falls back to the host's binding", testing.storedSideThread("session-q8") === "session-side-8-host");
 
 	// Empty text is a no-op, not a request.
 	fetches.length = 0;
@@ -807,6 +910,159 @@ try {
 		return "session-native-default";
 	};
 	openedResources.length = 0;
+}
+
+// ---- 侧边对话 built in: the host half creates a hidden subagent thread ----
+// The route is ours (`/ui-quote/api/sidechat.start`); it is asked once whether
+// it is available, then creates a seeded child the session list hides. The
+// quote is still a draft, and the draft opens with the boundary the seed needs.
+{
+	const realHiddenFetch = globalThis.fetch;
+	testing.setBuiltinSideChatState("unknown");
+	sessionListById = {};
+	sessionReads.length = 0;
+	openedResources.length = 0;
+	const hiddenState = installShell("session-hidden-1");
+	const fetches = [];
+	globalThis.fetch = async (url, options) => {
+		const payload = JSON.parse(options.body);
+		fetches.push({ url, payload });
+		if (payload.probe === true) {
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+		}
+		return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-1", parentId: "session-hidden-main" } }) };
+	};
+	try {
+		const handled = await testing.hiddenSideChatRequest("session-hidden-main", "隐藏引用", false, null, "", "reuse", "隐藏引用");
+		check("the built-in backend creates a hidden thread", handled === true && fetches.length === 2, JSON.stringify(fetches));
+		check(
+			"the probe and the start both use our host route",
+			fetches.every((entry) => entry.url === "/ui-quote/api/sidechat.start"),
+			JSON.stringify(fetches.map((entry) => entry.url))
+		);
+		check(
+			"the start carries the session and the clipped title",
+			JSON.stringify(fetches[1]?.payload) === JSON.stringify({ sessionId: "session-hidden-main", title: "隐藏引用" }),
+			JSON.stringify(fetches[1]?.payload)
+		);
+		check(
+			"the hidden thread opens the host's built-in chat",
+			openedResources.length === 1 &&
+				openedResources[0]?.address === "dsh-resource://subagentchat/session/session-hidden-1?parent=session-hidden-main&mode=continuable",
+			JSON.stringify(openedResources)
+		);
+		check(
+			"the hidden draft opens with the boundary the seed needs",
+			hiddenState.draft.startsWith("Side conversation boundary.") && hiddenState.draft.endsWith("> 隐藏引用"),
+			JSON.stringify(hiddenState.draft)
+		);
+		check(
+			"the hidden thread is remembered with its parent",
+			testing.storedSideThread("session-hidden-main") === "session-hidden-1" &&
+				JSON.stringify(testing.targetOfThread("session-hidden-1")) === JSON.stringify({ kind: "hidden", parentId: "session-hidden-main" }),
+			JSON.stringify(testing.targetOfThread("session-hidden-1"))
+		);
+		check(
+			"reading a hidden thread uses the subagent address",
+			JSON.stringify(testing.threadRetainTarget("session-hidden-1")) ===
+				JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(testing.threadRetainTarget("session-hidden-1"))
+		);
+
+		// The probe is cached, and a remembered thread is never created twice.
+		await testing.hiddenSideChatRequest("session-hidden-main", "第二段引用", false, null, "", "reuse", "第二段引用");
+		check("a remembered hidden thread is not created twice", fetches.length === 2, fetches.length + " fetch(es)");
+		check(
+			"the second quote is appended to the same hidden draft",
+			hiddenState.draft.includes("> 隐藏引用") && hiddenState.draft.endsWith("> 第二段引用"),
+			JSON.stringify(hiddenState.draft)
+		);
+		check(
+			"the boundary is written once per draft, not once per quote",
+			hiddenState.draft.split("Side conversation boundary.").length - 1 === 1,
+			JSON.stringify(hiddenState.draft)
+		);
+
+		// Reading the thread goes through the subagent address.
+		sessionReadImpl = () => {
+			return {
+				ready: Promise.resolve(),
+				binding: {
+					session: {
+						eventSource: {
+							getSnapshot: () => ({
+								entries: [
+									{ type: "event", event: { type: "user/message", seq: 1, time: "2026-10-10T12:00:00.000Z", data: { id: "h-1", content: [{ type: "text", text: "隐藏线程的问题" }] } } }
+								]
+							})
+						},
+						getSnapshot: () => ({ hasMore: false })
+					}
+				},
+				release() {}
+			};
+		};
+		sessionReads.length = 0;
+		const hiddenRead = await testing.readSessionMessages("session-hidden-1");
+		check(
+			"a hidden thread read retains the subagent address",
+			hiddenRead.ok === true &&
+				sessionReads.length === 1 &&
+				JSON.stringify(sessionReads[0]?.address) === JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(sessionReads)
+		);
+
+		// The page's thread list also sees a Side: thread another plugin made.
+		sessionListById = {
+			"session-hidden-1": {
+				id: "session-hidden-1",
+				origin: "subagent",
+				parentId: "session-hidden-main",
+				title: "Side: 隐藏引用",
+				updatedAt: 2,
+				projectionValues: { subagent: { label: "Side: 隐藏引用", address: { mode: "continuable" } } }
+			},
+			"session-hidden-scan": {
+				id: "session-hidden-scan",
+				origin: "subagent",
+				parentId: "session-hidden-main",
+				title: "Side: 另一个线程",
+				updatedAt: 1,
+				projectionValues: { subagent: { label: "Side: 另一个线程", address: { mode: "continuable" } } }
+			}
+		};
+		const list = await testing.loadThreadList("session-hidden-main");
+		check(
+			"the thread list scans shared Side: threads",
+			list.ok === true && list.threads.some((entry) => entry.threadId === "session-hidden-scan"),
+			JSON.stringify(list.threads.map((entry) => entry.threadId))
+		);
+		check(
+			"a scanned thread remembers its parent",
+			JSON.stringify(testing.targetOfThread("session-hidden-scan")) === JSON.stringify({ kind: "hidden", parentId: "session-hidden-main" }),
+			JSON.stringify(testing.targetOfThread("session-hidden-scan"))
+		);
+		openedResources.length = 0;
+		check(
+			"the quote list opens a hidden thread in the built-in chat",
+			testing.openThreadTab("session-hidden-main", "session-hidden-1") === true &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).startsWith("dsh-resource://subagentchat/session/session-hidden-1?"),
+			JSON.stringify(openedResources)
+		);
+
+		// A host without the route answers 404; the caller must be able to fall
+		// back instead of treating the request as handled.
+		testing.setBuiltinSideChatState("unknown");
+		globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: { code: "not-found", message: "unknown API method" } }) });
+		const fellBack = await testing.hiddenSideChatRequest("session-hidden-fallback", "回退引用", false, null, "", "reuse", "回退引用");
+		check("a host without the built-in route falls back", fellBack === false && testing.builtinSideChatState() === "unavailable", testing.builtinSideChatState());
+	} finally {
+		globalThis.fetch = realHiddenFetch;
+		testing.setBuiltinSideChatState("unavailable");
+		sessionListById = {};
+		sessionReadImpl = () => null;
+	}
 }
 
 // A future host may keep the scoped input events but drop the shell's
@@ -2961,7 +3217,11 @@ try {
  * ------------------------------------------------------------------ */
 
 {
-	check("native is the default side-chat backend", testing.sideChatBackend() === "native", testing.config().sideChatBackend);
+	check("native is the default configured side-chat backend", testing.config().sideChatBackend === "native", testing.config().sideChatBackend);
+	check("native is the fallback when the built-in route is unavailable", testing.sideChatBackend() === "native", testing.sideChatBackend());
+	testing.setBuiltinSideChatState("available");
+	check("the built-in hidden thread is preferred when the route answers", testing.sideChatBackend() === "builtin", testing.sideChatBackend());
+	testing.setBuiltinSideChatState("unavailable");
 	check("an unknown backend is dropped", testing.setConfig({ sideChatBackend: "bogus" }).sideChatBackend === "native");
 	check("better-sidebar stays opt-in", testing.setConfig({ sideChatBackend: "better" }).sideChatBackend === "better");
 	testing.setConfig({ sideChatBackend: "native" });

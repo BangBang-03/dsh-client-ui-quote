@@ -51,8 +51,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs",
-    "prepublishOnly": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs"
+    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs && node test/host.mjs",
+    "prepublishOnly": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs && node test/host.mjs"
   },
   "dsh": {
     "manifestVersion": 1,
