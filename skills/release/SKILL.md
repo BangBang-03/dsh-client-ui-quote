@@ -39,7 +39,7 @@ description: Use when 用户要求推送 lab、同步或推 main、发版、发�
 | --- | --- | --- |
 | 日常推送 | `tools/push.mjs`，`main` 永远落后一版 | `git push origin lab`；`main` 只在发版/里程碑追平 |
 | 发版 | `tools/release.mjs` | 工作区根 `promote.ps1 -Tag vX.Y.Z` |
-| 测试 | `node test/run-all.mjs`（14 套 / 563） | `npm test`（check 12 + capsule 436 + panel 153 + host 37 = 638） |
+| 测试 | `node test/run-all.mjs`（14 套 / 563） | `npm test`（数字以 README R17 记的实跑结果为准） |
 | 发布产物 | GitHub Release；npmjs 可选 | `v*` 标签 → npm `latest` + GitHub Release（notes 来自 CHANGELOG） |
 | 未跟踪文件 | `release.mjs` 只拒绝已跟踪改动 | `promote.ps1` 的 `git status` 会阻塞未跟踪文件 |
 | 默认 `promote` | `main` 只追上一版 | `promote.ps1` 对 quote 默认把 `main` 追平 `lab` |
@@ -54,7 +54,7 @@ description: Use when 用户要求推送 lab、同步或推 main、发版、发�
 | `...\promote.ps1 -SkipTests` | 只给纯文档推送；发版禁用 |
 | `...\promote.ps1 -DryRun` | 只打印步骤，适合发版前核对 |
 | `C:\Users\15812\Desktop\dsh\.dsh-quote-work\push-branch.mjs <branch>` | 本机 REST 兜底（不在仓库里）；只推一条分支时会自己 `update-ref` 对齐 |
-| `npm test` / `node --check lib/client.js` | 离线断言 638 组 / 语法门 |
+| `npm test` / `node --check lib/client.js` | 离线断言全绿 / 语法门 |
 | `gh` | 可选；未登录时用 GitHub 网页或 REST，不阻塞发版 |
 
 脚本里 quote 的测试提示仍写着「454 项」，那是旧数字；实际执行的是 `npm test`，以输出为准。
@@ -66,7 +66,7 @@ cd C:/Users/15812/Desktop/dsh/dsh-client-ui-quote
 git checkout lab
 git status --porcelain --untracked-files=no   # 开始前已跟踪改动应为空；未跟踪工作稿不要 add
 node --check lib/client.js
-npm test                        # 当前 638 组；数字变了先按 R17 同步四处 + CHANGELOG
+npm test                        # 数字变了先按 R17 同步四处 + CHANGELOG
 git add <改动文件>              # 不要 git add -A
 git commit -m "feat(scope): 中文说明"
 git push origin lab
@@ -131,7 +131,7 @@ node --check lib/client.js
 npm test
 ```
 
-必须全绿；当前是 638 组（check 12 + capsule 436 + panel 153 + host 37）。红就停在 `lab` 修，不 bump、不提交发版号、不打标签。
+必须全绿（数字以 README R17 记的实跑结果为准）。红就停在 `lab` 修，不 bump、不提交发版号、不打标签。
 
 ### 3. 提交
 
@@ -223,7 +223,7 @@ git status -sb
 ### 正式发版
 
 - [ ] `package.json` 版本 = `vX.Y.Z` = CHANGELOG 小节 = README「稳定版当前」
-- [ ] `node --check` + `npm test` 全绿（638 组或已按 R17 同步的新数字）
+- [ ] `node --check` + `npm test` 全绿（数字按 R17 同步）
 - [ ] 发版提交 `chore(release): vX.Y.Z` 已推 `lab`
 - [ ] `main` 快进到 `lab`；标签打在 `main` 头；远端 `lab`/`main`/标签一致
 - [ ] `publish-stable` 成功；Release 是 Latest、非 draft/prerelease、notes 来自 CHANGELOG

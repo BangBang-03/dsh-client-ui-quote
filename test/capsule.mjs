@@ -963,6 +963,11 @@ try {
 			JSON.stringify(testing.targetOfThread("session-hidden-1"))
 		);
 		check(
+			"a thread this build minted carries the shape version",
+			testing.mintedHiddenThread("session-hidden-1") === true,
+			JSON.stringify(testing.readThreadTargets()["session-hidden-1"])
+		);
+		check(
 			"reading a hidden thread uses the subagent address",
 			JSON.stringify(testing.threadRetainTarget("session-hidden-1")) ===
 				JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
@@ -1002,13 +1007,13 @@ try {
 			JSON.stringify(sessionReads.at(-1))
 		);
 
-		// The host refusing the address is the one signal that the child is
-		// unusable (an older build wrote its descriptor before the inherited
-		// cut). Reopening it can never load, so the next click mints a new one.
+		// A thread with the current stamp whose address the host still refuses
+		// (deleted child, or a host that changed the rule) is replaced too.
 		const staleMain = "session-hidden-stale";
 		const staleThread = "session-hidden-stale-child";
-		testing.rememberThreadTarget(staleThread, { kind: "hidden", parentId: staleMain });
-		testing.rememberSideThread(staleMain, staleThread, { kind: "hidden", parentId: staleMain });
+		const staleTarget = { kind: "hidden", parentId: staleMain, v: testing.HIDDEN_THREAD_VERSION };
+		testing.rememberThreadTarget(staleThread, staleTarget);
+		testing.rememberSideThread(staleMain, staleThread, staleTarget);
 		installShell("session-hidden-fresh");
 		sessionReadImpl = (address) => {
 			if (address !== null && typeof address === "object" && address.childSessionId === staleThread) throw new Error("subagent descriptor is unavailable");
@@ -1036,6 +1041,44 @@ try {
 			"the unreadable thread's parent binding is dropped",
 			testing.targetOfThread(staleThread).kind === "fork",
 			JSON.stringify(testing.targetOfThread(staleThread))
+		);
+
+		// The pre-fix build stamped nothing. Such a child keeps a perfectly
+		// valid parent binding — `sessions.retain` succeeds and only the history
+		// RPC refuses it — so the shape version is the only honest signal left.
+		const legacyMain = "session-hidden-legacy";
+		const legacyThread = "session-hidden-legacy-child";
+		testing.rememberThreadTarget(legacyThread, { kind: "hidden", parentId: legacyMain });
+		testing.rememberSideThread(legacyMain, legacyThread, { kind: "hidden", parentId: legacyMain });
+		installShell("session-hidden-legacy-new");
+		sessionReadImpl = () => ({
+			ready: Promise.resolve(),
+			binding: { session: { eventSource: { getSnapshot: () => ({ entries: [] }) }, getSnapshot: () => ({ hasMore: false }) } },
+			release() {}
+		});
+		globalThis.fetch = async (url, options) => {
+			const payload = JSON.parse(options.body);
+			fetches.push({ url, payload });
+			if (payload.probe === true) {
+				return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+			}
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-legacy-new", parentId: legacyMain } }) };
+		};
+		openedResources.length = 0;
+		const migrated = await testing.hiddenSideChatRequest(legacyMain, "老线程引用", false, null, "", "reuse", "老线程引用");
+		check(
+			"a thread from before the fix is replaced even though the host retains it",
+			migrated === true &&
+				testing.storedSideThread(legacyMain) === "session-hidden-legacy-new" &&
+				testing.mintedHiddenThread("session-hidden-legacy-new") === true &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).includes("session-hidden-legacy-new"),
+			JSON.stringify({ stored: testing.storedSideThread(legacyMain), targets: testing.readThreadTargets() })
+		);
+		check(
+			"the unversioned thread stops being a hidden target",
+			testing.targetOfThread(legacyThread).kind === "fork" && testing.mintedHiddenThread(legacyThread) === false,
+			JSON.stringify(testing.targetOfThread(legacyThread))
 		);
 
 		// Reading the thread goes through the subagent address.
