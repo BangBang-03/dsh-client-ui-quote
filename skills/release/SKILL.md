@@ -57,7 +57,7 @@ description: Use when 用户要求推送 lab、同步或推 main、发版、发�
 | `npm test` / `node --check lib/client.js` | 离线断言全绿 / 语法门 |
 | `gh` | 可选；未登录时用 GitHub 网页或 REST，不阻塞发版 |
 
-脚本里 quote 的测试提示仍写着「454 项」，那是旧数字；实际执行的是 `npm test`，以输出为准。
+脚本里的测试提示（`测试 npm test（… 项）`）只是显示用，执行的是 `npm test`，断言数以输出与 R17 记录的实跑结果为准。
 
 ## 日常推 lab（默认）
 
