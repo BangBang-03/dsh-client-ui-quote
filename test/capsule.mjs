@@ -393,6 +393,28 @@ check("leaving the pill closes the hover card", pop().dataset.visible === "false
 dom.document.querySelector(".dshq-cap-copy").dispatch("click", { target: null, stopPropagation() {} });
 check("the copy button copies the quote", dom.clipboard.length === 1 && dom.clipboard[0] === quote, JSON.stringify(dom.clipboard[0]));
 
+// One quote, out of the card, as Markdown (the unit pasted into a PR). The
+// card is reopened because the pill's own copy button ran in between.
+caps()[0].dispatch("mouseenter", {});
+const popCopy = pop().querySelector(".dshq-pop-copy");
+check(
+	"the hover card offers copying the quote as Markdown",
+	popCopy !== null && popCopy.textContent === "复制为 Markdown",
+	JSON.stringify(popCopy?.textContent)
+);
+popCopy?.dispatch("click", { target: null, stopPropagation() {} });
+check(
+	"it copies a blockquote of that quote",
+	dom.clipboard[dom.clipboard.length - 1] ===
+		quote
+			.split("\n")
+			.map((line) => "> " + line)
+			.join("\n"),
+	JSON.stringify(dom.clipboard[dom.clipboard.length - 1])
+);
+check("the card's copy button says 已复制 after clicking", popCopy?.textContent === "已复制", JSON.stringify(popCopy?.textContent));
+caps()[0].dispatch("mouseleave", {});
+
 // ---- React re-renders ----------------------------------------------------
 dom.document.body.append(dom.document.createElement("div")); // unrelated churn
 dom.document.deliver();
