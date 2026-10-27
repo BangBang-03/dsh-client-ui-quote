@@ -3381,6 +3381,30 @@ try {
 	sendingUserRow.remove();
 	testing.syncDraftBars();
 
+	// 插件重载/启动间隙里渲染出来的消息，MutationObserver 可能没看到：窗口回到
+	// 前台时的 rescanCapsules() 要把它补成胶囊，而不是让原文一直停在 `> ❝ …`。
+	const lateWire = testing.quoteBlock("晚到的一条已发引用", "", false, {
+		ref: { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-late", t: "14", n: 1 }
+	});
+	const lateRow = dom.document.createElement("div");
+	lateRow.setAttribute("data-chat-anchor-key", "row-late-message");
+	lateRow.setAttribute("data-chat-turn", "15");
+	const lateRun = dom.document.createElement("span");
+	lateRun.className = "plainRun";
+	lateRun.textContent = lateWire;
+	lateRow.append(lateRun);
+	pane.append(lateRow);
+	// No deliver(): the mutation pass never saw this insertion.
+	check("a late-rendered quote stays raw until the rescan", lateRow.querySelectorAll(".dshq-cap").length === 0, String(lateRow.querySelectorAll(".dshq-cap").length));
+	const lateScanned = testing.rescanCapsules();
+	await wait(150);
+	check(
+		"the visibility rescan turns the raw quote into a capsule",
+		lateScanned >= 1 && lateRow.querySelectorAll(".dshq-cap").length === 1 && lateRun.style.display === "none",
+		JSON.stringify({ scanned: lateScanned, capsules: lateRow.querySelectorAll(".dshq-cap").length, hidden: lateRun.style.display })
+	);
+	lateRow.remove();
+
 	const longQuote = "长".repeat(200);
 	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
 	testing.rememberQuoteText(longRef, longQuote);

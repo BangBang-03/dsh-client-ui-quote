@@ -6,7 +6,7 @@
 
 - 触发：所有 `push` 与 `pull_request`。
 - 矩阵：Node 18 / 20 / 22（对应 `engines.node >= 18`）。
-- 步骤：`node --check lib/client.js` → `npm test`（690 组离线断言）。
+- 步骤：`node --check lib/client.js` → `npm test`（692 组离线断言）。
 - 插件没有运行期依赖，所以不跑 install。
 
 ## `publish.yml`

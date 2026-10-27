@@ -71,4 +71,4 @@ awesome-deepseek-harness 的列表条目（英文，一行）：
 3. 发正式版：`main` 快进到 `lab` 并推送 → 在 `main` 头上打 `vX.Y.Z` 标签并推送。标签会同时触发两件事：**npm `latest` 发布** 与 **GitHub Release 创建**（正文取自 CHANGELOG 同名小节；已存在则更新 notes，重跑安全）。
 4. 发完确认三处一致：`npm view dsh-client-ui-quote dist-tags` 的 `latest`、仓库 Releases 页的最新一条、`git ls-remote --tags` 的标签指向同一个提交。
 
-已复核：`npm test` 690 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm lab 发布包均加载成功，`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。
+已复核：`npm test` 692 组离线断言；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm lab 发布包均加载成功，`__dshQuote` 可用、conversation/inputTriggers/sidebarRight/sidebarRightTabs 可见、`probe().nativeSideChat === true`（betterSidebar 缺失）；`npm pack --dry-run` 包含 README、截图、GIF 与本文件。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。
