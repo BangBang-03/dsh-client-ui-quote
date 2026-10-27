@@ -2387,6 +2387,29 @@ try {
 		JSON.stringify([landed.length, String(landed[0]?.ref ?? "").slice(0, 24)])
 	);
 
+	// 3a. 这条坐标要和芯片绑定在一起：删除芯片（没有发送）时，聚合条的回执就是
+	//     靠它把原文上的高亮收回去的（见后面的「原文侧高亮」段）。
+	const chipMarked = [];
+	shells.set("session-chip-mark", {
+		actions: { captureInsertion: () => ({ start: 0, end: 0, draftRev: 3 }) },
+		insertReference(attachment) {
+			chipMarked.push(attachment);
+			return true;
+		}
+	});
+	const markPane = pane("session-chip-mark", "芯片会带走这条坐标");
+	markPane.run.parentNode.setAttribute("data-chat-anchor-key", "row-chip-mark");
+	markPane.run.parentNode.setAttribute("data-chat-turn", "12");
+	selectIn(markPane.run, "芯片会带走这条坐标");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	const markTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const markSaved = Object.values(markTable).flat().find((entry) => entry?.key === "row-chip-mark");
+	check(
+		"a quote added to the chat ties its coordinate to the chip",
+		chipMarked.length === 1 && markSaved?.chip === true,
+		JSON.stringify({ inserted: chipMarked.length, saved: markSaved === undefined ? null : { key: markSaved.key, chip: markSaved.chip } })
+	);
+
 	// 3b. A draft that already holds the reader's wording: the quote goes to
 	//     the top and the wording moves to a line of its own below it.
 	const lineCalls = [];
@@ -3099,6 +3122,186 @@ try {
 		reDraft !== null && reDraft.draft === undefined && highlightRegistry.get("dshq-quote")?.ranges?.length === 2,
 		JSON.stringify({ draft: reDraft?.draft, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
 	);
+
+	// 主会话「添加到对话」写进草稿的芯片：坐标以 `chip` 记在表里。芯片还在草稿
+	// 里时照常落色；读者点聚合条的 × 或直接退格把它删掉（并没有发送）之后，
+	// 原文上那块高亮必须跟着消失——否则就留下一条无主的黄条。
+	const chipRow = dom.document.createElement("div");
+	chipRow.setAttribute("data-chat-anchor-key", "row-chip");
+	chipRow.setAttribute("data-chat-turn", "8");
+	chipRow.textContent = "前文 加进草稿又后悔的引用 后文";
+	pane.append(chipRow);
+	const chipQuote = "加进草稿又后悔的引用";
+	const chipRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-chip", t: "8", n: 1 };
+	const chipSaved = testing.saveSource(chipQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-chip", turn: "8" }, { chip: true });
+	check(
+		"a coordinate minted by a composer chip carries the chip mark",
+		chipSaved !== null && chipSaved.chip === true,
+		JSON.stringify(chipSaved)
+	);
+	const chipCard = dom.document.createElement("div");
+	chipCard.setAttribute("data-composer-card", "");
+	const chipNode = dom.document.createElement("span");
+	testing.rememberChip(chipQuote, "", "session-anchor", false, { ref: chipRef });
+	chipNode.textContent = testing.chipLabel(chipQuote, "");
+	chipNode.setAttribute("data-dshq-chip", "1");
+	chipCard.append(chipNode);
+	dom.document.body.append(chipCard);
+	const chipBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a quote held by a draft chip is painted on its source",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	chipNode.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const chipTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const chipStoredDraft = Object.values(chipTable).some((list) => Array.isArray(list) && list.some((entry) => entry?.key === "row-chip" && entry?.draft === true));
+	check(
+		"removing the chip without sending drops the source highlight",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	check("the retraction is stored, so a reload cannot resurrect the mark", chipStoredDraft, JSON.stringify(chipStoredDraft));
+	// 又把同一句加回草稿（或宿主慢一拍才把它画回来）：高亮应当自己回来。
+	const chipAgain = dom.document.createElement("span");
+	chipAgain.textContent = testing.chipLabel(chipQuote, "");
+	chipAgain.setAttribute("data-dshq-chip", "1");
+	chipCard.append(chipAgain);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"the chip coming back lifts the retraction",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	chipAgain.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const chipPromoted = testing.promoteSource(chipRef, chipQuote);
+	testing.paintAnchors();
+	check(
+		"the quote turning up as a capsule paints it again",
+		chipPromoted === true && (highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ promoted: chipPromoted, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 已经作为胶囊发出去过的坐标，再被加进草稿、又删掉：页面上有它的胶囊，
+	// 所以这不是「读者反悔」，标记必须留着。
+	const sentRow = dom.document.createElement("div");
+	sentRow.setAttribute("data-chat-anchor-key", "row-sent-chip");
+	sentRow.setAttribute("data-chat-turn", "9");
+	sentRow.textContent = "前文 已经发出去又被加进草稿的引用 后文";
+	pane.append(sentRow);
+	const sentQuote = "已经发出去又被加进草稿的引用";
+	const sentRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-sent-chip", t: "9", n: 1 };
+	testing.saveSource(sentQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-sent-chip", turn: "9" }, { chip: true });
+	const sentCard = dom.document.createElement("div");
+	sentCard.setAttribute("data-composer-card", "");
+	const sentChip = dom.document.createElement("span");
+	testing.rememberChip(sentQuote, "", "session-anchor", false, { ref: sentRef });
+	sentChip.textContent = testing.chipLabel(sentQuote, "");
+	sentChip.setAttribute("data-dshq-chip", "1");
+	sentCard.append(sentChip);
+	dom.document.body.append(sentCard);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sentBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	const sentCapsule = dom.document.createElement("div");
+	sentCapsule.setAttribute("data-dshq-jump", JSON.stringify(["ref", "session-anchor", "data-chat-anchor-key", "row-sent-chip", "9", 1]));
+	dom.document.body.append(sentCapsule);
+	sentChip.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a sent capsule keeps the mark when its draft chip is removed",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sentBaseline,
+		JSON.stringify({ baseline: sentBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sentCapsule.remove();
+	sentCard.remove();
+	testing.syncDraftBars();
+
+	// 整个输入框离开页面（切会话）不是「读者删了芯片」：不收回、也不误删账本。
+	const leaveRow = dom.document.createElement("div");
+	leaveRow.setAttribute("data-chat-anchor-key", "row-leave-chip");
+	leaveRow.setAttribute("data-chat-turn", "10");
+	leaveRow.textContent = "前文 切走会话时还在草稿里的引用 后文";
+	pane.append(leaveRow);
+	const leaveQuote = "切走会话时还在草稿里的引用";
+	const leaveRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-leave-chip", t: "10", n: 1 };
+	testing.saveSource(leaveQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-leave-chip", turn: "10" }, { chip: true });
+	const leaveCard = dom.document.createElement("div");
+	leaveCard.setAttribute("data-composer-card", "");
+	const leaveChip = dom.document.createElement("span");
+	testing.rememberChip(leaveQuote, "", "session-anchor", false, { ref: leaveRef });
+	leaveChip.textContent = testing.chipLabel(leaveQuote, "");
+	leaveChip.setAttribute("data-dshq-chip", "1");
+	leaveCard.append(leaveChip);
+	dom.document.body.append(leaveCard);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const leaveBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	leaveCard.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a composer that leaves the page does not drop the draft's mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === leaveBaseline,
+		JSON.stringify({ baseline: leaveBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 同一坐标同时挂在两个草稿里（主会话与侧边线程共用同一个 ref，侧聊草稿也是
+	// 这一句）：删掉其中一颗芯片不代表引用离开了草稿，最后两颗都删掉才收回。
+	const sharedRow = dom.document.createElement("div");
+	sharedRow.setAttribute("data-chat-anchor-key", "row-shared-chip");
+	sharedRow.setAttribute("data-chat-turn", "11");
+	sharedRow.textContent = "前文 两个草稿共享同一个坐标的引用 后文";
+	pane.append(sharedRow);
+	const sharedQuote = "两个草稿共享同一个坐标的引用";
+	const sharedRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-shared-chip", t: "11", n: 1 };
+	testing.saveSource(sharedQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-shared-chip", turn: "11" }, { chip: true });
+	testing.rememberChip(sharedQuote, "", "session-anchor", false, { ref: sharedRef });
+	const sharedLabel = testing.chipLabel(sharedQuote, "");
+	const sharedCardA = dom.document.createElement("div");
+	sharedCardA.setAttribute("data-composer-card", "");
+	const sharedChipA = dom.document.createElement("span");
+	sharedChipA.textContent = sharedLabel;
+	sharedChipA.setAttribute("data-dshq-chip", "1");
+	sharedCardA.append(sharedChipA);
+	dom.document.body.append(sharedCardA);
+	const sharedCardB = dom.document.createElement("div");
+	sharedCardB.setAttribute("data-composer-card", "");
+	const sharedChipB = dom.document.createElement("span");
+	sharedChipB.textContent = sharedLabel;
+	sharedChipB.setAttribute("data-dshq-chip", "1");
+	sharedCardB.append(sharedChipB);
+	dom.document.body.append(sharedCardB);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sharedBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	sharedChipA.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"one of two chips for one coordinate going away keeps the mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sharedBaseline,
+		JSON.stringify({ baseline: sharedBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sharedChipB.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"the mark goes when the last chip for it is gone",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sharedBaseline - 1,
+		JSON.stringify({ baseline: sharedBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sharedCardA.remove();
+	sharedCardB.remove();
+	testing.syncDraftBars();
 
 	const longQuote = "长".repeat(200);
 	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
