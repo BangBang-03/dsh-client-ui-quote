@@ -139,7 +139,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
-两条线的断言入口相同：`npm test`（692 项：check 12 + capsule 476 + panel 160 + host 44）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
+两条线的断言入口相同：`npm test`（696 项：check 12 + capsule 480 + panel 160 + host 44）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
 
 **推送通道**：`git push` 优先，但本机 `github.com:443` **时通时不通**（2026-10-19 实测：短时可用、随后连续超时，每次失败等约 21 秒）。日常用工作区根的 `promote.ps1`：先试 git，失败自动转 REST 兜底（`.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`，`-Channel rest` 可跳过探测），并核对远端 SHA。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
 
@@ -328,7 +328,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：692 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：696 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 反过来也要说清楚：**本插件不做的**——不做翻译/解释/改写/飞书投递类选区动作；不做图片/截图引用（**明确取舍**：图片引用要的是另一套胶囊/卡片/附件语义，是第二个产品的量级，塞进这里只会把「文本引用带坐标」这条主线冲淡；`dsh-selection-toolbar` 与 Kimi 桌面端已经做了，真要做建议独立成插件）；不做完整 Topic 系统；不做常显大块引用。它只把「引用」这一件事做穿——但「做穿」包括发送后的管理、来源闭环和审阅，不只是浮层。
 
@@ -365,7 +365,7 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，476 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，480 项断言）
 test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 文件路径打开 + 侧边线程回流 + 审阅工作台（状态 / 标签 / 批量）+ JSON 导出 + 本地索引，160 项断言）
 test/host.mjs         离线自检（宿主半：标签 / 隐性上下文种子（切点 + 一个收口回合包着上下文消息 + descriptor；只带用户与助手的原话、8000 字上限、跳过注入上下文）/ 空日志兜底 / 继承切点与 descriptor 顺序 / agents.create 参数 / 探针 / 围栏 / 路由注册与卸载，44 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选）
@@ -419,7 +419,7 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 **浮层不跟着座位生死**（`conversation.input.overlay` 没挂载也能选中出栏、挂上两个会话座位既不叠加也不丢监听、
 座位不在时用输入框自己的 `actions` 落芯片、无处可插时给 toast 而不是静默返回、effect 卸载/重装后监听恰好一份、
 **放弃动作不留高亮**（浮层 `mousedown` 保住的选区在 `Esc` / 取消退场时被还回去））；
-（共 476 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**侧聊坐标在发出前不着色、`promoteSource` 转正后才补画**、**草稿芯片删掉（没发送）后原文高亮与序号收回、芯片回来或胶囊出现才补画（已有胶囊/整个输入框离页不误收）**、**胶囊已在页面时迟到的转正会自愈、发送缝隙里的收回会让路**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、原生 `quote-sidechat` 页签的注册 / 地址 / 标题 / retain-release、内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
+（共 480 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**侧聊坐标在发出前不着色、`promoteSource` 转正后才补画**、**草稿芯片删掉（没发送）后原文高亮与序号收回、芯片回来或胶囊出现才补画（已有胶囊/整个输入框离页不误收）**、**胶囊已在页面时迟到的转正会自愈、发送缝隙里的收回会让路**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、原生 `quote-sidechat` 页签的注册 / 地址 / 标题 / retain-release、内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
 `test/capsule.html` 是同一套断言的真浏览器版（51 项），用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。这一版修好了它**缺失的 `<body>` 标签**——脚本在 `<head>` 里执行时 `document.body` 为 null，这个页面以前在真浏览器里是直接坏的；并补上真 `Range` 的链接/行内代码断言（真浏览器的 `cloneContents()` 返回的是 DocumentFragment，不是元素——序列化器只认元素的话，链接在真浏览器里会退化成纯文本；离线桩现在也用真片段，不再放过这一类），另外补了 `CSS.highlights` 选区保持与关闭清理。
 
 `test/panel.mjs` 单独跑引用清单页与侧边线程回流（160 项）：只认**持久**的 `user/message`（`transient`、助手消息、`data: null` 都跳过）、
@@ -440,7 +440,7 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 
 `test/host.mjs` 不需要浏览器：它直接 import 宿主半，用桩 `agents` / `agentPresets` / `sessionTitle` / `webServer` 驱动。断言包括：`Side: ` 标签的前缀与截断；种子固定三件事（`session/end-seed{inherited:true}` → 一条 `source.kind="session-context"` 的 `user/message` → `subagent/descriptor`）、`inheritedEventCount` 恒为 0、上下文字段只收用户与助手的原话（最新在后、8000 字上限、跳过 `runtime-context` 与工具事件）、空日志也有可读文案；descriptor 排在切点之后且 seq 连续；`agents.create` 收到 `origin: "subagent"` / `parentSession` / `isSeeded` / `inheritedEventCount` / 父会话当前模型路由 / preset setup / 清空继承 inbox / 固定标题；探针、409、503、403、405、404 与 `apply` 的注册/卸载全部有断言。
 
-合计 **692 组**（check 12 + capsule 476 + panel 160 + host 44），`npm test` 全绿。
+合计 **696 组**（check 12 + capsule 480 + panel 160 + host 44），`npm test` 全绿。
 
 ## 已知限制
 
@@ -487,7 +487,7 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 - **Markdown 预览的行号**：要精修就得读源文件，而客户端必须声明 `remote` 才能拿到它；声明错会让 client bundle 在不匹配的宿主上**静默失效**（`dsh-quote-annotate` 上游就是这么死的）。所以先不声明——文件仍然打开，只是落在顶部而不是行上。
 - **表格/列表/LaTeX 的结构保真**：链接与行内代码已做；表格要还原成 Markdown 表格，列表要还原成缩进，成本明显更高，留到有人真的需要时再做。
 - **图片/截图引用**：明确不做（理由见「本插件不做的」）。真要做请独立成插件：图片引用要的是另一套胶囊/卡片/附件语义。
-- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 692 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。原生侧聊页签的 `SessionProvider` / `conversation.content` 嵌入契约还需要在真实窗口里重开一次侧边对话确认（离线桩只覆盖注册、地址、标题与 retain/release，不渲染宿主组件）。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
+- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 696 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。原生侧聊页签的 `SessionProvider` / `conversation.content` 嵌入契约还需要在真实窗口里重开一次侧边对话确认（离线桩只覆盖注册、地址、标题与 retain/release，不渲染宿主组件）。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。
 
 ## 变更记录

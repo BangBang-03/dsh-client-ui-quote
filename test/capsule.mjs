@@ -2875,6 +2875,48 @@ try {
 }
 
 {
+	// Sending recycles the chip node into the empty-composer placeholder, but
+	// our `data-dshq-chip` marker survives the recycle. A marker whose text no
+	// longer resolves to a known chip must not keep `引用 ×N` above the input.
+	for (const old of Array.from(dom.document.querySelectorAll("[data-composer-card]"))) old.remove();
+	testing.syncDraftBars();
+	const card = dom.document.createElement("div");
+	card.setAttribute("data-composer-card", "");
+	const stale = dom.document.createElement("span");
+	stale.setAttribute("data-dshq-chip", "1");
+	stale.textContent = "发消息或创建任务, / 调用指令, @ 文件或对话";
+	card.append(stale);
+	dom.document.body.append(card);
+	testing.syncDraftBars();
+	check(
+		"a recycled chip marker does not keep the aggregate bar alive",
+		dom.document.querySelector(".dshq-draftbar") === null,
+		JSON.stringify(dom.document.querySelector(".dshq-draftbar")?.textContent)
+	);
+	check("the stale marker is cleared", stale.getAttribute("data-dshq-chip") === null, JSON.stringify(stale.getAttribute("data-dshq-chip")));
+	const staleQuote = "回收节点旁边的真引用";
+	testing.rememberChip(staleQuote, "", "session-stale", false, {
+		ref: { v: 1, s: "session-stale", a: "data-chat-anchor-key", k: "row-stale", t: "7", n: 1 }
+	});
+	const real = dom.document.createElement("span");
+	real.textContent = testing.chipLabel(staleQuote, "");
+	real.setAttribute("data-dshq-chip", "1");
+	card.append(real);
+	testing.syncDraftBars();
+	const staleBar = dom.document.querySelector(".dshq-draftbar");
+	check(
+		"a recycled marker does not inflate the count",
+		String(staleBar?.textContent).includes("引用 ×1") && staleBar?.querySelectorAll(".dshq-db-pill").length === 1,
+		JSON.stringify(staleBar?.textContent)
+	);
+	real.remove();
+	testing.syncDraftBars();
+	check("removing the real chip takes the bar away", dom.document.querySelector(".dshq-draftbar") === null);
+	card.remove();
+	testing.syncDraftBars();
+}
+
+{
 	// The host's composer state lists every chip occurrence with its clipboard
 	// offset and length. A chip is one character in detect coordinates, so a
 	// preceding foreign chip shifts the target left by `length - 1`. The shell's
