@@ -3303,6 +3303,84 @@ try {
 	sharedCardB.remove();
 	testing.syncDraftBars();
 
+	// 一次漏掉的「转正」：收回跑在胶囊出现之后，坐标会卡在 draft，原文上的高亮
+	// 一直不出现——用户看到的就是「第二次引用没有高亮」。胶囊还挂在页面上就是
+	// 已发出的证据：下一次重画把它转正并补画，而且写回本机表。
+	const stuckQuote = "漏掉转正的引用";
+	const stuckRow = dom.document.createElement("div");
+	stuckRow.setAttribute("data-chat-anchor-key", "row-stuck");
+	stuckRow.setAttribute("data-chat-turn", "11");
+	stuckRow.textContent = "前文 " + stuckQuote + " 后文";
+	pane.append(stuckRow);
+	const stuckSaved = testing.saveSource(stuckQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-stuck", turn: "11" }, { draft: true });
+	const stuckRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-stuck", t: "11", n: stuckSaved?.n ?? 1 };
+	const stuckCapsule = dom.document.createElement("div");
+	stuckCapsule.setAttribute("data-dshq-jump", JSON.stringify(["ref", "session-anchor", "data-chat-anchor-key", "row-stuck", "11", stuckRef.n]));
+	dom.document.body.append(stuckCapsule);
+	const stuckBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	testing.paintAnchors();
+	check(
+		"a draft whose capsule is already on the page is painted",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === stuckBaseline + 1,
+		JSON.stringify({ baseline: stuckBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	const stuckTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const stuckEntry = Object.values(stuckTable).flat().find((entry) => entry?.key === "row-stuck");
+	check(
+		"the late promotion is stored, not just painted",
+		stuckEntry !== undefined && stuckEntry.draft !== true,
+		JSON.stringify(stuckEntry)
+	);
+	stuckCapsule.remove();
+
+	// 发送后、胶囊还没增强出来的一瞬：线格式里的坐标已经在 transcript 文本里，
+	// 芯片这时消失不是「读者反悔」，不能把已经发出去的那句收回。
+	const sendingQuote = "已经发出但还没增强的引用";
+	const sendingRow = dom.document.createElement("div");
+	sendingRow.setAttribute("data-chat-anchor-key", "row-sending");
+	sendingRow.setAttribute("data-chat-turn", "12");
+	sendingRow.textContent = "前文 " + sendingQuote + " 后文";
+	pane.append(sendingRow);
+	const sendingRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-sending", t: "12", n: 1 };
+	testing.saveSource(sendingQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-sending", turn: "12" }, { chip: true });
+	testing.rememberChip(sendingQuote, "", "session-anchor", false, { ref: sendingRef });
+	const sendingCard = dom.document.createElement("div");
+	sendingCard.setAttribute("data-composer-card", "");
+	const sendingChip = dom.document.createElement("span");
+	sendingChip.textContent = testing.chipLabel(sendingQuote, "");
+	sendingChip.setAttribute("data-dshq-chip", "1");
+	sendingCard.append(sendingChip);
+	dom.document.body.append(sendingCard);
+	const sendingUserRow = dom.document.createElement("div");
+	sendingUserRow.setAttribute("data-chat-anchor-key", "row-sent-raw");
+	sendingUserRow.setAttribute("data-chat-turn", "13");
+	const sendingRun = dom.document.createElement("span");
+	sendingRun.className = "plainRun";
+	sendingRun.textContent = testing.quoteBlock(sendingQuote, "", false, { ref: sendingRef });
+	sendingUserRow.append(sendingRun);
+	pane.append(sendingUserRow);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sendingBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	sendingChip.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sendingTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const sendingEntry = Object.values(sendingTable).flat().find((entry) => entry?.key === "row-sending");
+	check(
+		"a chip that leaves after its ref line is already in a transcript is not retracted",
+		sendingEntry !== undefined && sendingEntry.draft !== true,
+		JSON.stringify(sendingEntry)
+	);
+	check(
+		"and that sent quote keeps its highlight",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sendingBaseline,
+		JSON.stringify({ baseline: sendingBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sendingCard.remove();
+	sendingUserRow.remove();
+	testing.syncDraftBars();
+
 	const longQuote = "长".repeat(200);
 	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
 	testing.rememberQuoteText(longRef, longQuote);
