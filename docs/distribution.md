@@ -44,7 +44,7 @@ dsh plugin --profile web add dsh-client-ui-quote
 
 | 渠道 | 状态 | 事实 |
 | --- | --- | --- |
-| **awesome-dsh-plugin**（`data/plugins/*.yml`，市场索引的事实来源） | ✅ 已收录 | PR [#6506](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6506) 于 **2026-10-17 合并**，条目 `BangBang-03__dsh-client-ui-quote.yml` 已在库里。**描述是 10-17 的旧版**，更新 PR [#10188](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10188) 已开，见「待办 4」 |
+| **awesome-dsh-plugin**（`data/plugins/*.yml`，市场索引的事实来源） | ✅ 已收录 | PR [#6506](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6506) 于 **2026-10-17 合并**，条目 `BangBang-03__dsh-client-ui-quote.yml` 已在库里。**描述是 10-17 的旧版**，更新 PR [#10188](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10188) 已开、**CI 全绿**，等合并；见「待办 4」 |
 | **dsh.pub** | ✅ 已收录（自动） | 详情页 `https://dsh.pub/zh/plugins/dsh-client-ui-quote/` 返回 200，带 `npx dshpub` 安装命令；描述是目录的模板句，不是我们写的 |
 | **dsh.market** | ✅ 已收录（自动，`curated: false`） | 55 MB 的 `https://dsh.market/plugins.json`（15,748 条）里已有 `BangBang-03/dsh-client-ui-quote`，描述取自 `package.json`、安装命令取自 README 的「安装」段；`curated: false` = 还没有人工撰写/作者自述 |
 | **应用内市场** | ✅ 可搜 | 按 npm 包名可搜到并安装 |
@@ -58,7 +58,7 @@ dsh plugin --profile web add dsh-client-ui-quote
 1. **awesome-deepseek-harness PR**（1273★，最高价值）：**已开 → [#764](https://github.com/0xsline/awesome-deepseek-harness/pull/764)**。按 [`contributing.md`](https://github.com/0xsline/awesome-deepseek-harness/blob/main/contributing.md) 的要求，**英文 `README.md` 与 `README.zh-CN.md` 两个文件各加一行**，放在 `## UI, Themes & Interaction`（中文版对应小节）。一行、事实性、不带徽章/截图。已 fork 到 `BangBang-03/awesome-deepseek-harness`，分支 `entry/dsh-client-ui-quote`。
 2. **dsh-plugin.org issue**：到 [dshplugin/dsh-plugin-hub](https://github.com/dshplugin/dsh-plugin-hub/issues/new) 按模板提交（正文模板见下方）。
 3. **dsh.market issue**：到 [2BingLing/dsh-market](https://github.com/2BingLing/dsh-market/issues/new?template=submit_plugin.md) 提交；目前是自动收录、`curated:false`，走 issue 可以补「作者自述」。仓库计划次日 06:00 的自动收录管道处理。
-4. **awesome-dsh-plugin 条目更新**：**已开 → [#10188](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10188)**，用 [`submission/BangBang-03__dsh-client-ui-quote.yml`](../submission/BangBang-03__dsh-client-ui-quote.yml) 的内容替换库里那份旧条目（PR 改一个文件，+6/−6）。旧描述里**已经有两条不成立的说明**：
+4. **awesome-dsh-plugin 条目更新**：**已开 → [#10188](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10188)**（CI 全绿，含 `READMEs match data/plugins` 与 build），用 [`submission/BangBang-03__dsh-client-ui-quote.yml`](../submission/BangBang-03__dsh-client-ui-quote.yml) 的内容替换库里那份旧条目（PR 改一个文件，+6/−6）。旧描述里**已经有两条不成立的说明**：
    - 「Alt+Q / Alt+C / Alt+B do the same three things」——0.12.9 起 **Web 没有默认键位**（宿主校验所有平台默认值，裸 Alt 会让整条命令注册失败），只有桌面端有。
    - 「writes the quote into the composer of one **dsh-better-sidebar** side thread」——默认已改成**宿主半创建的内置隐藏线程**，不装 better-sidebar 也有。
    - 另外缺了：代码引用 `path#line`、逐条回应徽章、多选插入、审阅状态与标签、JSON 导出。
