@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- **隐藏侧聊线程首次发送必失败**（issue #2）：种子里那个「收口的小回合」从未真正请求过模型，子会话因此没有 `modelSelection` 投影，标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value for this assembly (section "deployment:persona-prefix")` 结束。现在创建线程时按宿主自己的做法（`api-session-controller`）补两件事：`setup` 里装 `system-prompt/assemble` 钩子注入 `provider` / `model`，种子里追加一条 `model/selection` 让投影有值（重建时也读得到）。父会话的模型路由本来就取到了，只是没落到子会话。
+- 离线断言 **712 组**（check 12 + capsule 489 + panel 163 + host 48）：新增「种子带父会话模型路由」「`setup` 装钩子并 append 一次」。
+
 ### Added
 
 - **临时诊断路由 `POST /ui-quote/api/resume.diag`**（同源围栏内，只读诊断）：在宿主进程里直接调 `agents.resume`，把被 `subagent/not-resumable` 吞掉的真实错误原样带回——用于定位 issue #2（隐藏侧聊线程首次发送即失败）。定完位就删。

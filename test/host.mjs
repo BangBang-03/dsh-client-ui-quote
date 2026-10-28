@@ -313,12 +313,33 @@ check(
 	typeof options.setup === "function" && options.meta.agentPreset === "default",
 	typeof options.setup
 );
+const seededDescriptor = options.seed.find((event) => event.type === "subagent/descriptor");
+const seededSelection = options.seed.find((event) => event.type === "model/selection");
 check(
 	"the descriptor names the quote and our provider",
-	options.seed.at(-1).type === "subagent/descriptor" &&
-		options.seed.at(-1).data.provider === "ui-quote" &&
-		options.seed.at(-1).data.label === "Side: 第一段引用",
-	JSON.stringify(options.seed.at(-1).data)
+	seededDescriptor !== undefined && seededDescriptor.data.provider === "ui-quote" && seededDescriptor.data.label === "Side: 第一段引用",
+	JSON.stringify(seededDescriptor?.data)
+);
+check(
+	"the seed carries the parent's model route",
+	seededSelection !== undefined &&
+		seededSelection.data.provider === "route" &&
+		seededSelection.data.model === "m-route" &&
+		seededSelection.data.reasoningEffort === "low",
+	JSON.stringify(seededSelection?.data)
+);
+const selectionHooks = [];
+const selectionAppends = [];
+await options.setup(
+	{ on: (name, fn) => selectionHooks.push({ name, fn }), session: { append: (type, data) => selectionAppends.push({ type, data }) } },
+	{ session: { append: (type, data) => selectionAppends.push({ type, data }) } }
+);
+check(
+	"the child gets the assembly hook and the durable selection",
+	selectionHooks.length === 1 &&
+		selectionHooks[0].name === "system-prompt/assemble" &&
+		selectionAppends.some((event) => event.type === "model/selection" && event.data.model === "m-route"),
+	JSON.stringify({ hooks: selectionHooks.map((hook) => hook.name), appends: selectionAppends.map((event) => event.type) })
 );
 check("the inherited inbox is cleared", main.cleared.length === 1 && main.cleared[0] === started.childId, JSON.stringify(main.cleared));
 check("the host session title is pinned to the quote", main.titles.length === 1 && main.titles[0].title === "Side: 第一段引用", JSON.stringify(main.titles));

@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**710 项**：check 12 + capsule 489 + panel 163 + host 46），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**712 项**：check 12 + capsule 489 + panel 163 + host 48），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -165,7 +165,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：710 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：712 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
@@ -173,6 +173,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 - **可选服务注册**：引用源和四个快捷键通过 Cordis `ctx.inject` 等待 `inputTriggers` / `shortcuts`，服务提供者卸载时释放旧注册，重载后在新实例注册。DSH 0.2.1-rc.2 的快捷键注册器会校验所有平台默认值，裸 Alt 的 Web 默认值会使整条命令注册失败，因此仅保留桌面默认绑定。
 
+- **隐藏线程的模型路由**（app.asar 0.2.1-rc.3，issue #2 实测）：种子里的收口回合从未真正请求过模型，子会话因此没有 `modelSelection` 投影；标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value` 失败。0.13.1 起在 `setup` 里按宿主 `api-session-controller` 的做法装 `system-prompt/assemble` 钩子并 append 一条 `model/selection`；线程重建后是否同样生效取决于宿主是否从投影恢复选择，实测前先按「重建后可能仍需重开线程」理解。
 - **内置隐藏线程依赖宿主内部契约**（app.asar 0.2.1-rc.3 实测）：宿主半 `lib/index.js` 用 `ctx.inject(["webServer"])` 注册 `POST /ui-quote/api/sidechat.start`，在宿主服务就绪后从父会话 `snapshotEvents()` 取原话合成一条隐性上下文（不复制日志），再用 `ctx.get("agents").create({ meta: { parentSession, isSeeded: true, origin: "subagent", delegationDepth, agentPreset }, seed, inheritedEventCount, agentOptions, setup })` 建子会话；descriptor 为 `{version: 3, mode: "continuable", provider: "ui-quote", label}`，标题 `Side: <引用首行>`。`webServer` / `connection.requestRejection` / `agents` 缺失时探针失败，客户端退回 fork；`agents.create` 失败只影响这一条线程。
   **种子不复制父会话日志，只带一条隐性上下文**：`seed` 固定七个事件——`session/end-seed { inherited: true }`（切点在下标 0）、一个**已收口的小回合**（`turn/start` → `step/start` → 上下文消息 → `step/end` → `turn/end{done}`）、以及 `subagent/descriptor`。那个回合不是摆设：宿主把「一个 turn 都没有」的会话算成 `blank`，`blank` 会话渲染的是欢迎页（探索未至之境）而不是聊天页——没有输入框，引用草稿无处可落，0.12.3-lab.29 就踩了这个坑；有回合才会进正常聊天态。那条消息里是主会话最近若干轮的**纯文本**（用户/助手、上限 8000 字，工具调用与注入上下文都跳过），消息里带一句「只作背景、别继续执行」的指令——所以模型仍有上下文，而侧聊界面只把它折叠成一行「上下文」，不会把整段主会话铺出来，也不再为复制整条日志付一遍 token。宿主读子会话身份时走 `subagent` 投影（最后一次 descriptor 生效），并在 `api-session-controller` 里要求 `identity.seq >= inheritedEventCount`，否则整个子会话的历史都打不开（`subagent/catalog-diagnostic` · "subagent descriptor is unavailable"）——descriptor 必须排在切点之后，0.12.3-lab.26 就是栽在这一步。
   **旧线程靠形状版本戳识别，不靠 `sessions.retain`**：retain 对这类坏线程**照样成功**（只有历史 RPC 会拒），所以客户端给新建的线程在 `dsh-client-ui-quote:v1:sidechat-target` 里盖当前形状版本（现在是 `v: 4`：收口回合 + 隐性上下文），只复用自己盖过章的线程；better-sidebar 的、旧版本的、清单里扫描发现的线程一律丢弃重建——点一次就自愈，代价是最多重建一条线程。隐藏线程是 `continuable` 子会话，**父会话在线时可继续**；父会话关闭后宿主内置 `subagentchat` 页按自己的规则只读，重新打开父会话即可继续。宿主升级改了 `agents.create` / 种子格式时，线程创建会失败并自动退回 `sessions.fork`，不会白屏或报错。
@@ -212,10 +213,10 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，710 组
+npm test          # check + capsule + panel + host，712 组
 ```
 
-合计 **710 组**（check 12 + capsule 489 + panel 163 + host 46），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **712 组**（check 12 + capsule 489 + panel 163 + host 48），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 
