@@ -25,6 +25,15 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 - `lab` 只是 **dist-tag 的历史名字**（0.12.9 之前的开发分支名），不代表任何分支；不要为了「跟 dev 线」去建分支。
 - 产物身份只有一个：**标签**。`main` 不需要「被提升」，提交本身就是发布候选。
 
+## 合并外部 PR
+
+- **squash 优先**：一个 PR 一个可读提交，`vX.Y.Z` 标签直接落在主干提交上。仓库已关掉 merge commit（两条父线会打破「标签 = 某个主干提交」的直觉），保留 rebase 给「多提交且拆分本身有信息量」的 PR。
+- squash 的**标题取 PR 标题**、**正文取 PR 描述**，所以 PR 标题要写成仓库的提交口径 `fix(scope): 中文说明`，描述里放验证过程（#1 的描述就是那种）。
+- 合并后**自动删除本仓的 head 分支**；fork 里的分支删不到、也不归我们管。
+- **署名**：squash 会让提交 author 保持 PR 作者；正文里再补 `Co-authored-by:`，并把贡献者写进 CHANGELOG 与 Release notes。
+- **首次贡献者的 CI 会停在 `action_required`**：必须在 Actions 页点 Approve and run workflows，否则测试一次都不会跑（#1 卡了 5 天就是这个原因）。
+- 合并前核对：断言数按 R17 同步、没有删断言（把 `web:*` 的期望换成 `desktop:*` 随行为变更走是允许的）、R15 的文案三处同改有没有漏掉 `locale/*.json`。
+
 ## 先读
 
 - `AGENTS.md`：R16/R17（测试与断言数）、R20（单 `main`）、R21（推送通道）、R22（不进仓库的文件）。
