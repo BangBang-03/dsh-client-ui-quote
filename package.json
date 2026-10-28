@@ -1,6 +1,6 @@
 {
   "name": "dsh-client-ui-quote",
-  "version": "0.12.2",
+  "version": "0.12.8",
   "description": "Turn any DSH selection into a reviewable quote — comment / add to chat / side chat, source highlights and jump-back, a searchable review list, side threads, revisions, and per-quote reply badges.",
   "icon": "icon.svg",
   "license": "MIT",
@@ -51,8 +51,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs",
-    "prepublishOnly": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs"
+    "test": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs && node test/host.mjs",
+    "prepublishOnly": "node test/check.mjs && node test/capsule.mjs && node test/panel.mjs && node test/host.mjs"
   },
   "dsh": {
     "manifestVersion": 1,

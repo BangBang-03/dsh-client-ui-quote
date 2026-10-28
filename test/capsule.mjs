@@ -111,6 +111,11 @@ let nativeForkImpl = async (opts) => {
 	return "session-native-default";
 };
 let bindingImpl = () => null;
+// Hidden side threads are read through a subagent address, so the harness
+// records what `retain` was handed; the session-list scan reads byId.
+const sessionReads = [];
+let sessionReadImpl = () => null;
+let sessionListById = {};
 const sessionsStub = {
 	fork: (opts) => nativeForkImpl(opts),
 	rename: async (id, title) => {
@@ -118,7 +123,12 @@ const sessionsStub = {
 		return { ok: true, value: { title, seq: 1 } };
 	},
 	binding: (id) => bindingImpl(id),
-	scope: (id) => bindingImpl(id)?.ctx ?? null
+	scope: (id) => bindingImpl(id)?.ctx ?? null,
+	retain(address, options) {
+		sessionReads.push({ address, options });
+		return sessionReadImpl(address, options);
+	},
+	list: { getSnapshot: () => ({ byId: sessionListById }) }
 };
 exports_.apply({
 	effect(fn, label) {
@@ -208,6 +218,95 @@ check(
 	testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", ""))?.[0]?.quote === "第一行\n\n第二行",
 	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("第一行\n\n第二行", "")))
 );
+// A plain quote whose text happens to START with a fence must not lose that
+// line: the fence only counts as transport when the block CLOSES it, and the
+// writer always closes a code block's fence. Before this rule the first line
+// was swallowed (a one-line quote like "```js" lost its whole body) and the
+// quote was read back as code.
+check(
+	"a plain quote that starts with a fence keeps the fence as text",
+	testing.splitQuoteRuns(testing.quoteBlock("```js", ""))?.[0]?.quote === "```js" &&
+		testing.splitQuoteRuns(testing.quoteBlock("```js", ""))?.[0]?.code === null,
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("```js", "")))
+);
+check(
+	"a plain quote that starts with a tilde fence keeps it too",
+	testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", ""))?.[0]?.quote === "~~~\nhello" &&
+		testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", ""))?.[0]?.code === null,
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("~~~\nhello", "")))
+);
+check(
+	"a plain quote whose fence carries an info string keeps it as text",
+	testing.splitQuoteRuns(testing.quoteBlock("``` src/app.ts", ""))?.[0]?.quote === "``` src/app.ts",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("``` src/app.ts", "")))
+);
+check(
+	"a plain quote that starts with a fence keeps its comment too",
+	testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论"))?.[0]?.quote === "```js" &&
+		testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论"))?.[0]?.comment === "我的评论",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("```js", "我的评论")))
+);
+check(
+	"a code quote still reads back as code with the fence stripped",
+	testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true))?.[0]?.quote === "const x = 1;" &&
+		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true))?.[0]?.code === "",
+	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true)))
+);
+// R7: the wire format only grows, so every message an older version wrote has
+// to keep parsing exactly as it did. Every writer emitted the closing fence
+// unconditionally, so a code quote's fences were always paired - which is
+// what lets the reader require the twin.
+check(
+	"a code quote with a language still reads back as code",
+	testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```")?.[0]?.quote === "const x = 1;" &&
+		testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```")?.[0]?.code === "ts",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ``` ts\n> const x = 1;\n> ```"))
+);
+check(
+	"a code quote with a file in the fence info still reads back as code",
+	testing.splitQuoteRuns("> ❝ ``` src/app.ts#L12-L48\n> const x = 1;\n> ```")?.[0]?.code === "src/app.ts#L12-L48",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ``` src/app.ts#L12-L48\n> const x = 1;\n> ```"))
+);
+check(
+	"an old code quote whose body holds a fence still reads back whole",
+	testing.splitQuoteRuns("> ❝ ~~~\n> ```\n> x = 1\n> ```\n> ~~~")?.[0]?.quote === "```\nx = 1\n```",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ ~~~\n> ```\n> x = 1\n> ```\n> ~~~"))
+);
+check(
+	"an old plain quote still reads back with its escaped marks",
+	testing.splitQuoteRuns("> ❝ \\❞ 其实是正文")?.[0]?.quote === "❞ 其实是正文" &&
+		testing.splitQuoteRuns("> ❝ \\※ 其实是正文")?.[0]?.quote === "※ 其实是正文",
+	JSON.stringify(testing.splitQuoteRuns("> ❝ \\❞ 其实是正文"))
+);
+check(
+	"the quote list keeps a fence-shaped quote whole too",
+	testing.quoteRowsFromEntries([
+		{
+			type: "event",
+			event: {
+				type: "user/message",
+				seq: 7,
+				time: "",
+				id: "m1",
+				data: { content: [{ type: "text", text: "> ❝ ```js" }] }
+			}
+		}
+	])?.[0]?.quote === "```js",
+	JSON.stringify(
+		testing.quoteRowsFromEntries([
+			{
+				type: "event",
+				event: {
+					type: "user/message",
+					seq: 7,
+					time: "",
+					id: "m1",
+					data: { content: [{ type: "text", text: "> ❝ ```js" }] }
+				}
+			}
+		])
+	)
+);
 check(
 	"a code quote round-trips byte for byte",
 	testing.splitQuoteRuns(testing.quoteBlock("SELECT 1;\nSELECT 2;", "跑一下", true))?.[0] instanceof Object &&
@@ -293,6 +392,28 @@ check("leaving the pill closes the hover card", pop().dataset.visible === "false
 // copy + expand
 dom.document.querySelector(".dshq-cap-copy").dispatch("click", { target: null, stopPropagation() {} });
 check("the copy button copies the quote", dom.clipboard.length === 1 && dom.clipboard[0] === quote, JSON.stringify(dom.clipboard[0]));
+
+// One quote, out of the card, as Markdown (the unit pasted into a PR). The
+// card is reopened because the pill's own copy button ran in between.
+caps()[0].dispatch("mouseenter", {});
+const popCopy = pop().querySelector(".dshq-pop-copy");
+check(
+	"the hover card offers copying the quote as Markdown",
+	popCopy !== null && popCopy.textContent === "复制为 Markdown",
+	JSON.stringify(popCopy?.textContent)
+);
+popCopy?.dispatch("click", { target: null, stopPropagation() {} });
+check(
+	"it copies a blockquote of that quote",
+	dom.clipboard[dom.clipboard.length - 1] ===
+		quote
+			.split("\n")
+			.map((line) => "> " + line)
+			.join("\n"),
+	JSON.stringify(dom.clipboard[dom.clipboard.length - 1])
+);
+check("the card's copy button says 已复制 after clicking", popCopy?.textContent === "已复制", JSON.stringify(popCopy?.textContent));
+caps()[0].dispatch("mouseleave", {});
 
 // ---- React re-renders ----------------------------------------------------
 dom.document.body.append(dom.document.createElement("div")); // unrelated churn
@@ -591,6 +712,9 @@ check("uninstall unhooks the composer chip", chipElement.getAttribute("data-dshq
 check("a hand-written blockquote stays plain text", testing.splitQuoteRuns("> 只是引用格式\n> 第二行") === null);
 
 // ---- 侧边对话: the wire, driven end to end --------------------------------
+// The built-in hidden-thread route is exercised in its own block below; the
+// better-sidebar and fork paths start from a host that does not answer it.
+testing.setBuiltinSideChatState("unavailable");
 // The third row's action is sideChatRequest(service, sessionId, text): it opens
 // the session's side thread through better-sidebar — created on the first
 // quote, reused afterwards — and then writes the quote into that thread's own
@@ -621,10 +745,18 @@ const bindHostThread = (sessionId, threadId) => {
 };
 /** Install one session's input shell (`draftFace: false` = a version mismatch). */
 const installShell = (sessionId, options = {}) => {
-	const state = { draft: options.draft ?? "" };
+	const state = { draft: options.draft ?? "", chips: [] };
 	const shell = { state: { getSnapshot: () => ({ draft: state.draft }) } };
 	if (options.draftFace === "actions") shell.actions = { setDraft: (text) => { state.draft = text; } };
 	else if (options.draftFace !== false) shell.setDraft = (text) => { state.draft = text; };
+	// A host composer that can hold an atomic reference node (the chip face).
+	if (options.chipFace === true) {
+		shell.actions = { ...(shell.actions ?? {}), captureInsertion: () => ({ start: 0, end: 0, draftRev: 1 }) };
+		shell.insertReference = (attachment) => {
+			state.chips.push(attachment);
+			return true;
+		};
+	}
 	shells.set(sessionId, shell);
 	return state;
 };
@@ -727,15 +859,16 @@ try {
 		JSON.stringify(toastNode()?.textContent)
 	);
 
-	// The memory itself: ours is written, the host's binding wins, an empty id
-	// only forgets ours.
+	// The memory itself: ours is written and wins (it is the map that knows
+	// hidden threads), the host's binding is the old-build fallback, and an
+	// empty id only forgets ours.
 	testing.rememberSideThread("session-q8", "session-side-8");
 	const ownMap = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:sidechat-thread"));
 	check("the plugin keeps its own thread map", ownMap?.["session-q8"]?.threadId === "session-side-8", JSON.stringify(ownMap));
 	bindHostThread("session-q8", "session-side-8-host");
-	check("the host's binding wins over ours", testing.storedSideThread("session-q8") === "session-side-8-host");
+	check("our own binding wins over the host's", testing.storedSideThread("session-q8") === "session-side-8");
 	testing.rememberSideThread("session-q8", "");
-	check("forgetting a session leaves the host's binding alone", testing.storedSideThread("session-q8") === "session-side-8-host");
+	check("forgetting ours falls back to the host's binding", testing.storedSideThread("session-q8") === "session-side-8-host");
 
 	// Empty text is a no-op, not a request.
 	fetches.length = 0;
@@ -809,6 +942,290 @@ try {
 	openedResources.length = 0;
 }
 
+// ---- 侧边对话 built in: the host half creates a hidden subagent thread ----
+// The route is ours (`/ui-quote/api/sidechat.start`); it is asked once whether
+// it is available, then creates a seeded child the session list hides. The
+// quote is still a draft, and the draft opens with the boundary the seed needs.
+{
+	const realHiddenFetch = globalThis.fetch;
+	testing.setBuiltinSideChatState("unknown");
+	sessionListById = {};
+	sessionReads.length = 0;
+	openedResources.length = 0;
+	const hiddenState = installShell("session-hidden-1");
+	const fetches = [];
+	globalThis.fetch = async (url, options) => {
+		const payload = JSON.parse(options.body);
+		fetches.push({ url, payload });
+		if (payload.probe === true) {
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+		}
+		return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-1", parentId: "session-hidden-main" } }) };
+	};
+	try {
+		const handled = await testing.hiddenSideChatRequest("session-hidden-main", "隐藏引用", false, null, "", "reuse", "隐藏引用");
+		check("the built-in backend creates a hidden thread", handled === true && fetches.length === 2, JSON.stringify(fetches));
+		check(
+			"the probe and the start both use our host route",
+			fetches.every((entry) => entry.url === "/ui-quote/api/sidechat.start"),
+			JSON.stringify(fetches.map((entry) => entry.url))
+		);
+		check(
+			"the start carries the session and the clipped title",
+			JSON.stringify(fetches[1]?.payload) === JSON.stringify({ sessionId: "session-hidden-main", title: "隐藏引用" }),
+			JSON.stringify(fetches[1]?.payload)
+		);
+		check(
+			"the hidden thread opens the host's built-in chat",
+			openedResources.length === 1 &&
+				openedResources[0]?.address === "dsh-resource://subagentchat/session/session-hidden-1?parent=session-hidden-main&mode=continuable",
+			JSON.stringify(openedResources)
+		);
+		check(
+			"the hidden draft holds only the quote, not a boundary preamble",
+			hiddenState.draft.startsWith("> 隐藏引用") && hiddenState.draft.includes("Side conversation boundary.") === false,
+			JSON.stringify(hiddenState.draft)
+		);
+
+		// A blockquote in the composer reads like something the reader typed — it
+		// would be sent as their own words. The thread's composer takes the chip
+		// face when the host has one, so the quote stays a reference.
+		const chipThread = installShell("session-chip-side", { chipFace: true });
+		const chipWritten = await testing.prefillQuoteDraft("session-chip-side", "被引用的原话", false, null, "", { path: null, lang: "", origin: "chat" });
+		check(
+			"the side thread's quote lands as a reference chip",
+			chipWritten === true && chipThread.chips.length === 1 && chipThread.draft === "",
+			JSON.stringify({ chips: chipThread.chips.length, draft: chipThread.draft })
+		);
+		check(
+			"the chip carries the wire form and a readable label",
+			String(chipThread.chips[0]?.ref).includes("❝ 被引用的原话") && chipThread.chips[0]?.label === "被引用的原话",
+			JSON.stringify(chipThread.chips[0])
+		);
+		const plainThread = installShell("session-plain-side");
+		const plainWritten = await testing.prefillQuoteDraft("session-plain-side", "被引用的原话", false, null, "", {});
+		check(
+			"a shell without the chip face still gets the blockquote draft",
+			plainWritten === true && plainThread.chips.length === 0 && plainThread.draft === "> 被引用的原话",
+			JSON.stringify({ ok: plainWritten, draft: plainThread.draft })
+		);
+		check(
+			"the hidden thread is remembered with its parent",
+			testing.storedSideThread("session-hidden-main") === "session-hidden-1" &&
+				JSON.stringify(testing.targetOfThread("session-hidden-1")) === JSON.stringify({ kind: "hidden", parentId: "session-hidden-main" }),
+			JSON.stringify(testing.targetOfThread("session-hidden-1"))
+		);
+		check(
+			"a thread this build minted carries the shape version",
+			testing.mintedHiddenThread("session-hidden-1") === true,
+			JSON.stringify(testing.readThreadTargets()["session-hidden-1"])
+		);
+		check(
+			"reading a hidden thread uses the subagent address",
+			JSON.stringify(testing.threadRetainTarget("session-hidden-1")) ===
+				JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(testing.threadRetainTarget("session-hidden-1"))
+		);
+
+		// The probe is cached, and a remembered thread is never created twice.
+		await testing.hiddenSideChatRequest("session-hidden-main", "第二段引用", false, null, "", "reuse", "第二段引用");
+		check("a remembered hidden thread is not created twice", fetches.length === 2, fetches.length + " fetch(es)");
+		check(
+			"the second quote is appended to the same hidden draft",
+			hiddenState.draft.includes("> 隐藏引用") && hiddenState.draft.endsWith("> 第二段引用"),
+			JSON.stringify(hiddenState.draft)
+		);
+		check(
+			"no boundary text is ever written into the thread's composer",
+			hiddenState.draft.includes("Side conversation boundary.") === false,
+			JSON.stringify(hiddenState.draft)
+		);
+
+		// A healthy thread costs exactly one retain before it is reused, so a
+		// broken one can be told apart below without guessing.
+		installShell("session-hidden-1");
+		sessionReadImpl = () => ({
+			ready: Promise.resolve(),
+			binding: { session: { eventSource: { getSnapshot: () => ({ entries: [] }) }, getSnapshot: () => ({ hasMore: false }) } },
+			release() {}
+		});
+		const readsBefore = sessionReads.length;
+		const startsBefore = fetches.filter((entry) => entry.payload.probe !== true).length;
+		await testing.hiddenSideChatRequest("session-hidden-main", "第三段引用", false, null, "", "reuse", "第三段引用");
+		check(
+			"a healthy hidden thread is reused after one retain",
+			sessionReads.length === readsBefore + 1 &&
+				fetches.filter((entry) => entry.payload.probe !== true).length === startsBefore &&
+				JSON.stringify(sessionReads.at(-1)?.address) === JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(sessionReads.at(-1))
+		);
+
+		// A thread with the current stamp whose address the host still refuses
+		// (deleted child, or a host that changed the rule) is replaced too.
+		const staleMain = "session-hidden-stale";
+		const staleThread = "session-hidden-stale-child";
+		const staleTarget = { kind: "hidden", parentId: staleMain, v: testing.HIDDEN_THREAD_VERSION };
+		testing.rememberThreadTarget(staleThread, staleTarget);
+		testing.rememberSideThread(staleMain, staleThread, staleTarget);
+		installShell("session-hidden-fresh");
+		sessionReadImpl = (address) => {
+			if (address !== null && typeof address === "object" && address.childSessionId === staleThread) throw new Error("subagent descriptor is unavailable");
+			return null;
+		};
+		globalThis.fetch = async (url, options) => {
+			const payload = JSON.parse(options.body);
+			fetches.push({ url, payload });
+			if (payload.probe === true) {
+				return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+			}
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-fresh", parentId: staleMain } }) };
+		};
+		openedResources.length = 0;
+		const repaired = await testing.hiddenSideChatRequest(staleMain, "旧线程引用", false, null, "", "reuse", "旧线程引用");
+		check(
+			"a hidden thread the host refuses is replaced, not reopened",
+			repaired === true &&
+				testing.storedSideThread(staleMain) === "session-hidden-fresh" &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).includes("session-hidden-fresh"),
+			JSON.stringify({ stored: testing.storedSideThread(staleMain), opened: openedResources })
+		);
+		check(
+			"the unreadable thread's parent binding is dropped",
+			testing.targetOfThread(staleThread).kind === "fork",
+			JSON.stringify(testing.targetOfThread(staleThread))
+		);
+
+		// The pre-fix build stamped nothing. Such a child keeps a perfectly
+		// valid parent binding — `sessions.retain` succeeds and only the history
+		// RPC refuses it — so the shape version is the only honest signal left.
+		const legacyMain = "session-hidden-legacy";
+		const legacyThread = "session-hidden-legacy-child";
+		testing.rememberThreadTarget(legacyThread, { kind: "hidden", parentId: legacyMain });
+		testing.rememberSideThread(legacyMain, legacyThread, { kind: "hidden", parentId: legacyMain });
+		installShell("session-hidden-legacy-new");
+		sessionReadImpl = () => ({
+			ready: Promise.resolve(),
+			binding: { session: { eventSource: { getSnapshot: () => ({ entries: [] }) }, getSnapshot: () => ({ hasMore: false }) } },
+			release() {}
+		});
+		globalThis.fetch = async (url, options) => {
+			const payload = JSON.parse(options.body);
+			fetches.push({ url, payload });
+			if (payload.probe === true) {
+				return { ok: true, status: 200, json: async () => ({ ok: true, value: { available: true, version: 1 } }) };
+			}
+			return { ok: true, status: 200, json: async () => ({ ok: true, value: { childId: "session-hidden-legacy-new", parentId: legacyMain } }) };
+		};
+		openedResources.length = 0;
+		const migrated = await testing.hiddenSideChatRequest(legacyMain, "老线程引用", false, null, "", "reuse", "老线程引用");
+		check(
+			"a thread from before the fix is replaced even though the host retains it",
+			migrated === true &&
+				testing.storedSideThread(legacyMain) === "session-hidden-legacy-new" &&
+				testing.mintedHiddenThread("session-hidden-legacy-new") === true &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).includes("session-hidden-legacy-new"),
+			JSON.stringify({ stored: testing.storedSideThread(legacyMain), targets: testing.readThreadTargets() })
+		);
+		check(
+			"the unversioned thread stops being a hidden target",
+			testing.targetOfThread(legacyThread).kind === "fork" && testing.mintedHiddenThread(legacyThread) === false,
+			JSON.stringify(testing.targetOfThread(legacyThread))
+		);
+
+		// Reading the thread goes through the subagent address.
+		sessionReadImpl = () => {
+			return {
+				ready: Promise.resolve(),
+				binding: {
+					session: {
+						eventSource: {
+							getSnapshot: () => ({
+								entries: [
+									{ type: "event", event: { type: "user/message", seq: 1, time: "2026-10-10T12:00:00.000Z", data: { id: "h-1", content: [{ type: "text", text: "隐藏线程的问题" }] } } }
+								]
+							})
+						},
+						getSnapshot: () => ({ hasMore: false })
+					}
+				},
+				release() {}
+			};
+		};
+		sessionReads.length = 0;
+		const hiddenRead = await testing.readSessionMessages("session-hidden-1");
+		check(
+			"a hidden thread read retains the subagent address",
+			hiddenRead.ok === true &&
+				sessionReads.length === 1 &&
+				JSON.stringify(sessionReads[0]?.address) === JSON.stringify({ parentSessionId: "session-hidden-main", childSessionId: "session-hidden-1", mode: "continuable" }),
+			JSON.stringify(sessionReads)
+		);
+
+		// The page's thread list also sees a Side: thread another plugin made.
+		sessionListById = {
+			"session-hidden-1": {
+				id: "session-hidden-1",
+				origin: "subagent",
+				parentId: "session-hidden-main",
+				title: "Side: 隐藏引用",
+				updatedAt: 2,
+				projectionValues: { subagent: { label: "Side: 隐藏引用", address: { mode: "continuable" } } }
+			},
+			"session-hidden-scan": {
+				id: "session-hidden-scan",
+				origin: "subagent",
+				parentId: "session-hidden-main",
+				title: "Side: 另一个线程",
+				updatedAt: 1,
+				projectionValues: { subagent: { label: "Side: 另一个线程", address: { mode: "continuable" } } }
+			}
+		};
+		const list = await testing.loadThreadList("session-hidden-main");
+		check(
+			"the thread list scans shared Side: threads",
+			list.ok === true && list.threads.some((entry) => entry.threadId === "session-hidden-scan"),
+			JSON.stringify(list.threads.map((entry) => entry.threadId))
+		);
+		check(
+			"the page's default thread is the remembered one",
+			testing.defaultThreadForSession("session-hidden-main") === "session-hidden-1",
+			JSON.stringify(testing.defaultThreadForSession("session-hidden-main"))
+		);
+		check(
+			"a session with no stored thread has no default",
+			testing.defaultThreadForSession("session-hidden-nothing") === null,
+			JSON.stringify(testing.defaultThreadForSession("session-hidden-nothing"))
+		);
+		check(
+			"a scanned thread remembers its parent",
+			JSON.stringify(testing.targetOfThread("session-hidden-scan")) === JSON.stringify({ kind: "hidden", parentId: "session-hidden-main" }),
+			JSON.stringify(testing.targetOfThread("session-hidden-scan"))
+		);
+		openedResources.length = 0;
+		check(
+			"the quote list opens a hidden thread in the built-in chat",
+			testing.openThreadTab("session-hidden-main", "session-hidden-1") === true &&
+				openedResources.length === 1 &&
+				String(openedResources[0]?.address).startsWith("dsh-resource://subagentchat/session/session-hidden-1?"),
+			JSON.stringify(openedResources)
+		);
+
+		// A host without the route answers 404; the caller must be able to fall
+		// back instead of treating the request as handled.
+		testing.setBuiltinSideChatState("unknown");
+		globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: { code: "not-found", message: "unknown API method" } }) });
+		const fellBack = await testing.hiddenSideChatRequest("session-hidden-fallback", "回退引用", false, null, "", "reuse", "回退引用");
+		check("a host without the built-in route falls back", fellBack === false && testing.builtinSideChatState() === "unavailable", testing.builtinSideChatState());
+	} finally {
+		globalThis.fetch = realHiddenFetch;
+		testing.setBuiltinSideChatState("unavailable");
+		sessionListById = {};
+		sessionReadImpl = () => null;
+	}
+}
+
 // A future host may keep the scoped input events but drop the shell's
 // insertReference method. The chip must still land through the event, not
 // degrade to a plain-text quote.
@@ -848,7 +1265,7 @@ try {
 		forkCalls.push(opts);
 		return "session-native-menu-1";
 	};
-	testing.startRevision("端到端降级引用", "", "session-native-menu", null, false);
+	testing.startRevision("端到端降级引用", "", "session-native-menu", null, false, { v: 1, s: "session-wire", a: "data-chat-anchor-key", k: "row-wire", t: "3", n: 1 });
 	testing.openSideChat();
 	await wait(120);
 	check(
@@ -859,6 +1276,30 @@ try {
 			menuState.draft === "> 端到端降级引用",
 		JSON.stringify({ forkCalls, openedResources, draft: menuState.draft })
 	);
+	// The quote only went into a draft: the source must stay unmarked until the
+	// reader actually sends it there — the row below would paint, so the flag is
+	// what is being measured, not a missing sentence.
+	const wirePane = dom.document.createElement("div");
+	wirePane.setAttribute("data-conversation-content", "");
+	wirePane.setAttribute("data-conversation-session", "session-wire");
+	const wireRow = dom.document.createElement("div");
+	wireRow.setAttribute("data-chat-anchor-key", "row-wire");
+	wireRow.setAttribute("data-chat-turn", "3");
+	wireRow.setAttribute("data-chat-role", "assistant");
+	wireRow.textContent = "前文 端到端降级引用 后文";
+	wirePane.append(wireRow);
+	dom.document.body.append(wirePane);
+	testing.paintAnchors();
+	const quotedButUnmarked = highlightRegistry.has("dshq-quote") === false;
+	testing.promoteSource({ v: 1, s: "session-wire", a: "data-chat-anchor-key", k: "row-wire", t: "3", n: 1 }, "端到端降级引用");
+	testing.paintAnchors();
+	check(
+		"a side chat leaves the source unmarked until its quote is sent",
+		quotedButUnmarked && highlightRegistry.get("dshq-quote")?.ranges?.length === 1,
+		JSON.stringify({ unmarked: quotedButUnmarked, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	wirePane.remove();
+	testing.paintAnchors();
 	openedResources.length = 0;
 	nativeForkImpl = async (opts) => {
 		forkCalls.push(opts);
@@ -1888,6 +2329,13 @@ try {
 		"the bar offers the actions",
 		barOf()?.querySelector('[data-action="add"]') !== null && barOf()?.querySelector('[data-action="comment"]') !== null
 	);
+	check(
+		"the side chat is one row, never two competing entries",
+		barOf()?.querySelector('[data-action="sidechatNew"]') === null &&
+			barOf()?.querySelector(".dshq-row-sidechat-new") === null &&
+			(barOf()?.querySelectorAll('[data-action^="sidechat"]') ?? []).length <= 1,
+		JSON.stringify((barOf()?.querySelectorAll('[data-action^="sidechat"]') ?? []).map((row) => row.getAttribute("data-action")))
+	);
 
 	// 2. A slot comes and goes — the listeners are not tied to it.
 	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
@@ -1895,6 +2343,20 @@ try {
 	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
 	check("Escape closes the bar", barOf()?.dataset.visible === "false", JSON.stringify(barOf()?.dataset.visible));
 	check("closing the bar clears the source highlight", highlightRegistry.has("dshq-selection") === false);
+	// The bar calls preventDefault() on its own mousedown so the transcript
+	// selection survives while a row is aimed at — which is exactly why it has
+	// to hand the selection back when it leaves without an action. Otherwise the
+	// reader who picks a row and backs out is left with a selection nothing can
+	// clear.
+	selectIn(firstPane.run, "浮层要跟着手走的原文");
+	check("the selection is live before a row is aimed at", dom.document.selection !== null);
+	barOf().dispatch("mousedown", { target: barOf().querySelector('[data-action="add"]'), preventDefault() {} });
+	dom.document.dispatch("keydown", { key: "Escape", isComposing: false, target: firstPane.run });
+	check(
+		"dismissing the bar hands back the selection it kept alive",
+		dom.document.selection === null && barOf()?.dataset.visible === "false",
+		JSON.stringify({ selection: dom.document.selection === null, visible: barOf()?.dataset.visible })
+	);
 	if (overlay !== undefined) {
 		overlay.Component({ sessionId: "session-bar", inputActions: { captureInsertion: () => ({ draftRev: 1 }) } });
 		overlay.Component({ sessionId: "session-bar-2", inputActions: { captureInsertion: () => ({ draftRev: 2 }) } });
@@ -1924,6 +2386,29 @@ try {
 		"the chip lands through the composer's own actions",
 		landed.length === 1 && String(landed[0]?.ref ?? "").includes("没有座位的会话也要能引用"),
 		JSON.stringify([landed.length, String(landed[0]?.ref ?? "").slice(0, 24)])
+	);
+
+	// 3a. 这条坐标要和芯片绑定在一起：删除芯片（没有发送）时，聚合条的回执就是
+	//     靠它把原文上的高亮收回去的（见后面的「原文侧高亮」段）。
+	const chipMarked = [];
+	shells.set("session-chip-mark", {
+		actions: { captureInsertion: () => ({ start: 0, end: 0, draftRev: 3 }) },
+		insertReference(attachment) {
+			chipMarked.push(attachment);
+			return true;
+		}
+	});
+	const markPane = pane("session-chip-mark", "芯片会带走这条坐标");
+	markPane.run.parentNode.setAttribute("data-chat-anchor-key", "row-chip-mark");
+	markPane.run.parentNode.setAttribute("data-chat-turn", "12");
+	selectIn(markPane.run, "芯片会带走这条坐标");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	const markTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const markSaved = Object.values(markTable).flat().find((entry) => entry?.key === "row-chip-mark");
+	check(
+		"a quote added to the chat ties its coordinate to the chip",
+		chipMarked.length === 1 && markSaved?.chip === true,
+		JSON.stringify({ inserted: chipMarked.length, saved: markSaved === undefined ? null : { key: markSaved.key, chip: markSaved.chip } })
 	);
 
 	// 3b. A draft that already holds the reader's wording: the quote goes to
@@ -2391,6 +2876,48 @@ try {
 }
 
 {
+	// Sending recycles the chip node into the empty-composer placeholder, but
+	// our `data-dshq-chip` marker survives the recycle. A marker whose text no
+	// longer resolves to a known chip must not keep `引用 ×N` above the input.
+	for (const old of Array.from(dom.document.querySelectorAll("[data-composer-card]"))) old.remove();
+	testing.syncDraftBars();
+	const card = dom.document.createElement("div");
+	card.setAttribute("data-composer-card", "");
+	const stale = dom.document.createElement("span");
+	stale.setAttribute("data-dshq-chip", "1");
+	stale.textContent = "发消息或创建任务, / 调用指令, @ 文件或对话";
+	card.append(stale);
+	dom.document.body.append(card);
+	testing.syncDraftBars();
+	check(
+		"a recycled chip marker does not keep the aggregate bar alive",
+		dom.document.querySelector(".dshq-draftbar") === null,
+		JSON.stringify(dom.document.querySelector(".dshq-draftbar")?.textContent)
+	);
+	check("the stale marker is cleared", stale.getAttribute("data-dshq-chip") === null, JSON.stringify(stale.getAttribute("data-dshq-chip")));
+	const staleQuote = "回收节点旁边的真引用";
+	testing.rememberChip(staleQuote, "", "session-stale", false, {
+		ref: { v: 1, s: "session-stale", a: "data-chat-anchor-key", k: "row-stale", t: "7", n: 1 }
+	});
+	const real = dom.document.createElement("span");
+	real.textContent = testing.chipLabel(staleQuote, "");
+	real.setAttribute("data-dshq-chip", "1");
+	card.append(real);
+	testing.syncDraftBars();
+	const staleBar = dom.document.querySelector(".dshq-draftbar");
+	check(
+		"a recycled marker does not inflate the count",
+		String(staleBar?.textContent).includes("引用 ×1") && staleBar?.querySelectorAll(".dshq-db-pill").length === 1,
+		JSON.stringify(staleBar?.textContent)
+	);
+	real.remove();
+	testing.syncDraftBars();
+	check("removing the real chip takes the bar away", dom.document.querySelector(".dshq-draftbar") === null);
+	card.remove();
+	testing.syncDraftBars();
+}
+
+{
 	// The host's composer state lists every chip occurrence with its clipboard
 	// offset and length. A chip is one character in detect coordinates, so a
 	// preceding foreign chip shifts the target left by `length - 1`. The shell's
@@ -2591,6 +3118,335 @@ try {
 		inlineRange?.start?.node === spanA.firstChild && inlineRange?.end?.node === spanB.firstChild && inlineRange?.end?.offset === 3,
 		JSON.stringify({ start: inlineRange?.start?.node?.nodeValue, end: inlineRange?.end?.node?.nodeValue })
 	);
+
+	// 侧边对话里那句引用还没发出去：坐标照样要存（卡片、跳回都要它），但原文上
+	// 不许留下任何标记——读者可能把侧边对话关掉，那时高亮就成了无主的黄条。
+	const draftRow = dom.document.createElement("div");
+	draftRow.setAttribute("data-chat-anchor-key", "row-draft");
+	draftRow.setAttribute("data-chat-turn", "7");
+	draftRow.textContent = "前文 还没发出去的侧聊引用 后文";
+	pane.append(draftRow);
+	const draftQuote = "还没发出去的侧聊引用";
+	const draftSaved = testing.saveSource(draftQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-draft", turn: "7" }, { draft: true });
+	check(
+		"a coordinate saved for a draft still carries its ordinal",
+		draftSaved !== null && draftSaved.n === 1 && draftSaved.draft === true,
+		JSON.stringify(draftSaved)
+	);
+	check(
+		"the draft flag is stored, so a reload cannot resurrect the mark",
+		String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").includes(draftQuote) &&
+			String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").includes('"draft":true'),
+		String(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "").slice(0, 120)
+	);
+	testing.paintAnchors();
+	check(
+		"a draft coordinate is not painted on the source",
+		highlightRegistry.get("dshq-quote")?.ranges?.length === 1 && layer?.querySelectorAll(".dshq-anchor-badge").length === 1,
+		JSON.stringify({ ranges: highlightRegistry.get("dshq-quote")?.ranges?.length, badges: layer?.querySelectorAll(".dshq-anchor-badge").length })
+	);
+	const draftRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-draft", t: "7", n: draftSaved?.n };
+	const promoted = testing.promoteSource(draftRef, draftQuote);
+	testing.paintAnchors();
+	check(
+		"the quote turning up in a transcript promotes its mark",
+		promoted === true &&
+			highlightRegistry.get("dshq-quote")?.ranges?.length === 2 &&
+			layer?.querySelectorAll(".dshq-anchor-badge").length === 2,
+		JSON.stringify({ promoted, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 同一段文字先在主会话发过、又送进侧聊一次：侧聊那次保存带 draft，但已经
+	// 转正的坐标不能被降级——否则刚亮起来的高亮会凭空消失。
+	const reDraft = testing.saveSource(draftQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-draft", turn: "7" }, { draft: true });
+	testing.paintAnchors();
+	check(
+		"a sent coordinate is not demoted by quoting it into a side chat",
+		reDraft !== null && reDraft.draft === undefined && highlightRegistry.get("dshq-quote")?.ranges?.length === 2,
+		JSON.stringify({ draft: reDraft?.draft, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 主会话「添加到对话」写进草稿的芯片：坐标以 `chip` 记在表里。芯片还在草稿
+	// 里时照常落色；读者点聚合条的 × 或直接退格把它删掉（并没有发送）之后，
+	// 原文上那块高亮必须跟着消失——否则就留下一条无主的黄条。
+	const chipRow = dom.document.createElement("div");
+	chipRow.setAttribute("data-chat-anchor-key", "row-chip");
+	chipRow.setAttribute("data-chat-turn", "8");
+	chipRow.textContent = "前文 加进草稿又后悔的引用 后文";
+	pane.append(chipRow);
+	const chipQuote = "加进草稿又后悔的引用";
+	const chipRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-chip", t: "8", n: 1 };
+	const chipSaved = testing.saveSource(chipQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-chip", turn: "8" }, { chip: true });
+	check(
+		"a coordinate minted by a composer chip carries the chip mark",
+		chipSaved !== null && chipSaved.chip === true,
+		JSON.stringify(chipSaved)
+	);
+	const chipCard = dom.document.createElement("div");
+	chipCard.setAttribute("data-composer-card", "");
+	const chipNode = dom.document.createElement("span");
+	testing.rememberChip(chipQuote, "", "session-anchor", false, { ref: chipRef });
+	chipNode.textContent = testing.chipLabel(chipQuote, "");
+	chipNode.setAttribute("data-dshq-chip", "1");
+	chipCard.append(chipNode);
+	dom.document.body.append(chipCard);
+	const chipBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a quote held by a draft chip is painted on its source",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	chipNode.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const chipTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const chipStoredDraft = Object.values(chipTable).some((list) => Array.isArray(list) && list.some((entry) => entry?.key === "row-chip" && entry?.draft === true));
+	check(
+		"removing the chip without sending drops the source highlight",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	check("the retraction is stored, so a reload cannot resurrect the mark", chipStoredDraft, JSON.stringify(chipStoredDraft));
+	// 又把同一句加回草稿（或宿主慢一拍才把它画回来）：高亮应当自己回来。
+	const chipAgain = dom.document.createElement("span");
+	chipAgain.textContent = testing.chipLabel(chipQuote, "");
+	chipAgain.setAttribute("data-dshq-chip", "1");
+	chipCard.append(chipAgain);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"the chip coming back lifts the retraction",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ baseline: chipBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	chipAgain.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const chipPromoted = testing.promoteSource(chipRef, chipQuote);
+	testing.paintAnchors();
+	check(
+		"the quote turning up as a capsule paints it again",
+		chipPromoted === true && (highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === chipBaseline + 1,
+		JSON.stringify({ promoted: chipPromoted, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 已经作为胶囊发出去过的坐标，再被加进草稿、又删掉：页面上有它的胶囊，
+	// 所以这不是「读者反悔」，标记必须留着。
+	const sentRow = dom.document.createElement("div");
+	sentRow.setAttribute("data-chat-anchor-key", "row-sent-chip");
+	sentRow.setAttribute("data-chat-turn", "9");
+	sentRow.textContent = "前文 已经发出去又被加进草稿的引用 后文";
+	pane.append(sentRow);
+	const sentQuote = "已经发出去又被加进草稿的引用";
+	const sentRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-sent-chip", t: "9", n: 1 };
+	testing.saveSource(sentQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-sent-chip", turn: "9" }, { chip: true });
+	const sentCard = dom.document.createElement("div");
+	sentCard.setAttribute("data-composer-card", "");
+	const sentChip = dom.document.createElement("span");
+	testing.rememberChip(sentQuote, "", "session-anchor", false, { ref: sentRef });
+	sentChip.textContent = testing.chipLabel(sentQuote, "");
+	sentChip.setAttribute("data-dshq-chip", "1");
+	sentCard.append(sentChip);
+	dom.document.body.append(sentCard);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sentBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	const sentCapsule = dom.document.createElement("div");
+	sentCapsule.setAttribute("data-dshq-jump", JSON.stringify(["ref", "session-anchor", "data-chat-anchor-key", "row-sent-chip", "9", 1]));
+	dom.document.body.append(sentCapsule);
+	sentChip.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a sent capsule keeps the mark when its draft chip is removed",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sentBaseline,
+		JSON.stringify({ baseline: sentBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sentCapsule.remove();
+	sentCard.remove();
+	testing.syncDraftBars();
+
+	// 整个输入框离开页面（切会话）不是「读者删了芯片」：不收回、也不误删账本。
+	const leaveRow = dom.document.createElement("div");
+	leaveRow.setAttribute("data-chat-anchor-key", "row-leave-chip");
+	leaveRow.setAttribute("data-chat-turn", "10");
+	leaveRow.textContent = "前文 切走会话时还在草稿里的引用 后文";
+	pane.append(leaveRow);
+	const leaveQuote = "切走会话时还在草稿里的引用";
+	const leaveRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-leave-chip", t: "10", n: 1 };
+	testing.saveSource(leaveQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-leave-chip", turn: "10" }, { chip: true });
+	const leaveCard = dom.document.createElement("div");
+	leaveCard.setAttribute("data-composer-card", "");
+	const leaveChip = dom.document.createElement("span");
+	testing.rememberChip(leaveQuote, "", "session-anchor", false, { ref: leaveRef });
+	leaveChip.textContent = testing.chipLabel(leaveQuote, "");
+	leaveChip.setAttribute("data-dshq-chip", "1");
+	leaveCard.append(leaveChip);
+	dom.document.body.append(leaveCard);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const leaveBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	leaveCard.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a composer that leaves the page does not drop the draft's mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === leaveBaseline,
+		JSON.stringify({ baseline: leaveBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// 同一坐标同时挂在两个草稿里（主会话与侧边线程共用同一个 ref，侧聊草稿也是
+	// 这一句）：删掉其中一颗芯片不代表引用离开了草稿，最后两颗都删掉才收回。
+	const sharedRow = dom.document.createElement("div");
+	sharedRow.setAttribute("data-chat-anchor-key", "row-shared-chip");
+	sharedRow.setAttribute("data-chat-turn", "11");
+	sharedRow.textContent = "前文 两个草稿共享同一个坐标的引用 后文";
+	pane.append(sharedRow);
+	const sharedQuote = "两个草稿共享同一个坐标的引用";
+	const sharedRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-shared-chip", t: "11", n: 1 };
+	testing.saveSource(sharedQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-shared-chip", turn: "11" }, { chip: true });
+	testing.rememberChip(sharedQuote, "", "session-anchor", false, { ref: sharedRef });
+	const sharedLabel = testing.chipLabel(sharedQuote, "");
+	const sharedCardA = dom.document.createElement("div");
+	sharedCardA.setAttribute("data-composer-card", "");
+	const sharedChipA = dom.document.createElement("span");
+	sharedChipA.textContent = sharedLabel;
+	sharedChipA.setAttribute("data-dshq-chip", "1");
+	sharedCardA.append(sharedChipA);
+	dom.document.body.append(sharedCardA);
+	const sharedCardB = dom.document.createElement("div");
+	sharedCardB.setAttribute("data-composer-card", "");
+	const sharedChipB = dom.document.createElement("span");
+	sharedChipB.textContent = sharedLabel;
+	sharedChipB.setAttribute("data-dshq-chip", "1");
+	sharedCardB.append(sharedChipB);
+	dom.document.body.append(sharedCardB);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sharedBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	sharedChipA.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"one of two chips for one coordinate going away keeps the mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sharedBaseline,
+		JSON.stringify({ baseline: sharedBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sharedChipB.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"the mark goes when the last chip for it is gone",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sharedBaseline - 1,
+		JSON.stringify({ baseline: sharedBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sharedCardA.remove();
+	sharedCardB.remove();
+	testing.syncDraftBars();
+
+	// 一次漏掉的「转正」：收回跑在胶囊出现之后，坐标会卡在 draft，原文上的高亮
+	// 一直不出现——用户看到的就是「第二次引用没有高亮」。胶囊还挂在页面上就是
+	// 已发出的证据：下一次重画把它转正并补画，而且写回本机表。
+	const stuckQuote = "漏掉转正的引用";
+	const stuckRow = dom.document.createElement("div");
+	stuckRow.setAttribute("data-chat-anchor-key", "row-stuck");
+	stuckRow.setAttribute("data-chat-turn", "11");
+	stuckRow.textContent = "前文 " + stuckQuote + " 后文";
+	pane.append(stuckRow);
+	const stuckSaved = testing.saveSource(stuckQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-stuck", turn: "11" }, { draft: true });
+	const stuckRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-stuck", t: "11", n: stuckSaved?.n ?? 1 };
+	const stuckCapsule = dom.document.createElement("div");
+	stuckCapsule.setAttribute("data-dshq-jump", JSON.stringify(["ref", "session-anchor", "data-chat-anchor-key", "row-stuck", "11", stuckRef.n]));
+	dom.document.body.append(stuckCapsule);
+	const stuckBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	testing.paintAnchors();
+	check(
+		"a draft whose capsule is already on the page is painted",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === stuckBaseline + 1,
+		JSON.stringify({ baseline: stuckBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	const stuckTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const stuckEntry = Object.values(stuckTable).flat().find((entry) => entry?.key === "row-stuck");
+	check(
+		"the late promotion is stored, not just painted",
+		stuckEntry !== undefined && stuckEntry.draft !== true,
+		JSON.stringify(stuckEntry)
+	);
+	stuckCapsule.remove();
+
+	// 发送后、胶囊还没增强出来的一瞬：线格式里的坐标已经在 transcript 文本里，
+	// 芯片这时消失不是「读者反悔」，不能把已经发出去的那句收回。
+	const sendingQuote = "已经发出但还没增强的引用";
+	const sendingRow = dom.document.createElement("div");
+	sendingRow.setAttribute("data-chat-anchor-key", "row-sending");
+	sendingRow.setAttribute("data-chat-turn", "12");
+	sendingRow.textContent = "前文 " + sendingQuote + " 后文";
+	pane.append(sendingRow);
+	const sendingRef = { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-sending", t: "12", n: 1 };
+	testing.saveSource(sendingQuote, "session-anchor", { attr: "data-chat-anchor-key", key: "row-sending", turn: "12" }, { chip: true });
+	testing.rememberChip(sendingQuote, "", "session-anchor", false, { ref: sendingRef });
+	const sendingCard = dom.document.createElement("div");
+	sendingCard.setAttribute("data-composer-card", "");
+	const sendingChip = dom.document.createElement("span");
+	sendingChip.textContent = testing.chipLabel(sendingQuote, "");
+	sendingChip.setAttribute("data-dshq-chip", "1");
+	sendingCard.append(sendingChip);
+	dom.document.body.append(sendingCard);
+	const sendingUserRow = dom.document.createElement("div");
+	sendingUserRow.setAttribute("data-chat-anchor-key", "row-sent-raw");
+	sendingUserRow.setAttribute("data-chat-turn", "13");
+	const sendingRun = dom.document.createElement("span");
+	sendingRun.className = "plainRun";
+	sendingRun.textContent = testing.quoteBlock(sendingQuote, "", false, { ref: sendingRef });
+	sendingUserRow.append(sendingRun);
+	pane.append(sendingUserRow);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sendingBaseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	sendingChip.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const sendingTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const sendingEntry = Object.values(sendingTable).flat().find((entry) => entry?.key === "row-sending");
+	check(
+		"a chip that leaves after its ref line is already in a transcript is not retracted",
+		sendingEntry !== undefined && sendingEntry.draft !== true,
+		JSON.stringify(sendingEntry)
+	);
+	check(
+		"and that sent quote keeps its highlight",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === sendingBaseline,
+		JSON.stringify({ baseline: sendingBaseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	sendingCard.remove();
+	sendingUserRow.remove();
+	testing.syncDraftBars();
+
+	// 插件重载/启动间隙里渲染出来的消息，MutationObserver 可能没看到：窗口回到
+	// 前台时的 rescanCapsules() 要把它补成胶囊，而不是让原文一直停在 `> ❝ …`。
+	const lateWire = testing.quoteBlock("晚到的一条已发引用", "", false, {
+		ref: { v: 1, s: "session-anchor", a: "data-chat-anchor-key", k: "row-late", t: "14", n: 1 }
+	});
+	const lateRow = dom.document.createElement("div");
+	lateRow.setAttribute("data-chat-anchor-key", "row-late-message");
+	lateRow.setAttribute("data-chat-turn", "15");
+	const lateRun = dom.document.createElement("span");
+	lateRun.className = "plainRun";
+	lateRun.textContent = lateWire;
+	lateRow.append(lateRun);
+	pane.append(lateRow);
+	// No deliver(): the mutation pass never saw this insertion.
+	check("a late-rendered quote stays raw until the rescan", lateRow.querySelectorAll(".dshq-cap").length === 0, String(lateRow.querySelectorAll(".dshq-cap").length));
+	const lateScanned = testing.rescanCapsules();
+	await wait(150);
+	check(
+		"the visibility rescan turns the raw quote into a capsule",
+		lateScanned >= 1 && lateRow.querySelectorAll(".dshq-cap").length === 1 && lateRun.style.display === "none",
+		JSON.stringify({ scanned: lateScanned, capsules: lateRow.querySelectorAll(".dshq-cap").length, hidden: lateRun.style.display })
+	);
+	lateRow.remove();
 
 	const longQuote = "长".repeat(200);
 	const longRef = { s: "session-anchor", a: "data-chat-anchor-key", k: "row-anchor", t: "5", n: 1 };
@@ -2962,7 +3818,11 @@ try {
  * ------------------------------------------------------------------ */
 
 {
-	check("native is the default side-chat backend", testing.sideChatBackend() === "native", testing.config().sideChatBackend);
+	check("native is the default configured side-chat backend", testing.config().sideChatBackend === "native", testing.config().sideChatBackend);
+	check("native is the fallback when the built-in route is unavailable", testing.sideChatBackend() === "native", testing.sideChatBackend());
+	testing.setBuiltinSideChatState("available");
+	check("the built-in hidden thread is preferred when the route answers", testing.sideChatBackend() === "builtin", testing.sideChatBackend());
+	testing.setBuiltinSideChatState("unavailable");
 	check("an unknown backend is dropped", testing.setConfig({ sideChatBackend: "bogus" }).sideChatBackend === "native");
 	check("better-sidebar stays opt-in", testing.setConfig({ sideChatBackend: "better" }).sideChatBackend === "better");
 	testing.setConfig({ sideChatBackend: "native" });

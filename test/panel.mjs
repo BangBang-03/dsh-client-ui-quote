@@ -491,6 +491,66 @@ check(
 	JSON.stringify(openedResources)
 );
 
+// ---- one quote, copied as Markdown ------------------------------------------
+// The list export is a document; this is the unit someone pastes into a PR or
+// another chat, so it is asserted on its own.
+const copiedRow = testing.quoteRowMarkdown({
+	quote: "第一行\n第二行",
+	comment: "我的评论",
+	time: "",
+	code: false,
+	fence: "",
+	ref: { v: 1, s: "session-far", a: "data-chat-anchor-key", k: "row-2", t: "9", n: 0, r: "a" }
+});
+check(
+	"one quote copies as a blockquote with its comment and provenance",
+	copiedRow.startsWith("> 第一行\n> 第二行") &&
+		copiedRow.includes("**评论**：我的评论") &&
+		copiedRow.includes("_引自第 9 轮 · 助手_"),
+	copiedRow
+);
+check(
+	"a code quote copies as a real fenced block",
+	testing.quoteRowMarkdown({ quote: "SELECT 1;", comment: "", time: "", code: true, fence: "src/app.ts#L12-L48" }) ===
+		"``` src/app.ts#L12-L48\nSELECT 1;\n```",
+	JSON.stringify(testing.quoteRowMarkdown({ quote: "SELECT 1;", comment: "", time: "", code: true, fence: "src/app.ts#L12-L48" }))
+);
+check(
+	"a code quote that itself contains a fence copies with ~~~ instead",
+	testing.quoteRowMarkdown({ quote: "```\nSELECT 1;\n```", comment: "", time: "", code: true, fence: "" }) ===
+		"~~~\n```\nSELECT 1;\n```\n~~~",
+	JSON.stringify(testing.quoteRowMarkdown({ quote: "```\nSELECT 1;\n```", comment: "", time: "", code: true, fence: "" }))
+);
+check(
+	"a quote with no coordinates still copies as a plain blockquote",
+	testing.quoteRowMarkdown({ quote: "只有原文", comment: "", time: "", code: false, fence: "" }) === "> 只有原文",
+	JSON.stringify(testing.quoteRowMarkdown({ quote: "只有原文", comment: "", time: "", code: false, fence: "" }))
+);
+let copiedRowArg = null;
+const copyRowElement = testing.quoteRowElement(reactStub, rows[0], 0, "session-far", () => {}, null, null, {
+	copied: false,
+	onCopy: (row) => {
+		copiedRowArg = row.quote;
+	}
+});
+const rowCopyButton = findClass(copyRowElement, "dshq-row-copy");
+check(
+	"the row offers copying one quote",
+	rowCopyButton !== null && String(rowCopyButton?.props?.children) === "复制",
+	JSON.stringify(rowCopyButton?.props?.children)
+);
+rowCopyButton?.props?.onClick({ stopPropagation() {} });
+check("clicking it copies that row", copiedRowArg === rows[0].quote, JSON.stringify(copiedRowArg));
+const copiedRowElement = testing.quoteRowElement(reactStub, rows[0], 0, "session-far", () => {}, null, null, {
+	copied: true,
+	onCopy: () => {}
+});
+check(
+	"the button flashes 已复制 after copying",
+	String(findClass(copiedRowElement, "dshq-row-copy")?.props?.children) === "已复制",
+	JSON.stringify(findClass(copiedRowElement, "dshq-row-copy")?.props?.children)
+);
+
 // ---- the body component -----------------------------------------------------
 const body = testing.QuoteListBody({ sessionId: "session-far", load: () => Promise.resolve({ ok: true, rows: [], hasMore: false }) });
 check("the body renders the panel shell", body?.props?.className === "dshq-list", JSON.stringify(body?.props?.className));

@@ -15,3 +15,6 @@ Thumbs.db
 
 # workbuddy project data (not part of the package)
 .workbuddy/
+
+# agent hook state (per-session scratch, never part of the package)
+.mimosa/
