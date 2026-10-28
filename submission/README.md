@@ -4,7 +4,13 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `BangBang-03__dsh-client-ui-quote.yml` | 市场条目：`url`、`name`、`category: ui`、中英双语 `description`。 |
+| `BangBang-03__dsh-client-ui-quote.yml` | awesome-dsh-plugin 的条目：`url`、`name`、`category: ui`、中英双语 `description`。 |
+
+## 现状（2026-10-28 核对）
+
+- **已收录**：awesome-dsh-plugin（PR #6506，2026-10-17 合并；描述是旧版，待更新）、dsh.pub（自动）、dsh.market（自动，`curated: false`）、DSH 应用内市场（按 npm 包名可搜）。
+- **未收录**：dsh-plugin.org（走 issue）、awesome-deepseek-harness（走 PR，**中英两个 README 各加一行**）。
+- 各渠道入口、可粘贴的文案与待办清单见 [`../docs/distribution.md`](../docs/distribution.md)。
 
 ## 约定
 
