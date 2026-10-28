@@ -137,7 +137,7 @@ https://github.com/BangBang-03/dsh-client-ui-quote/tree/main/docs/screenshots �
 ## 发布前
 
 1. 把 `CHANGELOG.md` 顶部的 `Unreleased` 改成正式版本号（`## X.Y.Z — YYYY-MM-DD`），提交到 `main`。
-2. 推 `main`（CI 只发一个 `-lab.N` canary，不进 `latest`），在真实 DSH 窗口点一遍：聚合条编辑/移除、回合尾按钮、打开文件与行范围、侧边对话（内置隐藏线程）、JSON 导出、清单页底部的 Star 链接。
+2. 推 `main`（只跑测试、不发布），在真实 DSH 窗口点一遍：聚合条编辑/移除、回合尾按钮、打开文件与行范围、侧边对话（内置隐藏线程）、JSON 导出、清单页底部的 Star 链接。
 3. 发正式版：在 `main` 头打 `vX.Y.Z` 标签并推送。标签会同时触发两件事：**npm `latest` 发布** 与 **GitHub Release 创建**（正文取自 CHANGELOG 同名小节；已存在则更新 notes，重跑安全）。
 4. 发完确认三处一致：npm 的 `latest` dist-tag、仓库 Releases 页的最新一条、`git ls-remote --tags` 的标签指向同一个提交。
 

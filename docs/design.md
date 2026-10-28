@@ -186,7 +186,7 @@ cordis.patch.yml      组合包层补丁：插入 ui-quote 这个 loader 条目
 lib/index.js          host 半：只提供隐藏侧聊线程的创建路由（/ui-quote/api/sidechat.start）
 lib/client.js         客户端全部功能：vendor-CJS 工厂 + 浮层（三项动作）+ 输入框芯片 + 发送后胶囊 + 原文高亮/聚合条 + 侧边对话接线 + 引用清单页（含多选插入）
 .github/workflows/test.yml  push / PR 的 Node 18/20/22 测试门
-skills/release/SKILL.md    推送与发版清单（推 main / canary 自动预发布 / promote.ps1 -Tag / Release 验收）
+skills/release/SKILL.md    推送与发版清单（推 main / 标签发版 / promote.ps1 -Tag / Release 验收）
 locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）

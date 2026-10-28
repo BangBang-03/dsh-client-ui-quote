@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Changed
+
+- 删掉 canary 预发布频道：`main` 的 push 只跑测试，不再往 npm 发 `-lab.N`（它占了全部 62 个版本里的 45 个）。发版只在打 `v*` 标签时发生；`lab` dist-tag 冻结在 `0.13.1-lab.61`，老命令仍可安装但不再更新。要验证打包产物用本机 `npm pack` 后装 tarball。
 
 ## 0.13.0 — 2026-10-28
 

@@ -5,7 +5,7 @@
 本页写给要在这个仓库里动手的 agent：**第一节是红线，第二节是路由表**。开工前先读三处：本页、`README.md` 的「功能」表、「已知限制」。分支与发布纪律另有 `../PLUGIN-WORKFLOW.md`。
 
 - 仓库真身在 `C:\Users\15812\Desktop\dsh\dsh-client-ui-quote`；`Desktop\dsh-client-ui-quote` 是指向它的软链。同一棵树，别在两个路径之间复制文件。
-- 分支拓扑：GitHub 只有 **`main` 一个长期分支**（默认分支、开发线、发版线）。发版靠 `vX.Y.Z` 标签，两档产物靠 npm dist-tag 分（`lab` = 每次 push 的 canary，`latest` = 稳定）。**没有 lab 分支了**（0.12.9 之前是双分支，见 R20）。
+- 分支拓扑：GitHub 只有 **`main` 一个长期分支**（默认分支、开发线、发版线）。产物只有一档：打 `vX.Y.Z` 标签发 npm `latest`；**`main` 的普通 push 只跑测试、不发布**（2026-10-28 起 `lab` 预发布频道已删除，`lab` dist-tag 冻结在 `0.13.1-lab.61`）。
 - 行号会漂。本页括号里的行号只是 2026-10-20 的锚点，**以函数名/常量名为准**（`rg "function jumpToSource" lib/client.js`）。
 - 产品行为不要只看代码猜：README 的功能表是验收口径，改行为要同时改它。
 - 用户说「更新文件 / 更新文档 / 更新日志」时，按 `skills/docs/SKILL.md` 的默认文件集执行，不要反问「改哪几处」。
@@ -54,7 +54,7 @@
 | R17 | 数字以实跑为准：check **12** 组 + capsule **489** + panel **163** + host **44** = **708**；`README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
-| R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N`（那是 CI 在 runner 里临时盖的号） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
+| R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N` 之类的预发布号（CI 已不再产生，出现即为手误） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
 | R21 | 推送通道：`git` 优先，失败走 REST 兜底，**同一轮别来回切** | REST 重建的提交时区归一到 `+0000`，同内容不同 SHA → 平行提交（`git status` 干净，远端多一条线） | 手动一半 git 一半 REST；分叉后用 force 掩盖 |
 | R22 | 不进仓库：`node_modules/`、`.workbuddy/`、报告与截图工作区（`.dsh-quote-work/`、`PLUGIN-*.md` 都在仓库外）；`package.json` 的 `files` 是 npm 发货白名单，别加工作文件 | 包体、CI 时间、以及「报告被发到 npm」都不该发生 | `git add -A` 把工作稿一起提交；把 `AGENTS.md` 加进 `files` |
 
@@ -139,7 +139,7 @@
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
 | `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 从根 README 移出的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文全文。根 README 只留功能表、已知限制与入口 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
-| `skills/release/SKILL.md` | 推送与发版流程：推 `main`、canary 自动预发布、`promote.ps1 -Tag`、CHANGELOG/Release 验收；不进 npm 包 |
+| `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、CHANGELOG/Release 验收；不进 npm 包 |
 | `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与中英词条（R15）怎么对齐；不进 npm 包 |
 
 ### 2.4 命令
@@ -155,7 +155,7 @@ node test/host.mjs                         # 只跑宿主半（隐藏线程创�
 # 真浏览器：直接打开 test/capsule.html（file://），51 项，结果写进标题与 #probe-out
 
 # 本机三档运行（脚本在仓库外的工作区，不进包）
-node .dsh-quote-work/profile-mode.mjs link|lab|stable|status
+node .dsh-quote-work/profile-mode.mjs link|stable|status
 
 # 提升与发版（脚本在工作区根 C:\Users\15812\Desktop\dsh）
 pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote [-Tag vX.Y.Z] [-Channel rest] [-SkipTests]

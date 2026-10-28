@@ -19,7 +19,7 @@ description: Use when 用户说「更新文件」「更新文档」「更新日�
 | `test/README.md` | 四套断言各自覆盖什么 | 断言数、套件职责变了 |
 | `docs/design.md` | 工作原理、同类对照、`package.json` 声明、结构、下一步 | 架构/取舍变了；R17 的「真机验证」那条就在这里 |
 | `docs/testing.md` | 断言细节、真浏览器版 51 项 | 测试策略或套件变了 |
-| `docs/release.md` | link / canary / stable、推送通道、发布运维 | 发布流程、分支拓扑、npm 通道变了 |
+| `docs/release.md` | link / stable、推送通道、发布运维 | 发布流程、分支拓扑、npm 通道变了 |
 | `docs/README.en.md` | 英文全文 | 英文卖点或功能列表变了 |
 | `docs/distribution.md`、`submission/` | 渠道状态、可粘贴文案、市场条目 | 版本变了、功能亮点变了、渠道规则变了 |
 | `CONTRIBUTING.md` | 外部贡献者的最短路径 | 断言数、PR 规则、CI 门槛变了 |
@@ -55,4 +55,4 @@ git show --stat HEAD           # 确认改到的文件集合就是第 1 节里�
 - **红线本身**（R1–R22）不在这份 skill 的默认范围里：改红线要同时改 README 的「已知限制」，两处对不上时以 README 的实测记录为准。
 - 不把工作稿带进仓库：`.dsh-quote-work/`、报告、截图工作区都在仓库外（R22）。
 - 第三方仓库、外部账号、对外投稿无论「更新」什么，都先问再做（见工作区记忆里的边界规则）。
-- 纯文档提交会被 `paths-ignore` 跳过 canary 发布，这是预期行为，不是漏发。
+- `main` 的普通 push **只跑测试、不发布**；只有打 `v*` 标签才发版。这是预期行为，不是漏发。

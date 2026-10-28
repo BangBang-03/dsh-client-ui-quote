@@ -74,7 +74,7 @@
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.0**）。仓库只有一个 `main` 分支：每次 push 的 canary 以 `-lab.N` 发到 npm 的 `lab` dist-tag，打标签才进 `latest`；两边的差异看 `CHANGELOG.md` 的 `Unreleased` 段。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.0**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -82,7 +82,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 
 npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。Electron 托管的 `desktop` profile 也可以在**应用内市场**里搜索本插件安装（`dsh plugin` 对这类 profile 会拒绝管理，这是 DSH 的限制，不是插件的问题）。
 
-想跟 canary 跑：`pnpm install dsh-client-ui-quote@lab`；切回稳定版：`@latest`（`lab` 只是 dist-tag 的历史名字，不再对应任何分支）。
+安装稳定版：`pnpm install dsh-client-ui-quote@latest`。`@lab` 是已停用的旧预览频道——仍能装到 `0.13.1-lab.61`，但不再更新。
 
 ### 方式二：手工注册为 profile 组合包（不用 CLI 时）
 
@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-三种运行方式（`link` / canary / stable）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**708 项**：check 12 + capsule 489 + panel 163 + host 44），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**708 项**：check 12 + capsule 489 + panel 163 + host 44），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 

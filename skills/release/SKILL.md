@@ -7,22 +7,22 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 
 ## 适用场景
 
-- 「推 main / 推送」：提交后推 `main`，不打标签（canary 会随 push 自动发）。
+- 「推 main / 推送」：提交后推 `main`，不打标签；普通 push **只跑测试，不发布**。
 - 「发版 / 发布正式版 / release / 打 vX.Y.Z」：改版本与 CHANGELOG、跑测试、提交、推 `main`、打标签，CI 发 npm `latest` 与 GitHub Release。
 - 发布后核对 Actions、Release、npm `latest`，或排查推送超时、标签冲突、CI 失败。
 
-不负责：市场投稿、profile 三档切换、宿主安装排障（见 README 与 `docs/distribution.md`）。不主动发版：用户没有明确说「发版 / 打标签」时，只做 `main` 推送。
+不负责：市场投稿、profile 两档切换、宿主安装排障（见 README 与 `docs/distribution.md`）。不主动发版：用户没有明确说「发版 / 打标签」时，只做 `main` 推送。
 
 ## 分支拓扑（0.12.9 起）
 
-**GitHub 只有 `main` 一个长期分支**：默认分支、开发线、发版线都是它。两档产物靠 npm dist-tag 分，不靠分支：
+**GitHub 只有 `main` 一个长期分支**：默认分支、开发线、发版线都是它。产物只有一档，身份靠标签：
 
 | 档位 | 怎么产生 | npm dist-tag | 什么时候用 |
 | --- | --- | --- | --- |
-| canary | `main` 每推一次（纯 `.md` / `docs/**` / `submission/**` / `.github/**` 会被 `paths-ignore` 跳过） | `lab` | 验证**打包产物**；`pnpm install dsh-client-ui-quote@lab` |
 | stable | 在 `main` 头打 `vX.Y.Z` 标签 | `latest` | 用户装到的版本（`@latest` / 市场） |
 
-- `lab` 只是 **dist-tag 的历史名字**（0.12.9 之前的开发分支名），不代表任何分支；不要为了「跟 dev 线」去建分支。
+- `main` 的普通 push **只跑测试、不发布**。
+- 早先的 canary 频道（`main` 每次 push 发一个 `-lab.N` 到 `lab` dist-tag）已于 2026-10-28 删除：打标签时 `prepublishOnly` 本来就会跑全套断言，验证打包产物在本机 `npm pack` 后装 tarball 即可。`lab` dist-tag 冻结在 `0.13.1-lab.61`，不删，老命令仍可安装但不再更新。
 - 产物身份只有一个：**标签**。`main` 不需要「被提升」，提交本身就是发布候选。
 
 ## 合并外部 PR
@@ -39,14 +39,14 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 - `AGENTS.md`：R16/R17（测试与断言数）、R20（单 `main`）、R21（推送通道）、R22（不进仓库的文件）。
 - 工作区根 `C:\Users\15812\Desktop\dsh\PLUGIN-WORKFLOW.md`：推送通道、`promote.ps1`、REST 兜底与分叉复盘（顶部的双分支拓扑是历史，以本文件为准）。
 - `package.json`、`CHANGELOG.md`、`README.md` 的「开发与发布」段与 [`docs/release.md`](../../docs/release.md)。
-- `.github/workflows/publish.yml`：`main` push 发 canary；`v*` 标签发 npm `latest` + GitHub Release；`test.yml` 在每次 push/PR 跑 Node 18/20/22。
+- `.github/workflows/publish.yml`：`v*` 标签发 npm `latest` + GitHub Release；`main` push 不发布；`test.yml` 在每次 push/PR 跑 Node 18/20/22。
 
 ## 不可违反
 
 1. **只有一个长期分支 `main`**。不新建 `lab` / `dev` 长期分支；不把 `main` 当"待验收区"再往回拷。
 2. **已推送的 `main` 不 amend、不 rebase、不 force push**。
 3. **正式标签只在 `main` 头**。标签形状 `vX.Y.Z`；标签提交必须与 `main` 同一提交。
-4. **版本号必须是正式号**。`package.json` 不能带 `-lab.N`（那是 CI 在 runner 里临时盖的 canary 号）；`package.json` 版本、标签、CHANGELOG 小节、README「稳定版当前」必须逐字一致。
+4. **版本号必须是正式号**。`package.json` 不能带 `-lab.N` 之类的预发布后缀（历史遗留，CI 已不再产生）；`package.json` 版本、标签、CHANGELOG 小节、README「稳定版当前」必须逐字一致。
 5. **发版前必须全绿**。`node --check lib/client.js && npm test`；发版提交包含 `package.json`，不能用 `-SkipTests`。
 6. **CHANGELOG 是 Release notes 的唯一来源**。发版前必须有小节 `## X.Y.Z — YYYY-MM-DD`（`publish.yml` 用 `## ${VERSION} ` 前缀截取）；缺失只会生成兜底说明，视为发版缺陷。
 7. **推送通道 git 优先，REST 兜底，同一轮不来回切**（R21）。REST 重建的提交时区归一到 `+0000`，同内容不同 SHA；混推会造出平行提交。
@@ -94,7 +94,7 @@ git commit -m "feat(scope): 中文说明"
 git push origin main
 ```
 
-- 推 `main` 会触发 `publish-canary`，发 `X.Y.(Z+1)-lab.<run>` 到 npm 的 `lab` dist-tag；这是预期行为。纯 `.md` / `docs/**` / `submission/**` / `.github/**` 改动会被 `paths-ignore` 跳过。
+- 推 `main` **只触发 `test`**（Node 18/20/22），不发布任何东西；发版要另外打标签。
 - 不要再跑「快进 main」这一步——没有第二条分支了。
 - git 推不上去：改用同一轮的 REST 兜底，不要在 REST 之后再 `git push`：
 
@@ -158,7 +158,7 @@ pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote -Tag
 
 它会：检查当前在 `main`、工作区干净、版本不是预发布、标签不存在；跑 `npm test`；推 `main`；在 `main` 头打 `vX.Y.Z` 并推送；核对远端 `main` 与标签 SHA。
 
-这次 `main` 推送会**同时**触发一个 canary（`X.Y.(Z+1)-lab.<run>`，进 `lab` dist-tag）——它不是本次正式版，不要拿它当 `X.Y.Z` 的验收；两次 npm 发布可能相隔一分钟，canary 在 npm 上会异步处理几分钟才可见，属正常。
+这次 `main` 推送**只跑测试**；真正发布的是随后那个 `vX.Y.Z` 标签（一次 npm 发布 + 一个 GitHub Release）。
 
 如果 git 通道已知不通，第一次就用 `-Channel rest`，不要先跑 auto 再切；同一轮不混用两条通道。
 
@@ -180,9 +180,9 @@ npm view dsh-client-ui-quote version dist-tags --json
 
 逐项核对：
 
-- `publish` 工作流的 **publish-stable**（标签触发的那次）成功；**publish-canary** 在标签触发时被跳过；`test` 工作流绿。
+- `publish` 工作流的 **publish-stable**（标签触发的那次）成功；`test` 工作流绿。
 - Release `vX.Y.Z` 存在、非 draft、非 prerelease、是 Latest；notes 与 CHANGELOG 小节一致。
-- npm `latest` = `X.Y.Z`；`lab` dist-tag 已指向新的 canary。
+- npm `latest` = `X.Y.Z`（npm 是异步分发，几分钟内可见属正常）。
 - 远端 `main` 与 `vX.Y.Z` 指向同一提交（REST 兜底后 SHA 可能与本地不同，但两者应一致）。
 
 `gh` 未登录时用 `https://github.com/BangBang-03/dsh-client-ui-quote/actions` 与 `/releases` 网页核对；本机 `npm view` 失败不代表发布失败。
@@ -194,7 +194,7 @@ git switch main
 git status -sb
 ```
 
-向用户汇报：版本号、标签提交、`main` 与标签的远端 SHA、`publish`（stable/canary）与 `test` 结论、Release 链接、npm `latest` 与 `lab` 预发布号、跳过的检查。本地必须回到 `main`。
+向用户汇报：版本号、标签提交、`main` 与标签的远端 SHA、`publish-stable` 与 `test` 结论、Release 链接、npm `latest`、跳过的检查。本地必须回到 `main`。
 
 ## 失败处理
 
@@ -209,8 +209,6 @@ git status -sb
 | `npm publish` 已成功、后续 Release 步骤失败 | 不要重发同一版本；经用户同意用 `gh release create/edit` 或网页补齐 notes/Release，或发下一个补丁版；不手工改资产/标签 |
 | Release notes 是兜底句 | CHANGELOG 小节标题不符合 `## X.Y.Z ` 前缀；补文档后下一版修正，或经用户同意手工编辑 notes |
 | npm 401/403 | 检查仓库 secret `NPM_TOKEN`（2027-01-09 到期）；重签后重跑；不要从本机 `npm publish`（npmjs 本地直连不可达） |
-| `publish-canary` 失败 | 不影响标签发版，但要查日志；别假设 stable 一定成功 |
-| canary 版本在 npm 上「查不到」 | 先等几分钟：npm 会异步处理（日志里有 "being processed"）；不要因此重推标签或改版本 |
 | 远端 SHA 与本地不同 | REST 重建会归一化时区；先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再按 [`docs/release.md`](../../docs/release.md) 的恢复步骤把本地线对齐；没确认前不要 reset |
 
 ## 验收清单
@@ -220,7 +218,7 @@ git status -sb
 - [ ] 当前在 `main`；已跟踪改动已提交；`node --check` + `npm test` 全绿
 - [ ] 提交前缀符合 `feat/fix/docs/test/chore`，未把工作稿带进提交
 - [ ] `main` 已推送；本地在 `main` 且干净
-- [ ] CI `test` 绿；`publish-canary` 按预期发预发布（纯文档改动跳过）
+- [ ] CI `test` 绿（`publish` 不会被 push 触发，这是预期）
 
 ### 正式发版
 
@@ -229,5 +227,5 @@ git status -sb
 - [ ] 发版提交 `chore(release): vX.Y.Z` 已推 `main`
 - [ ] 标签打在 `main` 头；远端 `main` 与标签一致
 - [ ] `publish-stable` 成功；Release 是 Latest、非 draft/prerelease、notes 来自 CHANGELOG
-- [ ] npm `latest` = `X.Y.Z`；`lab` dist-tag 已更新（可为异步可见）
+- [ ] npm `latest` = `X.Y.Z`（异步可见属正常）
 - [ ] 本地回到 `main`；没有 amend/rebase/force

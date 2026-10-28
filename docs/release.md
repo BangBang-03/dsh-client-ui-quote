@@ -2,13 +2,14 @@
 
 > 拓扑与纪律的权威版本是 [`skills/release/SKILL.md`](../skills/release/SKILL.md)；这里是给用户和贡献者看的运行方式与推送通道。
 
-## 运行方式：`link` / canary / stable 三种运行方式
+## 运行方式：`link` / stable 两种
 
 - **`link`——日常开发（最快）**：profile 里依赖写成 `link:C:/…/dsh-client-ui-quote`，窗口直接加载仓库里的文件。改完 `Ctrl+Shift+R` 硬刷新就生效，不必发版。
-- **canary——每次 push 的打包产物**：仓库只有 `main` 一个分支；每推一次（纯文档 / CI 改动会被 `paths-ignore` 跳过），CI 就把 `下一个补丁版本-lab.<run_number>`（例如 `0.12.10-lab.59`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。装它：`pnpm install dsh-client-ui-quote@lab`——用来验证「打包后的产物」，而不是工作区文件。
-- **stable——用户装到的版本**：发版 = 在 `main` 上改好版本与 CHANGELOG 并提交、`npm test` 跑绿，然后打 `vX.Y.Z` 标签推上去；CI 发到 npm 的 `latest` 并建 GitHub Release。没有第二条分支要快进，也没有「先 lab 再 main」的搬运。
+- **stable——用户装到的版本**：发版 = 在 `main` 上改好版本与 CHANGELOG 并提交、`npm test` 跑绿，然后打 `vX.Y.Z` 标签推上去；CI 发到 npm 的 `latest` 并建 GitHub Release。`main` 的普通 push 只跑测试，不发布。
 
-本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
+早先还有一档 **canary**（`main` 每次 push 发一个 `-lab.N` 到 npm 的 `lab` dist-tag，用来验证打包产物）。2026-10-28 删掉了：打标签时 `prepublishOnly` 本来就会跑全套断言，验证打包产物在本机 `npm pack` 后装 tarball 即可，不值得为此把 73% 的版本号变成预发布。`lab` dist-tag 冻结在 `0.13.1-lab.61`，不删，老命令仍可安装。
+
+本机切换档位（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
 断言入口只有一个：`npm test`（708 项：check 12 + capsule 489 + panel 163 + host 44）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
 

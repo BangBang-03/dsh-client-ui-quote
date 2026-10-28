@@ -5,6 +5,6 @@ GitHub 侧配置。目前只有 CI / 发布工作流，见 [`workflows/README.md
 | 工作流 | 触发 | 作用 |
 | --- | --- | --- |
 | `workflows/test.yml` | 每次 push / PR | `node --check lib/client.js` + `npm test`，Node 18 / 20 / 22 矩阵。 |
-| `workflows/publish.yml` | `main` push、`v*` 标签、手动 | `main` push 发 canary 到 npm `lab` tag；`v*` 标签发 `latest` 并建 GitHub Release；手动触发（从 `main`）只重发稳定版。 |
+| `workflows/publish.yml` | `v*` 标签、手动 | `v*` 标签发 npm `latest` 并建 GitHub Release；手动触发（从 `main`）只重发稳定版。main 的 push 不发布（没有预发布频道）。 |
 
 发布需要仓库 Secret `NPM_TOKEN`（npm Automation token）；缺失时工作流会失败。分支与发布纪律见 [`../AGENTS.md`](../AGENTS.md) 与 [`../../PLUGIN-WORKFLOW.md`](../../PLUGIN-WORKFLOW.md)（工作区根，不在本仓库）。
