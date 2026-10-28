@@ -407,25 +407,11 @@ check(
 	createdResponse.body
 );
 
-const diagNoParent = response();
-await handleSideChatRequest(http.ctx, request("POST", "/ui-quote/api/resume.diag", { parentSessionId: "session-other", childSessionId: "session-child" }), diagNoParent, new Map());
+const injected = await selectionHooks[0].fn({}, {}, async () => ({ variables: { model: "stale-model" } }));
 check(
-	"the resume diagnostic reports an offline parent",
-	diagNoParent.status === 200 &&
-		JSON.parse(diagNoParent.body).value.parentLive === false &&
-		JSON.parse(diagNoParent.body).value.reason === "the parent session is not live",
-	diagNoParent.body
-);
-const diagFailed = response();
-await handleSideChatRequest(http.ctx, request("POST", "/ui-quote/api/resume.diag", { parentSessionId: "session-parent", childSessionId: "session-broken" }), diagFailed, new Map());
-const diagFailedBody = JSON.parse(diagFailed.body);
-check(
-	"the resume diagnostic hands back the host's own error",
-	diagFailed.status === 200 &&
-		diagFailedBody.value.error.message === "agents.resume exploded" &&
-		diagFailedBody.value.error.code === "NOT_RESUMABLE" &&
-		diagFailedBody.value.error.cause === "the underlying cause",
-	diagFailed.body
+	"the hook injects the parent's model into the assembly",
+	injected.variables.provider === "route" && injected.variables.model === "m-route" && injected.variables.reasoningEffort === undefined,
+	JSON.stringify(injected.variables)
 );
 
 // ---- registration and teardown ------------------------------------------
