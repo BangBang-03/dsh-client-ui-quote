@@ -8,6 +8,7 @@
 - 分支拓扑：GitHub 只有 **`main` 一个长期分支**（默认分支、开发线、发版线）。发版靠 `vX.Y.Z` 标签，两档产物靠 npm dist-tag 分（`lab` = 每次 push 的 canary，`latest` = 稳定）。**没有 lab 分支了**（0.12.9 之前是双分支，见 R20）。
 - 行号会漂。本页括号里的行号只是 2026-10-20 的锚点，**以函数名/常量名为准**（`rg "function jumpToSource" lib/client.js`）。
 - 产品行为不要只看代码猜：README 的功能表是验收口径，改行为要同时改它。
+- 用户说「更新文件 / 更新文档 / 更新日志」时，按 `skills/docs/SKILL.md` 的默认文件集执行，不要反问「改哪几处」。
 
 ---
 
@@ -139,6 +140,7 @@
 | `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 从根 README 移出的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文全文。根 README 只留功能表、已知限制与入口 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
 | `skills/release/SKILL.md` | 推送与发版流程：推 `main`、canary 自动预发布、`promote.ps1 -Tag`、CHANGELOG/Release 验收；不进 npm 包 |
+| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与中英词条（R15）怎么对齐；不进 npm 包 |
 
 ### 2.4 命令
 
