@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- 等待晚到的 `inputTriggers` / `shortcuts` 服务，并在服务提供者卸载时释放旧注册、重载后在新实例注册引用源与四个命令。
+- 等待晚到的 `inputTriggers` / `shortcuts` 服务，并在服务提供者卸载时释放旧注册、重载后在新实例注册引用源与四个命令。（来自 [@samwei12](https://github.com/samwei12) 的 [#1](https://github.com/BangBang-03/dsh-client-ui-quote/pull/1)）
 - 移除无法通过宿主校验的 Web 默认快捷键；保留 Web 命令及用户自定义能力，桌面仍为 `Alt+Q/C/B/L`。
 - 离线断言 **706 组**（check 12 + capsule 489 + panel 161 + host 44）；新增 10 组回归断言，覆盖服务晚到、独立替换为新实例、旧实例释放、新实例恰好注册一次、插件卸载清理，以及 Web 无默认绑定。
 
