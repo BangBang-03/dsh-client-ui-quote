@@ -74,7 +74,7 @@
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.0**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.1**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -88,7 +88,7 @@ npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国�
 
 1. 把包装进 profile：`cd <DSH_HOME>/profiles/<profile> && pnpm add dsh-client-ui-quote`；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
-   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.13.0"`（安装器会写）；
+   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.13.1"`（安装器会写）；
    - `dsh.profile.bundles` 追加 `"dsh-client-ui-quote"`；
 3. 重启 DSH（profile 打开 `patchReload` 时也会自动重载）。
 
