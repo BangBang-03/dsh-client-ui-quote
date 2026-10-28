@@ -415,8 +415,9 @@ openTabThrows = false;
 
 // ---- the shortcut -----------------------------------------------------------
 const listCommand = shortcuts.find((command) => command.id === "ui-quote.list");
-check("Alt+L is registered for the list", listCommand !== undefined && listCommand.defaults["web:windows"].code === "KeyL", JSON.stringify(listCommand?.defaults?.["web:windows"]));
-check("every default is still alt", listCommand !== undefined && Object.values(listCommand.defaults).every((binding) => binding.modifiers.length === 1 && binding.modifiers[0] === "alt"));
+check("Alt+L is registered for the list", listCommand !== undefined && listCommand.defaults["desktop:windows"].code === "KeyL", JSON.stringify(listCommand?.defaults?.["desktop:windows"]));
+check("all three desktop defaults retain Alt", listCommand !== undefined && ["macos", "windows", "linux"].every((platform) => JSON.stringify(listCommand.defaults["desktop:" + platform]?.modifiers) === JSON.stringify(["alt"])));
+check("the Web list command has no default binding", listCommand !== undefined && Object.keys(listCommand.defaults).every((profile) => !profile.startsWith("web:")));
 check("the list command needs no selection", listCommand?.resolve().status === "handled", JSON.stringify(listCommand?.resolve()?.status));
 const run = listCommand === undefined ? null : listCommand.resolve().run;
 openedKinds = [];
