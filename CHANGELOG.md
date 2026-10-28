@@ -2,6 +2,10 @@
 
 ## Unreleased (lab)
 
+_（下一轮）_
+
+## 0.12.9 — 2026-10-28
+
 ### Fixed
 
 - 等待晚到的 `inputTriggers` / `shortcuts` 服务，并在服务提供者卸载时释放旧注册、重载后在新实例注册引用源与四个命令。（来自 [@samwei12](https://github.com/samwei12) 的 [#1](https://github.com/BangBang-03/dsh-client-ui-quote/pull/1)）

@@ -8,7 +8,7 @@
 | --- | --- |
 | npm | `dsh-client-ui-quote` |
 | 仓库 | https://github.com/BangBang-03/dsh-client-ui-quote |
-| 版本 | `0.12.8`（发版时同步；最终以 `package.json` 为准） |
+| 版本 | `0.12.9`（发版时同步；最终以 `package.json` 为准） |
 | License | MIT |
 | 图标 | `icon.svg` |
 
