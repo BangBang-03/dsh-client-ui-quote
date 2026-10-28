@@ -593,6 +593,25 @@ check(
 	healthText.includes("宿主自检") && healthText.includes("芯片精确删除 ✓") && healthText.includes("侧聊 fork 兜底"),
 	JSON.stringify(healthText)
 );
+// The plugin's only in-app door back to the repository. It must be a plain link,
+// so nothing is fetched unless the reader clicks it.
+const starNode = Array.isArray(healthFooter?.props?.children)
+	? healthFooter.props.children.find((node) => node?.props?.className === "dshq-list-star")
+	: null;
+const starLink = Array.isArray(starNode?.props?.children) ? starNode.props.children[0] : starNode?.props?.children;
+check(
+	"the footer carries one quiet link to the repository",
+	starLink?.type === "a" &&
+		starLink?.props?.href === "https://github.com/BangBang-03/dsh-client-ui-quote" &&
+		starLink?.props?.target === "_blank" &&
+		String(starLink?.props?.children).includes("Star"),
+	JSON.stringify(starLink?.props)
+);
+check(
+	"the star link opens nothing by itself",
+	starLink?.props?.onClick === undefined && String(starLink?.props?.rel).includes("noreferrer"),
+	JSON.stringify({ rel: starLink?.props?.rel, onClick: typeof starLink?.props?.onClick })
+);
 
 // ---- the ref in the text: the list and the export never show it -------------
 const refQuote = "引用清单里的自携带坐标";

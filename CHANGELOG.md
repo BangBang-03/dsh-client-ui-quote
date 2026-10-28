@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Added
+
+- 引用清单页最底下一行：**`★ 在 GitHub 上 Star`**。它是插件里唯一能回到仓库的入口，是一个普通 `<a target="_blank" rel="noreferrer noopener">`——不点击就不会打开任何页面，插件自身仍然不发任何请求（R11 不变）。
+- 离线断言 **708 组**（check 12 + capsule 489 + panel 163 + host 44）；新增 2 组：「底部有一条指向仓库的链接（`a` + `target=_blank` + `noreferrer`）」「这行链接自身不触发任何动作」。
 
 ## 0.12.9 — 2026-10-28
 
