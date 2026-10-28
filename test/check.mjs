@@ -224,7 +224,7 @@ if (iconBytes > MAX_ICON_BYTES) throw new Error("icon exceeds 256 KiB");
 // dictionariesOf(): locale/en.json anchors the directory, every *.json carries meta.title/description.
 const enPath = join(root, "locale", "en.json");
 if (!existsSync(enPath)) throw new Error("locale/en.json is the anchor the host scans");
-const locales = ["zh", "en"].map((id) => {
+const locales = ["zh", "en", "ru"].map((id) => {
 	const file = join(root, "locale", `${id}.json`);
 	const data = JSON.parse(readFileSync(file, "utf8"));
 	const meta = data.meta;
