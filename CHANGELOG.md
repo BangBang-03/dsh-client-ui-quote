@@ -7,6 +7,11 @@
 - 引用清单页最底下一行：**`★ 在 GitHub 上 Star`**。它是插件里唯一能回到仓库的入口，是一个普通 `<a target="_blank" rel="noreferrer noopener">`——不点击就不会打开任何页面，插件自身仍然不发任何请求（R11 不变）。
 - 离线断言 **708 组**（check 12 + capsule 489 + panel 163 + host 44）；新增 2 组：「底部有一条指向仓库的链接（`a` + `target=_blank` + `noreferrer`）」「这行链接自身不触发任何动作」。
 
+### Docs
+
+- 根 README 从 540 行收到 233 行的落地页：首屏改成三句卖点 + 入口链接，界面截图提到功能表之前。深度内容按主题移出——设计原理与同类对照 → [`docs/design.md`](docs/design.md)，四套断言细节 → [`docs/testing.md`](docs/testing.md)，开发与发布/推送通道 → [`docs/release.md`](docs/release.md)，英文全文 → [`docs/README.en.md`](docs/README.en.md)。功能表与「已知限制」仍留在根 README（验收口径与宿主契约出处不变）。
+- R17 的同步位置随之变成：`README.md` 四处 + `docs/design.md` 一处（真机验证）+ `CHANGELOG.md` 一处。
+
 ## 0.12.9 — 2026-10-28
 
 ### Fixed

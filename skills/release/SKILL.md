@@ -38,7 +38,7 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 
 - `AGENTS.md`：R16/R17（测试与断言数）、R20（单 `main`）、R21（推送通道）、R22（不进仓库的文件）。
 - 工作区根 `C:\Users\15812\Desktop\dsh\PLUGIN-WORKFLOW.md`：推送通道、`promote.ps1`、REST 兜底与分叉复盘（顶部的双分支拓扑是历史，以本文件为准）。
-- `package.json`、`CHANGELOG.md`、`README.md` 的「开发与发布」段。
+- `package.json`、`CHANGELOG.md`、`README.md` 的「开发与发布」段与 [`docs/release.md`](../../docs/release.md)。
 - `.github/workflows/publish.yml`：`main` push 发 canary；`v*` 标签发 npm `latest` + GitHub Release；`test.yml` 在每次 push/PR 跑 Node 18/20/22。
 
 ## 不可违反
@@ -130,7 +130,7 @@ git ls-remote origin refs/heads/main 'refs/tags/vX.Y.Z*'
 - `CHANGELOG.md`：把 `## Unreleased` 下的本轮条目挪进新的 `## X.Y.Z — YYYY-MM-DD` 小节，`Unreleased` 留 `_（下一轮）_`。
 - `README.md` 两处：`稳定版当前 **X.Y.Z**` 1 处，安装示例里的 `"dsh-client-ui-quote": "^X.Y.Z"` 1 处。
 - `docs/distribution.md` 的版本行（它自己标注了「发版时同步」）。
-- 若断言数变化：按 R17 同步 README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处。
+- 若断言数变化：按 R17 同步 `README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处。
 
 ### 2. 测试
 
@@ -211,7 +211,7 @@ git status -sb
 | npm 401/403 | 检查仓库 secret `NPM_TOKEN`（2027-01-09 到期）；重签后重跑；不要从本机 `npm publish`（npmjs 本地直连不可达） |
 | `publish-canary` 失败 | 不影响标签发版，但要查日志；别假设 stable 一定成功 |
 | canary 版本在 npm 上「查不到」 | 先等几分钟：npm 会异步处理（日志里有 "being processed"）；不要因此重推标签或改版本 |
-| 远端 SHA 与本地不同 | REST 重建会归一化时区；先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再按 README 的恢复步骤把本地线对齐；没确认前不要 reset |
+| 远端 SHA 与本地不同 | REST 重建会归一化时区；先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再按 [`docs/release.md`](../../docs/release.md) 的恢复步骤把本地线对齐；没确认前不要 reset |
 
 ## 验收清单
 
