@@ -5,7 +5,7 @@
 本页写给要在这个仓库里动手的 agent：**第一节是红线，第二节是路由表**。开工前先读三处：本页、`README.md` 的「功能」表、「已知限制」。分支与发布纪律另有 `../PLUGIN-WORKFLOW.md`。
 
 - 仓库真身在 `C:\Users\15812\Desktop\dsh\dsh-client-ui-quote`；`Desktop\dsh-client-ui-quote` 是指向它的软链。同一棵树，别在两个路径之间复制文件。
-- 分支拓扑：`lab` 是默认分支与唯一开发线，平时只推它，**lab 应领先 main**；`main` 只是备份，发版/里程碑时 `merge --ff-only lab` 追上（R20）。
+- 分支拓扑：GitHub 只有 **`main` 一个长期分支**（默认分支、开发线、发版线）。发版靠 `vX.Y.Z` 标签，两档产物靠 npm dist-tag 分（`lab` = 每次 push 的 canary，`latest` = 稳定）。**没有 lab 分支了**（0.12.9 之前是双分支，见 R20）。
 - 行号会漂。本页括号里的行号只是 2026-10-20 的锚点，**以函数名/常量名为准**（`rg "function jumpToSource" lib/client.js`）。
 - 产品行为不要只看代码猜：README 的功能表是验收口径，改行为要同时改它。
 
@@ -53,7 +53,7 @@
 | R17 | 数字以实跑为准：check **12** 组 + capsule **489** + panel **161** + host **44** = **706**；README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
-| R20 | 分支：**`lab` 是 GitHub 默认分支与唯一开发线，平时所有提交只进 `lab`，`lab` 应当领先 `main`**；`main` 只是备份，仅在发版/里程碑时 `merge --ff-only lab` 追上，平时不往 main 提交。已推送的 `lab` 不 amend / 不 rebase；不 `push --force`；进 `main` 的 `package.json` 不能是 `-lab.N` | 改写远端历史会让同一分支出现两条平行提交，CI 与其它 clone 全部对不上；main 若与 lab 同步推进就不再是"以防万一"的备份 | 在 main 直接提交；平时把 lab 与 main 一起推平；`rebase` 已推分支；强推 |
+| R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N`（那是 CI 在 runner 里临时盖的号） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
 | R21 | 推送通道：`git` 优先，失败走 REST 兜底，**同一轮别来回切** | REST 重建的提交时区归一到 `+0000`，同内容不同 SHA → 平行提交（`git status` 干净，远端多一条线） | 手动一半 git 一半 REST；分叉后用 force 掩盖 |
 | R22 | 不进仓库：`node_modules/`、`.workbuddy/`、报告与截图工作区（`.dsh-quote-work/`、`PLUGIN-*.md` 都在仓库外）；`package.json` 的 `files` 是 npm 发货白名单，别加工作文件 | 包体、CI 时间、以及「报告被发到 npm」都不该发生 | `git add -A` 把工作稿一起提交；把 `AGENTS.md` 加进 `files` |
 
@@ -91,7 +91,7 @@
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7394）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138；`locale/zh.json`、`locale/en.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | README「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`；分支与通道见 R20/R21 | `npm test` 706 + 远端 `lab`/`main`/标签一致 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`；分支与通道见 R20/R21 | `npm test` 706 + 远端 `main`/标签一致 |
 
 ### 2.2 按症状找位置
 
@@ -117,7 +117,7 @@
 | 线程在 better-sidebar 与我们的清单里重复 | `SIDECHAT_LABEL_PREFIX`、`knownSideThreadIds`、`targetOfThread` | 两边共享 `Side: ` 持久约定，这是有意为之；不是两套数据互相覆盖 |
 | 英文界面混中文 | `zh`/`en` 成对检查、`translateFor` 2119 | 只加了一边；导出函数里写死中文 |
 | `npm test` 挂了 | 先看是哪一套：check / capsule / panel | 新增 DOM API 没垫片；新增词条没进两份字典；manifest 字段动了 |
-| 推 lab / 同步 main / 发版 / 标签或 publish CI 失败 | `skills/release/SKILL.md`、工作区根 `promote.ps1`、`.github/workflows/publish.yml` | 版本未 bump、标签已存在、未跟踪工作稿阻塞、git 与 REST 混用、CHANGELOG 小节缺失 |
+| 推 main / 发版 / 标签或 publish CI 失败 | `skills/release/SKILL.md`、工作区根 `promote.ps1`、`.github/workflows/publish.yml` | 版本未 bump、标签已存在、未跟踪工作稿阻塞、git 与 REST 混用、CHANGELOG 小节缺失 |
 
 ### 2.3 文件地图
 
@@ -137,7 +137,7 @@
 | `test/capsule.html` | 真浏览器版（51 项），`file://` 打开，结果写进标题与 `#probe-out` |
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
-| `skills/release/SKILL.md` | 推送与发版流程：lab 日常推送、main 快进、promote.ps1 -Tag、CHANGELOG/Release 验收；不进 npm 包 |
+| `skills/release/SKILL.md` | 推送与发版流程：推 `main`、canary 自动预发布、`promote.ps1 -Tag`、CHANGELOG/Release 验收；不进 npm 包 |
 
 ### 2.4 命令
 
@@ -168,7 +168,7 @@ pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote [-Ta
 - [ ] 隐藏线程回归：`node test/host.mjs` 全绿；真宿主（临时 `DSH_HOME` + web profile）探针返回 `available:true`（R18 的 host 契约出处写进 README）。
 - [ ] 中英词条、`locale/*.json`、`package.json` description、README 功能表同改（R15）。
 - [ ] `git status` 只有预期文件；没有 `.workbuddy/`、没有报告、没有把 `AGENTS.md` 加进 `files`（R22）。
-- [ ] 提交在 `lab`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`（R20、R21）。
+- [ ] 提交在 `main`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`（R20、R21）。
 
 ---
 

@@ -1,10 +1,12 @@
-# npm 发布通道 —— 两条线各自发各自的。
+# npm 发布通道 —— 一个 main 分支，两档产物靠 dist-tag 分。
 #
-#   lab 分支   开发线。每次 push 都以「下一个次版本-lab.<run_number>」发到 npm 的
-#              `lab` dist-tag，不会碰 latest。本地想跑开发版：
+#   main push  每推一次（非纯文档）都以「下一个补丁版本-lab.<run_number>」发到 npm 的
+#              `lab` dist-tag（canary），不会碰 latest。本地想跑开发版：
 #                  pnpm install dsh-client-ui-quote@lab
 #              切回稳定版：pnpm install dsh-client-ui-quote@latest
-#   v* 标签    稳定线。在 main 上打 tag，发到 npm 的 `latest`，并按 CHANGELOG 的
+#              dist-tag 名沿用 `lab`（0.12.9 之前是分支名），不改它，免得
+#              打断已经按 `@lab` 固定安装的人。
+#   v* 标签    稳定线。在 main 头打 tag，发到 npm 的 `latest`，并按 CHANGELOG 的
 #              同名小节建（或更新）GitHub Release。
 #
 # 不在本机发布的原因：registry.npmjs.org 从本地直连不可达（系统 DNS 返回污染地址
@@ -21,10 +23,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - lab
+      - main
     tags:
       - "v*"
-    # 纯文档提交不切预发布：一次 lab push 只改 md/docs/submission/CI 时跳过。
+    # 纯文档提交不切预发布：一次 main push 只改 md/docs/submission/CI 时跳过。
     # 标签推送不受路径过滤约束（GitHub: "Path filters are not evaluated for
     # pushes of tags."），发版提交也必然改 package.json，双保险。
     paths-ignore:
@@ -74,11 +76,14 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag --latest
           fi
 
-  publish-lab:
-    # lab 分支每推一次就发一个预发布版：版本号取「下一个补丁版本」+ run_number，
+  publish-canary:
+    # main 每推一次就发一个预发布版：版本号取「下一个补丁版本」+ run_number，
     # 例如 0.11.4-lab.37。天然唯一，也不会覆盖 latest；正式发 0.11.4 时它就排在
-    # 这些预发布之上，semver 顺序不会拧。
-    if: github.ref == 'refs/heads/lab'
+    # 这些预发布之上，semver 顺序不会拧。分支收敛成 main 之后，canary 仍叫
+    # `lab` dist-tag，只是不再有同名的 lab 分支。
+    # 只认 push：workflow_dispatch 从 main 手动触发时留给「重发 stable」
+    # （publish-stable 的条件是 event_name == workflow_dispatch），别再叠一个 canary。
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,7 +93,7 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - name: Stamp the lab version
+      - name: Stamp the canary version
         run: |
           NEXT=$(node -e "const v = require('./package.json').version.split('-')[0].split('.').map(Number); console.log(v[0] + '.' + v[1] + '.' + (v[2] + 1))")
           npm version "$NEXT-lab.${{ github.run_number }}" --no-git-tag-version --allow-same-version

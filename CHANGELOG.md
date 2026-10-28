@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (lab)
+## Unreleased
 
 _（下一轮）_
 

@@ -98,7 +98,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.12.9**）。`lab` 分支始终领先稳定包一个补丁：日常改动先在 lab 上发 `-lab.N` 预发布，验收后再提升；两边的差异看 `CHANGELOG.md` 的 `Unreleased` 段。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.12.9**）。仓库只有一个 `main` 分支：每次 push 的 canary 以 `-lab.N` 发到 npm 的 `lab` dist-tag，打标签才进 `latest`；两边的差异看 `CHANGELOG.md` 的 `Unreleased` 段。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -106,7 +106,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 
 npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。Electron 托管的 `desktop` profile 也可以在**应用内市场**里搜索本插件安装（`dsh plugin` 对这类 profile 会拒绝管理，这是 DSH 的限制，不是插件的问题）。
 
-想跟开发线跑：`pnpm install dsh-client-ui-quote@lab`；切回稳定版：`@latest`。
+想跟 canary 跑：`pnpm install dsh-client-ui-quote@lab`；切回稳定版：`@latest`（`lab` 只是 dist-tag 的历史名字，不再对应任何分支）。
 
 ### 方式二：手工注册为 profile 组合包（不用 CLI 时）
 
@@ -133,19 +133,19 @@ dsh plugin --profile desktop add link:<clone-path>
 
 link 的优点是改完刷新即生效；**日常运行请用方式一**，不要长期挂 link——那样市场/版本号都会绕着走。
 
-### 开发与发布：`link` / `lab` / `stable` 三种运行模式
+### 开发与发布：`link` / canary / stable 三种运行方式
 
 - **`link`——日常开发（最快）**：profile 里依赖写成 `link:C:/…/dsh-client-ui-quote`，窗口直接加载仓库里的文件。改完 `Ctrl+Shift+R` 硬刷新就生效，不必发版。
-- **`lab`——云端预发布线**：`lab` 分支每 push 一次，CI 就把 `下一个补丁版本-lab.<run_number>`（例如 `0.11.4-lab.37`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。装它：`pnpm install dsh-client-ui-quote@lab`——用来验证「打包后的产物」，而不是工作区文件。
-- **`stable`——用户装到的版本**：`main` 只接受从 `lab` 快进的提交（`git merge --ff-only lab`，不在 main 上直接提交）；发版 = 快进到 `main` 后打 `vX.Y.Z` 标签，CI 发到 npm 的 `latest`。
+- **canary——每次 push 的打包产物**：仓库只有 `main` 一个分支；每推一次（纯文档 / CI 改动会被 `paths-ignore` 跳过），CI 就把 `下一个补丁版本-lab.<run_number>`（例如 `0.12.10-lab.59`）发到 npm 的 **`lab`** dist-tag，不碰 `latest`。装它：`pnpm install dsh-client-ui-quote@lab`——用来验证「打包后的产物」，而不是工作区文件。
+- **stable——用户装到的版本**：发版 = 在 `main` 上改好版本与 CHANGELOG 并提交、`npm test` 跑绿，然后打 `vX.Y.Z` 标签推上去；CI 发到 npm 的 `latest` 并建 GitHub Release。没有第二条分支要快进，也没有「先 lab 再 main」的搬运。
 
 本机切换这三档（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|lab|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
-两条线的断言入口相同：`npm test`（706 项：check 12 + capsule 489 + panel 161 + host 44）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
+断言入口只有一个：`npm test`（706 项：check 12 + capsule 489 + panel 161 + host 44）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。
 
 **推送通道**：`git push` 优先，但本机 `github.com:443` **时通时不通**（2026-10-19 实测：短时可用、随后连续超时，每次失败等约 21 秒）。日常用工作区根的 `promote.ps1`：先试 git，失败自动转 REST 兜底（`.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`，`-Channel rest` 可跳过探测），并核对远端 SHA。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
 
-两条线的完整流程（含「main 只做快进」、推 lab 与 main 的顺序、分叉事故的复盘）见工作区根目录的 `PLUGIN-WORKFLOW.md`，一键执行用 `pwsh -File promote.ps1 -Repo dsh-client-ui-quote`。仓库内的 `skills/release/SKILL.md` 把「推 lab / 同步 main / 发版 / 失败处理 / 验收」固化成逐步清单；日常执行以这份清单为准，`PLUGIN-WORKFLOW.md` 保留两条线的总览与事故复盘。
+一键执行：`pwsh -File promote.ps1 -Repo dsh-client-ui-quote -Tag vX.Y.Z`（测试 → 推 `main` → 打标签 → 核对远端三个 ref）。仓库内的 `skills/release/SKILL.md` 把「推 main / 发版 / 失败处理 / 验收」固化成逐步清单，日常以这份为准；工作区根的 `PLUGIN-WORKFLOW.md` 保留推送通道与事故复盘（里面的双分支拓扑是 0.12.9 之前的历史）。
 
 **发布运维备忘**（给未来的自己）：
 
@@ -362,7 +362,7 @@ cordis.patch.yml      组合包层补丁：插入 ui-quote 这个 loader 条目
 lib/index.js          host 半：只提供隐藏侧聊线程的创建路由（/ui-quote/api/sidechat.start）
 lib/client.js         客户端全部功能：vendor-CJS 工厂 + 浮层（三项动作）+ 输入框芯片 + 发送后胶囊 + 原文高亮/聚合条 + 侧边对话接线 + 引用清单页（含多选插入）
 .github/workflows/test.yml  push / PR 的 Node 18/20/22 测试门
-skills/release/SKILL.md    推送与发版清单（lab 日常推送 / main 快进 / promote.ps1 -Tag / Release 验收）
+skills/release/SKILL.md    推送与发版清单（推 main / canary 自动预发布 / promote.ps1 -Tag / Release 验收）
 locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
