@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- **临时诊断路由 `POST /ui-quote/api/resume.diag`**（同源围栏内，只读诊断）：在宿主进程里直接调 `agents.resume`，把被 `subagent/not-resumable` 吞掉的真实错误原样带回——用于定位 issue #2（隐藏侧聊线程首次发送即失败）。定完位就删。
+- 离线断言 **710 组**（check 12 + capsule 489 + panel 163 + host 46）；新增 2 组：诊断路由对「父会话不在线」的答复、以及把 `resume` 的 `message` / `code` / `cause` 原样回传。
+
 ### Changed
 
 - 删掉 canary 预发布频道：`main` 的 push 只跑测试，不再往 npm 发 `-lab.N`（它占了全部 62 个版本里的 45 个）。发版只在打 `v*` 标签时发生；`lab` dist-tag 冻结在 `0.13.1-lab.61`，老命令仍可安装但不再更新。要验证打包产物用本机 `npm pack` 后装 tarball。

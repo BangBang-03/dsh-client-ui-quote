@@ -236,6 +236,12 @@ function makeCtx(overrides = {}) {
 	const services = {
 		agents: {
 			get: (id) => (id === "session-parent" ? parentAgent : undefined),
+			resume: async ({ resumeSessionId }) => {
+				if (resumeSessionId === "session-broken") {
+					throw Object.assign(new Error("agents.resume exploded"), { code: "NOT_RESUMABLE", cause: new Error("the underlying cause") });
+				}
+				return { agent: { session: { id: resumeSessionId } }, dispose: async () => disposed.push(resumeSessionId) };
+			},
 			create: async (options) => {
 				created.push(options);
 				return {
@@ -378,6 +384,27 @@ check(
 	"a start over HTTP returns the child",
 	createdResponse.status === 200 && JSON.parse(createdResponse.body).ok === true && JSON.parse(createdResponse.body).value.parentId === "session-parent",
 	createdResponse.body
+);
+
+const diagNoParent = response();
+await handleSideChatRequest(http.ctx, request("POST", "/ui-quote/api/resume.diag", { parentSessionId: "session-other", childSessionId: "session-child" }), diagNoParent, new Map());
+check(
+	"the resume diagnostic reports an offline parent",
+	diagNoParent.status === 200 &&
+		JSON.parse(diagNoParent.body).value.parentLive === false &&
+		JSON.parse(diagNoParent.body).value.reason === "the parent session is not live",
+	diagNoParent.body
+);
+const diagFailed = response();
+await handleSideChatRequest(http.ctx, request("POST", "/ui-quote/api/resume.diag", { parentSessionId: "session-parent", childSessionId: "session-broken" }), diagFailed, new Map());
+const diagFailedBody = JSON.parse(diagFailed.body);
+check(
+	"the resume diagnostic hands back the host's own error",
+	diagFailed.status === 200 &&
+		diagFailedBody.value.error.message === "agents.resume exploded" &&
+		diagFailedBody.value.error.code === "NOT_RESUMABLE" &&
+		diagFailedBody.value.error.cause === "the underlying cause",
+	diagFailed.body
 );
 
 // ---- registration and teardown ------------------------------------------

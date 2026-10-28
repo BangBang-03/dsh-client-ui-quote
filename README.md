@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**708 项**：check 12 + capsule 489 + panel 163 + host 44），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**710 项**：check 12 + capsule 489 + panel 163 + host 46），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -165,7 +165,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：708 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：710 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
@@ -212,10 +212,10 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，708 组
+npm test          # check + capsule + panel + host，710 组
 ```
 
-合计 **708 组**（check 12 + capsule 489 + panel 163 + host 44），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **710 组**（check 12 + capsule 489 + panel 163 + host 46），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 
