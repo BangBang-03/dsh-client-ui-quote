@@ -494,6 +494,10 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 - **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 706 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。原生侧聊页签的 `SessionProvider` / `conversation.content` 嵌入契约还需要在真实窗口里重开一次侧边对话确认（离线桩只覆盖注册、地址、标题与 retain/release，不渲染宿主组件）。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。
 
+## 贡献
+
+PR 目标分支是 `main`，标题写成 `fix(quote): 中文说明` 这类口径（合并方式是 squash，**PR 标题会直接变成主干提交的标题**），描述会变成提交正文。提交前跑 `node --check lib/client.js && npm test`。完整规则见 [`CONTRIBUTING.md`](CONTRIBUTING.md)，红线见 [`AGENTS.md`](AGENTS.md)。
+
 ## 变更记录
 
 见 [CHANGELOG.md](CHANGELOG.md)。
