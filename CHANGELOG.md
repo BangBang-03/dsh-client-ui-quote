@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+_（下一轮）_
+
+## 0.13.1 — 2026-10-29
+
 ### Fixed
 
 - **隐藏侧聊线程首次发送必失败**（issue #2）：种子里那个「收口的小回合」从未真正请求过模型，子会话因此没有 `modelSelection` 投影，标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value for this assembly (section "deployment:persona-prefix")` 结束。现在创建线程时按宿主自己的做法（`api-session-controller`）补两件事：`setup` 里装 `system-prompt/assemble` 钩子注入 `provider` / `model`，种子里追加一条 `model/selection` 让投影有值（重建时也读得到）。父会话的模型路由本来就取到了，只是没落到子会话。
