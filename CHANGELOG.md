@@ -9,8 +9,15 @@ _（下一轮）_
 ### Added
 
 - **界面语言开关**（`language`）：`"auto"`（默认）跟随宿主语言，`"zh"` / `"en"` / `"ru"` 把本插件文案固定为中文 / 英文 / 俄文，不受宿主设置影响。`translateFor()` 在 `auto` 之外直接查对应词典，缺失的键回退为键名而不是另一种语言。新增 5 组断言（默认 auto、固定 ru、固定 en、非法值丢弃、恢复 auto）。
-- 离线断言 **727 组**（check 12 + capsule 505 + panel 163 + host 47）。
-- **俄语词典（`ru`）**：`lib/client.js` 新增 `ru` 词典并以 `ctx.locale.register(NS, { zh, en, ru })` 注册，新增 `locale/ru.json`（卡片标题与描述），README 的语言说明改为「中文/英文/俄文」，`test/check.mjs` 的 locale 目录校验扩到 `zh`/`en`/`ru`。此前俄语界面回退到中文。
+- **俄语词典（`ru`）**：合并社区 PR #3（[@skyfishalex](https://github.com/skyfishalex)）——`lib/client.js` 的 `ru` 词典（85 键）、`locale/ru.json`（卡片标题与描述）、`test/check.mjs` 的 locale 目录校验扩到 `zh`/`en`/`ru`；README 的语言说明改为「中文/英文/俄文」。此前俄语界面回退到中文。
+
+### Changed
+
+- 合并后补齐 `ru` 词典里缺的 `sideChatEmpty`（贡献者分支早于 0.13.4 才有的键），并把 `locale/README.md` 与 `CONTRIBUTING.md` 里「两份字典成对」的约定扩到三语。
+
+### 断言
+
+离线断言 **727 组**（check 12 + capsule 505 + panel 163 + host 47）。
 
 ## 0.13.4 — 2026-10-29
 
