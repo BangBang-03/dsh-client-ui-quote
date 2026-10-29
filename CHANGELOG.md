@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- **隐藏线程首次发送仍报 `subagent/not-resumable`**（issue #2 的第一层原因，0.13.2 之后仍在）：创建后我们一直持有子 agent 的活句柄，而侧聊页发送走宿主 subagent manager 的 `agents.resume()`——它要从磁盘再打开同一个会话，活着的写句柄让这次打开失败，manager 把它统一包成 `not-resumable`。现在创建完、定完标题就 `dispose()`，只把会话留在磁盘上。断言 711 组不变（「disposer 被保留」改写为「创建后立即释放」）。
+
 _（下一轮）_
 
 ## 0.13.3 — 2026-10-29

@@ -343,7 +343,11 @@ check(
 );
 check("the inherited inbox is cleared", main.cleared.length === 1 && main.cleared[0] === started.childId, JSON.stringify(main.cleared));
 check("the host session title is pinned to the quote", main.titles.length === 1 && main.titles[0].title === "Side: 第一段引用", JSON.stringify(main.titles));
-check("the created child's disposer is kept", main.disposed.length === 0, JSON.stringify(main.disposed));
+check(
+	"the child is released right after creation",
+	main.disposed.length === 1 && main.disposed[0] === started.childId,
+	JSON.stringify(main.disposed)
+);
 
 const missingParent = makeCtx({ agents: { get: () => undefined, create: async () => { throw new Error("must not create"); } } });
 let notLive = null;
