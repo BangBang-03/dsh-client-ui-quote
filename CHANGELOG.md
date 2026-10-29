@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Added
+
+- **俄语词典（`ru`）**：`lib/client.js` 新增 `ru` 词典并以 `ctx.locale.register(NS, { zh, en, ru })` 注册，新增 `locale/ru.json`（卡片标题与描述），README 的语言说明改为「中文/英文/俄文」，`test/check.mjs` 的 locale 目录校验扩到 `zh`/`en`/`ru`。此前俄语界面回退到中文。
 
 ## 0.13.4 — 2026-10-29
 
