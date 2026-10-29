@@ -27,7 +27,7 @@ npm test          # 715 组离线断言，必须全绿
 - `node --check lib/client.js && npm test` 全绿。
 - **新增行为必须带断言**；**不许删断言、也不许放宽期望值换绿**。
 - 断言数量变了：README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ [`test/README.md`](test/README.md) + [`CHANGELOG.md`](CHANGELOG.md) 各一处一起改。
-- 改了界面文案：`lib/client.js` 的 `zh`/`en`、`locale/zh.json`、`locale/en.json`、README 功能表一起改（中英成对）。
+- 改了界面文案：`lib/client.js` 的 `zh`/`en`/`ru`、`locale/zh.json`、`locale/en.json`、`locale/ru.json`、README 功能表一起改（三语成对）。
 - **不要改 `package.json` 的 `version`**：版本号由维护者在发版提交里统一改。
 
 ## 最容易踩的几条红线（全文见 AGENTS.md）

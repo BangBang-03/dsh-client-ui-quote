@@ -3489,6 +3489,31 @@ try {
 	testing.setConfig({ minChars: 1, attribution: true });
 	check("the switches go back", testing.config().minChars === 1 && testing.config().attribution === true, JSON.stringify(testing.config()));
 
+	// ---- interface language -------------------------------------------------
+	check("the language follows the host by default", defaults.language === "auto", JSON.stringify(defaults.language));
+	const pinned = testing.setConfig({ language: "ru" });
+	check(
+		"a pinned language is accepted and translated",
+		pinned.language === "ru" && testing.translateFor(null, "cancel") === "Отмена",
+		JSON.stringify({ language: pinned.language, cancel: testing.translateFor(null, "cancel") })
+	);
+	check(
+		"a pinned English dictionary wins over the host",
+		testing.setConfig({ language: "en" }).language === "en" && testing.translateFor(null, "cancel") === "Cancel",
+		JSON.stringify(testing.translateFor(null, "cancel"))
+	);
+	check(
+		"an unknown language falls back to auto",
+		testing.setConfig({ language: "de" }).language === "auto",
+		JSON.stringify(testing.config().language)
+	);
+	const restored = testing.setConfig({ language: "auto" });
+	check(
+		"auto follows the host again",
+		restored.language === "auto" && testing.translateFor(null, "cancel") === "取消",
+		JSON.stringify({ language: restored.language, cancel: testing.translateFor(null, "cancel") })
+	);
+
 	const probe = globalThis.window.__dshQuote;
 	check(
 		"the probe handle is installed",

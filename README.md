@@ -74,7 +74,7 @@
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.4**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.14.0**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -88,7 +88,7 @@ npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国�
 
 1. 把包装进 profile：`cd <DSH_HOME>/profiles/<profile> && pnpm add dsh-client-ui-quote`；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
-   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.13.4"`（安装器会写）；
+   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.14.0"`（安装器会写）；
    - `dsh.profile.bundles` 追加 `"dsh-client-ui-quote"`；
 3. 重启 DSH（profile 打开 `patchReload` 时也会自动重载）。
 
@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**715 项**：check 12 + capsule 493 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**727 项**：check 12 + capsule 505 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -146,6 +146,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 | `attribution` | `true` | 是否把可读的来源头（`引自第 N 轮 · 助手`）写进发给模型的线格式；关掉后仍保留可跳回的坐标。 |
 | `highlight` | `true` | 是否绘制原文侧高亮。 |
 | `sideChatBackend` | `"native"` | 侧边对话后端：`"native"`（默认）优先用宿主半的内置隐藏线程，失败后退回 fork + 本插件页签；`"better"` 优先用 dsh-better-sidebar 的侧聊。两种设置都不要求装 better-sidebar。 |
+| `language` | `"auto"` | 本插件的界面语言。`"auto"` 跟随宿主语言（宿主没有对应词典时回退中文）；`"zh"` / `"en"` / `"ru"` 固定为中文 / 英文 / 俄文，不受宿主设置影响。 |
 
 调试句柄在浏览器控制台里可用：
 
@@ -165,7 +166,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：715 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：727 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
@@ -214,10 +215,10 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，715 组
+npm test          # check + capsule + panel + host，727 组
 ```
 
-合计 **715 组**（check 12 + capsule 493 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **727 组**（check 12 + capsule 505 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 
