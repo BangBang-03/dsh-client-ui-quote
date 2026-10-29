@@ -85,8 +85,9 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 
 第三项是本插件自己的扩展（Kimi 的浮层只有两项），融合了三家 agent 同类组件的优点：**Kimi Code 的 `/btw` 侧边聊天**——一键在侧边栏开一条继承主会话上下文的线程；**Qoder 的「在侧边任务中提问」**——同一会话进行中的创建请求自动并入第一次，失败只弹一条提示，绝不大张旗鼓；**WorkBuddy 的划选引用**——引用是线程里持久的内容，而不是一次性的草稿附件。与前两家不同的是**问什么由你来写**：引用只落进那条线程的输入框，不会被当成第一条消息替你发出去。样式上第三项用 DeepSeek 的鲸鱼蓝（`#4d6bfe`）画图标与悬停色，白底浅色主题是主基调，深色主题同一色相。
 
-- **内置隐藏线程（默认）**：本插件的宿主半注册 `POST /ui-quote/api/sidechat.start`（同源围栏 `connection.requestRejection`，探针返回可用性）。正式调用时从在线父会话取**最近几轮用户与助手的原话**（跳过工具事件与注入上下文，上限 8000 字），做成一条 `source.kind = "session-context"` 的 `user/message`，包在一个已收口的小回合里（有回合才不是 `blank`，否则宿主渲染欢迎页），再用宿主 `agents.create` 建一个 **`origin: "subagent"`** 的子会话；descriptor 与会话标题都用 `Side: <引用首行>`。**不复制父会话日志**，所以侧聊里看不到主会话那一长串历史。会话列表隐藏它，页签用宿主内置的 `subagentchat` 页打开（`dsh-resource://subagentchat/session/<child>?parent=<sessionId>&mode=continuable`），引用以**原生芯片**写进它的草稿（宿主没有芯片面时退回块引用），不写任何可见的边界文案——「只作背景、别继续执行」的指令在隐性上下文里。
-- **父会话在线时可继续**：隐藏线程是 `continuable` 子会话，父会话在线时内置页自己的输入框、流式输出与工具调用都能用；父会话关闭后该页按宿主规则只读，重新打开父会话即可继续。这个限制来自宿主的内置 `subagentchat` 页，不是本插件的额外依赖。
+- **内置隐藏线程（默认）**：本插件的宿主半注册 `POST /ui-quote/api/sidechat.start`（同源围栏 `connection.requestRejection`，探针返回可用性）。正式调用时从在线父会话取**最近几轮用户与助手的原话**（跳过工具事件与注入上下文，上限 8000 字），做成一条 `source.kind = "session-context"` 的 `user/message`，放进一个收口回合；回合的第一条是**空内容的 `system/message`**（受保护的系统头），上下文排在它后面——首个真实回合的 `system/message` 只有在这个头之后才合法，否则重载时报 `system/message requires a protected first surface head`、之后每次发送都 `subagent/not-resumable`（v4 的回合缺这个头，v5 没有回合，都栽在这里）。再用宿主 `agents.create` 建一个 **`origin: "subagent"`** 的子会话；descriptor 与会话标题都用 `Side: <引用首行>`。**不复制父会话日志**，所以侧聊里看不到主会话那一长串历史。会话列表隐藏它，页签用本插件自己的 `quote-sidechat` 页打开（`dsh-resource://quote-sidechat/session/<child>?parent=<sessionId>&mode=continuable`；页体渲染宿主的嵌入式 `conversation.content`），宿主缺页签注册能力时退回内置 `subagentchat` 页。自营页固定 `hero: false`；v6 种子带收口回合，子会话通常不是 `blank`；若宿主仍判 `blank`，`ConversationSession` 返回 null（视图区没有 DOM），视图槽里的空态块负责撑住布局、把输入条留在页底，引用以**原生芯片**写进它的草稿（宿主没有芯片面时退回块引用），不写任何可见的边界文案——「只作背景、别继续执行」的指令在隐性上下文里。
+- **父会话在线时可继续**：隐藏线程是 `continuable` 子会话，父会话在线时自营页自己的输入框、流式输出与工具调用都能用；自营页固定 `hero: false`（宿主 `ConversationContent` 在 hero 为真时只画欢迎页与禁用输入条），phase 走 `settling → active`；v6 种子带收口回合，子会话直接是聊天页，宿主仍判 `blank` 时空态兜底；父会话关闭后是否可写由宿主对 `continuable` 子会话的规则决定（通常只读），重新打开父会话即可继续。这个限制来自宿主对子会话的规则，不是本插件的额外依赖。
+- **子 agent 创建后立即释放**：宿主的子代理 resume（打开页签时的历史加载、内置页的发送）要从磁盘冷开子会话，活句柄会让它失败并报 `subagent/not-resumable`——真机里 v6 种子建出的子会话本身已通过存储校验器，仍因活句柄在历史加载时被拒。现在创建完、定完标题就 `dispose`，只把会话留在磁盘上；自营页的发送走标准会话路径，同样从磁盘打开这份合法的日志。
 - **共享 `Side:` 约定**：与 dsh-better-sidebar 的侧聊线程使用同一套持久约定（`origin: "subagent"` + `Side: ` 标题）。装不装 better-sidebar 都不冲突：它的自动打开会忽略这类标题；它的侧聊列表也会列出我们的线程，我们的引用清单也会扫到它的 `Side:` 线程。路由、存储键与 descriptor provider（`ui-quote`）全部独立。
 - **回退链**：宿主半不可用（旧宿主、`agents.create` 失败、父会话不在线）→ `sessions.fork` + 本插件 `quote-sidechat` 页签（线程以普通 fork 出现在会话列表）→ better-sidebar（仅显式 `sideChatBackend: "better"` 或最后兜底）→ 无。所有后端都只写草稿、不发送。
 - **写进输入框**：页签打开后，`ctx.get("conversation").input.shell(childId)` 拿到子会话的输入框外壳（`SessionInputShell`），走与主输入框同一条 `prefillQuoteDraft`：外壳有 `insertReference` 时写**原生引用芯片**（芯片的 `ref` 里带那条引用的线格式，发送时由 `codec.serialize` 还原，和主会话完全同形），没有芯片面时退回**纯块引用**（`>` 逐行前缀，不带 `❝` 标记——那两个标记是主会话胶囊增强器的识别符，侧边线程用不上）。输入框里已经有你写的内容时，引用接在下面、空行隔开；**不发送，也不碰别的东西**。子会话的输入框要等页签挂载后才存在（`shell(id)` 在此之前会抛「resolved no binding」），所以这里按 200ms 轮询等它出现；外壳在而 `setDraft` / `insertReference` 都不在（版本对不上）则立刻放弃，不空等 5 秒。
@@ -128,7 +129,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 | 同类 | 它做什么 | 我们的取舍 |
 | --- | --- | --- |
 | `@changfenhuang/dsh-annotation`（3513/月，148★） | 最短路径「选中→批注→逐条回应」；文件预览也能批注 | 保留评论+引用同一颗胶囊，多出清单/侧线程/修订；它的低摩擦值得学 |
-| `dsh-sidenote`（3752/月） | 原生侧栏 + 多侧聊 + 划选注释 + 结论回流/存为正式会话 | 已做线程清单与「带回主会话」；默认就是内置隐藏线程（宿主半 + 内置 subagentchat 页 + 隐性上下文），fork 是退路 |
+| `dsh-sidenote`（3752/月） | 原生侧栏 + 多侧聊 + 划选注释 + 结论回流/存为正式会话 | 已做线程清单与「带回主会话」；默认就是内置隐藏线程（宿主半 + 自营 quote-sidechat 页 + 隐性上下文），fork 是退路 |
 | `@kirkchinese/dsh-citeciter`（2028/月） | 每次划选一个持久只读 Topic + 草稿自动保存/多窗口合并 | 不做完整 Topic 系统；「新开线程」与草稿持久化已补 |
 | `dsh-quote-annotate-pro`（2126/月） | 发送后引用块常显 3 行 + 自动编号 + 回合尾引用 | 坚持胶囊+悬停卡；回合尾引用已补，常显块不做默认 |
 | `dsh-select-quote`（1212/月） | 待发批注按会话持久化，逐条编辑/删除/清空 | 聚合条已支持逐条编辑/移除、完整无障碍名与跨刷新恢复；删除优先用宿主 `consumeToken` 精确区间 |
@@ -139,7 +140,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 **2026-10-20 复扫补记**（同一份 6,084 条市场快照，补读上轮未收录的 11 款）：
 
 - `dsh-sidecard-ask`（3,217/月，10-10 上架）：把「划词 → 独立子代理作答 → 侧边卡片」做成完整承载链（better-sidebar → 原生右栏/内置浮层兜底），说明侧边问答已是独立赛道；我们的侧边对话仍是引用附属，不扩成通用问答。
-- `dsh-side-chat-plus`（1,920/月）与 `dsh-sidenote` 0.6：都把侧聊放进原生右栏；我们的「一条主会话一条线程 + 隐性上下文」仍是差异化，默认已改成宿主半创建的隐藏子会话 + 宿主内置 `subagentchat` 页（fork 与 better-sidebar 都是退路/增强）。
+- `dsh-side-chat-plus`（1,920/月）与 `dsh-sidenote` 0.6：都把侧聊放进原生右栏；我们的「一条主会话一条线程 + 隐性上下文」仍是差异化，默认已改成宿主半创建的隐藏子会话 + 自营 `quote-sidechat` 页（fork 与 better-sidebar 都是退路/增强）。
 - `dsh-quote-reply`（GitHub 安装）：把引用放到输入框上方的独立层，经 `systemPrompt.context` 注入、回合尾显示「引用(N)」；我们坚持把坐标写进消息文本，换取导出/审阅/跨刷新，不改架构。
 - `dsh-selection-quote`（594/月）与 `dsh-xwide-annotation`（1,148/月）：分别补了右键菜单/持续选区高亮与每条颜色/大纲；我们的清单已是大纲，颜色不是主线，右键菜单也不比现有浮层快。
 - `dsh-code-quote`（776/月，粘贴 `路径:行` + 代码 → chip + pre-step 快照）与 `dsh-quote-to-agent`（引用分派子代理）是相邻赛道，不并入；`dsh-web-annotator`/`dsh-image-annotate` 进一步证明图片/网页批注应独立成插件。
@@ -150,7 +151,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 - **「引用 + 评论合成单一可交互胶囊」**：仍是本插件独有；`dsh-annotation` 证明「选中→批注→逐条回应」有需求，差异在我们的**胶囊 + 清单 + 线程**组合，而不是单点机制。
 - **待发引用管理**：`dsh-select-quote` 的按会话持久化、逐条编辑/删除/清空是这一格的老大；本插件现在补齐了**逐条编辑**（`✎` 回填原引用与评论，旧芯片让位、新芯片原地插入）与**跨刷新恢复**（芯片索引落本机，宿主恢复草稿芯片后它们重新算是我们的引用），我们不提供「一键清空全部」——按条删除更不容易误伤，删除与编辑都在草稿上方的聚合条里做。
 - **代码引用回跳**：`@u2a5f` 已经读源文件算精确行号，`dsh-annotation` 能对文件预览批注并恢复；我们的卡片/清单现在显示 `文件预览 · path#Lx-Ly` 并能打开预览定位起始行、标出被引的行，还差 Markdown 预览的读源行号（要声明 `remote`，风险大于收益，先不做）。
-- **多侧线程/原生侧栏**：`dsh-sidenote`/`CiteCiter` 已把多 Topic、草稿保存做完整；我们现在是**一条主会话一条线程**（清单页列出全部线程），默认后端是**宿主半创建的隐藏子会话**（`origin: "subagent"` + 宿主内置 `subagentchat` 页，不出现在会话列表），fork 与 better-sidebar 是退路/增强。
+- **多侧线程/原生侧栏**：`dsh-sidenote`/`CiteCiter` 已把多 Topic、草稿保存做完整；我们现在是**一条主会话一条线程**（清单页列出全部线程），默认后端是**宿主半创建的隐藏子会话**（`origin: "subagent"` + 自营 `quote-sidechat` 页，不出现在会话列表），fork 与 better-sidebar 是退路/增强。
 - **图片/截图**：`dsh-selection-toolbar` 与 Kimi 桌面端已经支持；我们仍是纯文本引用。
 - **「原地编辑已发送的批注」**：DSH 仍没有编辑已发送消息的 API（侦察确认 `editMessage`/`updateMessage`/`rewriteMessage` 全树 0 命中），本插件走**追加式修订**；`dsh-plugin-message-edit` 走的是另一条路（原地保存 + 分支重生成 + 版本时间线），两条路线不冲突。
 
@@ -191,9 +192,9 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，489 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，493 项断言）
 test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 文件路径打开 + 侧边线程回流 + 审阅工作台（状态 / 标签 / 批量）+ JSON 导出 + 本地索引 + 底部 Star 链接，163 项断言）
-test/host.mjs         离线自检（宿主半：标签 / 隐性上下文种子（切点 + 一个收口回合包着上下文消息 + descriptor；只带用户与助手的原话、8000 字上限、跳过注入上下文）/ 空日志兜底 / 继承切点与 descriptor 顺序 / agents.create 参数 / 探针 / 围栏 / 路由注册与卸载，44 项断言）
+test/host.mjs         离线自检（宿主半：标签 / 隐性上下文种子（切点 + 收口回合：空 system 头 → 上下文消息 → descriptor；只带用户与助手的原话、8000 字上限、跳过注入上下文）/ 空日志兜底 / 继承切点与 descriptor 顺序 / agents.create 参数 / 探针 / 围栏 / 路由注册与卸载，47 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选）
 ```
 
@@ -206,9 +207,9 @@ test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选�
 
 这一轮补掉了最后一个明确的代码缺口（宿主 `consumeToken` 精确删芯片）；剩下的是取舍与人工动作：
 
-- **侧边对话的冷启动续聊**：内置隐藏线程已经解决「不装 better-sidebar 也能把线程藏出会话列表」；剩余的是父会话关闭后的继续提问——宿主内置 `subagentchat` 页在父会话离线时只读，要完全对齐 better-sidebar 需要再搬一套 `agents.resume` / prompt 路由与自己的输入框，属于下一阶段。
+- **侧边对话的冷启动续聊**：内置隐藏线程已经解决「不装 better-sidebar 也能把线程藏出会话列表」；剩余的是父会话关闭后的继续提问——宿主渲染的会话页在父会话离线时只读，要完全对齐 better-sidebar 需要再搬一套 `agents.resume` / prompt 路由与自己的输入框，属于下一阶段。
 - **Markdown 预览的行号**：要精修就得读源文件，而客户端必须声明 `remote` 才能拿到它；声明错会让 client bundle 在不匹配的宿主上**静默失效**（`dsh-quote-annotate` 上游就是这么死的）。所以先不声明——文件仍然打开，只是落在顶部而不是行上。
 - **表格/列表/LaTeX 的结构保真**：链接与行内代码已做；表格要还原成 Markdown 表格，列表要还原成缩进，成本明显更高，留到有人真的需要时再做。
 - **图片/截图引用**：明确不做（理由见「本插件不做的」）。真要做请独立成插件：图片引用要的是另一套胶囊/卡片/附件语义。
-- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 711 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。原生侧聊页签的 `SessionProvider` / `conversation.content` 嵌入契约还需要在真实窗口里重开一次侧边对话确认（离线桩只覆盖注册、地址、标题与 retain/release，不渲染宿主组件）。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
+- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 715 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。真机证据把 v5 种子的缺陷钉死了：隐藏子会话（v5，无回合）在真实窗口里跑完了一个回合（6 条助手消息、工具调用、`turn/end` completed），但**第二次发送**时存储层重载日志，报 `stored log corrupt: SessionFormatError: system/message requires a protected first surface head`，客户端收到 `subagent/not-resumable`。原因是会话存储把**第一个 surface 节点**当作受保护的系统头，而 v5 种子的首个 surface 节点是上下文 `user/message`。v6 种子（收口回合，第一条是空 `system/message` 头）已用宿主的 `assertReleasedV4Relationships` 与真 `Session` 构造器验证 **10/10**（含首个回合 append / replace 两种写法）；持久化 worker 的真实读取路径（`verifyJsonlCurrentGeneration`，就是报这条错的那个校验器）也接受了 v6 种子、v6 + 首回合、v6 + 两个回合（第二次发送的场景），并用这条真实 v5 日志复现了原来的 `system/message requires a protected first surface head` 拒绝。随后真机用 v6 种子建出的子会话（12:00）被存储校验器接受，但打开页签时的历史加载仍报 `subagent/not-resumable`——子 agent 当时还被保活，活句柄挡住了宿主的子代理 resume。改为创建后立即释放后，冷开路径合法；真实的第二次发送、页面视觉效果与重启后的冷启动仍需在窗口里复核。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。

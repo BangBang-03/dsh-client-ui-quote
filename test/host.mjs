@@ -72,26 +72,32 @@ const closedLog = [
 const { seed: plainSeed, inheritedEventCount: plainCut } = buildThreadSeed(closedLog, { label: "Side: 第一段", now: 100, agentProvider: "p", agentModel: "m", agentReasoningEffort: "high" });
 check(
 	"the seed carries no copied history",
-	plainSeed.length === 7 &&
-		plainSeed.map((event) => event.type).join(",") === "session/end-seed,turn/start,step/start,user/message,step/end,turn/end,subagent/descriptor",
+	plainSeed.length === 8 &&
+		plainSeed.map((event) => event.type).join(",") === "session/end-seed,turn/start,step/start,system/message,user/message,step/end,turn/end,subagent/descriptor",
 	plainSeed.map((event) => event.type).join(",")
 );
 check(
-	"the context rides inside one closed turn, so the session is not blank",
+	"the seed opens with a protected system head inside one closed turn",
 	plainSeed[1].type === "turn/start" &&
-		plainSeed[1].data.turn === 1 &&
 		plainSeed[2].type === "step/start" &&
-		plainSeed[4].type === "step/end" &&
-		plainSeed[5].type === "turn/end" &&
-		plainSeed[5].data.reason.kind === "done",
-	JSON.stringify(plainSeed.slice(1, 6).map((event) => event.type))
+		plainSeed[3].type === "system/message" &&
+		plainSeed[3].surfaceOp === "append" &&
+		plainSeed[3].data.turn === 1 &&
+		plainSeed[3].data.step === 1 &&
+		plainSeed[3].data.message.role === "system" &&
+		plainSeed[3].data.message.content.length === 0 &&
+		plainSeed[3].data.message.source.kind === "system-prompt" &&
+		plainSeed[5].type === "step/end" &&
+		plainSeed[6].type === "turn/end" &&
+		plainSeed[6].data.reason.kind === "done",
+	JSON.stringify(plainSeed.slice(1, 7).map((event) => event.type))
 );
 check(
 	"the inherited cut is the empty prefix at zero",
 	plainCut === 0 && plainSeed[0].type === "session/end-seed" && plainSeed[0].data.inherited === true,
 	JSON.stringify({ cut: plainCut, marker: plainSeed[0] })
 );
-const contextEvent = plainSeed[3];
+const contextEvent = plainSeed[4];
 const contextText = contextEvent?.data?.content?.[0]?.text ?? "";
 check(
 	"the one message is injected context, not a user prompt",
@@ -168,19 +174,19 @@ check(
 	"an empty parent still yields a usable context",
 	(() => {
 		const { seed } = buildThreadSeed([], { label: "Side: 空" });
-		const text = seed[3].data.content[0].text;
-		return text.includes("还没有可引用的文字") && seed.length === 7;
+		const text = seed[4].data.content[0].text;
+		return text.includes("还没有可引用的文字") && seed.length === 8;
 	})(),
 	"ok"
 );
 check(
 	"the descriptor is last and names the quote and our provider",
-	plainSeed[6].type === "subagent/descriptor" &&
-		plainSeed[6].data.version === 3 &&
-		plainSeed[6].data.mode === "continuable" &&
-		plainSeed[6].data.provider === "ui-quote" &&
-		plainSeed[6].data.label === "Side: 第一段",
-	JSON.stringify(plainSeed[6].data)
+	plainSeed[7].type === "subagent/descriptor" &&
+		plainSeed[7].data.version === 3 &&
+		plainSeed[7].data.mode === "continuable" &&
+		plainSeed[7].data.provider === "ui-quote" &&
+		plainSeed[7].data.label === "Side: 第一段",
+	JSON.stringify(plainSeed[7].data)
 );
 check(
 	"the descriptor sits after the inherited cut, which the host validates",
@@ -189,10 +195,10 @@ check(
 );
 check(
 	"the descriptor carries the parent's route",
-	plainSeed[6].data.agentProvider === "p" &&
-		plainSeed[6].data.agentModel === "m" &&
-		plainSeed[6].data.agentReasoningEffort === "high",
-	JSON.stringify(plainSeed[6].data)
+	plainSeed[7].data.agentProvider === "p" &&
+		plainSeed[7].data.agentModel === "m" &&
+		plainSeed[7].data.agentReasoningEffort === "high",
+	JSON.stringify(plainSeed[7].data)
 );
 check(
 	"the seed's sequence stays contiguous from zero",
@@ -207,12 +213,12 @@ const nestedLog = closedLog.concat([
 ]);
 const { seed: nestedSeed, inheritedEventCount: nestedCut } = buildThreadSeed(nestedLog, { label: "Side: child", now: 70 });
 check(
-	"a nested parent yields the same seven-event seed",
+	"a nested parent yields the same eight-event seed",
 	nestedCut === 0 &&
-		nestedSeed.length === 7 &&
+		nestedSeed.length === 8 &&
 		nestedSeed.filter((event) => event.type === "subagent/descriptor").length === 1 &&
-		nestedSeed[6].data.label === "Side: child" &&
-		!nestedSeed[3].data.content[0].text.includes("Side: parent"),
+		nestedSeed[7].data.label === "Side: child" &&
+		!nestedSeed[4].data.content[0].text.includes("Side: parent"),
 	JSON.stringify(nestedSeed.map((event) => event.type))
 );
 
@@ -343,11 +349,7 @@ check(
 );
 check("the inherited inbox is cleared", main.cleared.length === 1 && main.cleared[0] === started.childId, JSON.stringify(main.cleared));
 check("the host session title is pinned to the quote", main.titles.length === 1 && main.titles[0].title === "Side: 第一段引用", JSON.stringify(main.titles));
-check(
-	"the child is released right after creation",
-	main.disposed.length === 1 && main.disposed[0] === started.childId,
-	JSON.stringify(main.disposed)
-);
+check("the child is released right after creation", main.disposed.length === 1 && main.disposed[0] === started.childId, JSON.stringify(main.disposed));
 
 const missingParent = makeCtx({ agents: { get: () => undefined, create: async () => { throw new Error("must not create"); } } });
 let notLive = null;

@@ -6,8 +6,9 @@
 The floating bar opens **under** the selection (above it only when there is no room below) and offers **Comment**,
 **Add to conversation**, and — the plugin's own addition — **Side chat**: the quote is written into the composer of one
 independent side thread per main session. By default the plugin's own host half creates a **hidden** child session
-(`origin: "subagent"`, seeded from the parent's log, absent from the session list) and opens it in DSH's built-in
-`subagentchat` page; when the host half cannot create it, the plugin falls back to a fork in its own native page, and
+(`origin: "subagent"`, seeded from the parent's log, absent from the session list) and opens it in the plugin's own
+native `quote-sidechat` page (DSH's built-in `subagentchat` page remains the fallback when that page type is not
+registered); when the host half cannot create it, the plugin falls back to a fork in the same native page, and
 dsh-better-sidebar stays opt-in via `sideChatBackend: "better"`. Either way it inherits the main session's context and
 opens as a tab in DSH's native right sidebar, drawn in DeepSeek's whale blue. Nothing is sent — the question that
 thread answers stays yours to write, and clicking again appends the next quote to the same thread's draft. The quoted

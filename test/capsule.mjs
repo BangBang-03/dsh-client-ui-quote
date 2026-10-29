@@ -85,7 +85,13 @@ const reactStub = {
 	// which is exactly how the real host hands the plugin a composer.
 	useEffect(fn) {
 		if (typeof fn === "function") fn();
-	}
+	},
+	// Enough of createElement to inspect a component's static tree.
+	Fragment: Symbol.for("react.fragment"),
+	createElement: (type, props, ...children) => ({
+		type,
+		props: { ...(props ?? {}), children: children.length <= 1 ? children[0] : children }
+	})
 };
 const exports_ = spec.factory((name) => {
 	if (name === "react") return reactStub;
@@ -878,10 +884,11 @@ try {
 	globalThis.fetch = realFetch;
 }
 
-// ---- 侧边对话 without better-sidebar: fork + the built-in subagent chat ----
+// ---- 侧边对话 without better-sidebar: fork + a native chat page ----
 // The fallback must not rebuild a chat UI: `sessions.fork` gives a child that
-// inherits the source history, and `sidebarRight.openResource` opens the
-// built-in `subagentchat` tab for it. The quote still lands as a draft only.
+// inherits the source history, and `sidebarRight.openResource` opens a chat
+// tab for it — the built-in `subagentchat` one while our page type is not
+// registered. The quote still lands as a draft only.
 {
 	check("the native side-chat fallback is exported", typeof testing.nativeSideChatRequest === "function" && typeof testing.nativeSideChatAvailable === "function");
 	check("the third row stays available through the native fallback", testing.sideChatAvailable() === true);
@@ -896,7 +903,7 @@ try {
 	await testing.nativeSideChatRequest("session-native-main", "原生侧栏引用", false, null, "");
 	check("the native fallback forks the quoting session", forkCalls.length === 1 && forkCalls[0]?.sessionId === "session-native-main", JSON.stringify(forkCalls));
 	check(
-		"the native fallback opens the built-in subagent chat for the fork",
+		"the native fallback opens the built-in chat while our page is not registered",
 		openedResources.length === 1 && openedResources[0]?.address === "dsh-resource://subagentchat/session/session-native-1?parent=session-native-main&mode=continuable",
 		JSON.stringify(openedResources)
 	);
@@ -912,7 +919,7 @@ try {
 	);
 	openedResources.length = 0;
 	check(
-		"the quote list opens a native fork thread in the built-in chat",
+		"the quote list opens a fork thread while our page is not registered",
 		testing.openThreadTab("session-native-main", "session-native-1") === true &&
 			openedResources.length === 1 &&
 			String(openedResources[0]?.address).includes("session-native-1"),
@@ -945,7 +952,8 @@ try {
 // ---- 侧边对话 built in: the host half creates a hidden subagent thread ----
 // The route is ours (`/ui-quote/api/sidechat.start`); it is asked once whether
 // it is available, then creates a seeded child the session list hides. The
-// quote is still a draft, and the draft opens with the boundary the seed needs.
+// quote is still a draft; the tab is the built-in chat while our page type is
+// not registered.
 {
 	const realHiddenFetch = globalThis.fetch;
 	testing.setBuiltinSideChatState("unknown");
@@ -976,7 +984,7 @@ try {
 			JSON.stringify(fetches[1]?.payload)
 		);
 		check(
-			"the hidden thread opens the host's built-in chat",
+			"the hidden thread opens the built-in chat while our page is not registered",
 			openedResources.length === 1 &&
 				openedResources[0]?.address === "dsh-resource://subagentchat/session/session-hidden-1?parent=session-hidden-main&mode=continuable",
 			JSON.stringify(openedResources)
@@ -1205,7 +1213,7 @@ try {
 		);
 		openedResources.length = 0;
 		check(
-			"the quote list opens a hidden thread in the built-in chat",
+			"the quote list opens a hidden thread while our page is not registered",
 			testing.openThreadTab("session-hidden-main", "session-hidden-1") === true &&
 				openedResources.length === 1 &&
 				String(openedResources[0]?.address).startsWith("dsh-resource://subagentchat/session/session-hidden-1?"),
@@ -3859,6 +3867,21 @@ try {
 	const disposePage = testing.installNativeSideChatPage(fakeHost, fakeSessions);
 	check("the native side chat page installs on a host with the slots", testing.nativeSideChatReady() === true);
 	check("the page keeps its own stylesheet", dom.document.getElementById("dsh-quote-sidechat-style") !== null);
+	check(
+		"the page's view area carries an empty state until the first turn",
+		(() => {
+			const views = testing.SideChatFixedView({ renderSlot: () => null });
+			const children = views?.props?.children;
+			const empty = (Array.isArray(children) ? children : [children]).find((child) => child?.props?.className === "dshq-sidechat-empty");
+			return (
+				empty !== undefined &&
+				typeof empty.props.children === "string" &&
+				empty.props.children.length > 0 &&
+				String(dom.document.getElementById("dsh-quote-sidechat-style")?.textContent ?? "").includes(".dshq-sidechat-empty")
+			);
+		})(),
+		JSON.stringify(testing.SideChatFixedView({ renderSlot: () => null })?.props?.children)
+	);
 	const definition = pageTabs.find((entry) => entry.kind === "quote-sidechat");
 	const address = testing.nativeThreadAddress("session-page-main", "session-page-1");
 	check(
@@ -3891,6 +3914,26 @@ try {
 			typeof conversationBody?.Component === "function",
 		JSON.stringify(tabBody?.spec.children)
 	);
+	// The host's ConversationContent draws the welcome hero (and an inert hero
+	// composer) whenever `hero` is true; a blank child must still get the chat
+	// composer the quote is written into.
+	check(
+		"the page never asks for the hero: a blank child still gets the chat",
+		testing.sideChatPhase({ openState: "open", blank: true }) === "active" &&
+			testing.sideChatPhase({ openState: "open", blank: true, promptAttempted: true }) === "active",
+		JSON.stringify([testing.sideChatPhase({ openState: "open", blank: true }), testing.sideChatPhase({ openState: "open", blank: true, promptAttempted: true })])
+	);
+	check(
+		"the page settles while the child opens or its parent is unresolved",
+		testing.sideChatPhase({ openState: "loading" }) === "settling" &&
+			testing.sideChatPhase({ openState: "open", subagent: { address: { mode: "continuable" } } }) === "settling" &&
+			testing.sideChatPhase({ openState: "open", subagent: { address: { mode: "continuable" }, parentAvailable: true } }) === "active",
+		JSON.stringify([
+			testing.sideChatPhase({ openState: "loading" }),
+			testing.sideChatPhase({ openState: "open", subagent: { address: { mode: "continuable" } } }),
+			testing.sideChatPhase({ openState: "open", subagent: { address: { mode: "continuable" }, parentAvailable: true } })
+		])
+	);
 	const provider = pageProviders.find((entry) => entry.protocol === "quote-sidechat");
 	check("the resource provider is registered under our protocol", provider !== undefined);
 	const controller = new AbortController();
@@ -3906,6 +3949,19 @@ try {
 		testing.openNativeThreadTab("session-page-main", "session-page-1") === true && openedResources[0]?.address === address,
 		JSON.stringify(openedResources[0]?.address)
 	);
+	// The default backend reuses this opener too (creation, reuse and the quote
+	// list), so a hidden child must land on our page while it is registered —
+	// that is the page whose sends reach the live child.
+	openedResources.length = 0;
+	const hiddenPageThread = "session-page-hidden-1";
+	testing.rememberThreadTarget(hiddenPageThread, { kind: "hidden", parentId: "session-page-main", v: testing.HIDDEN_THREAD_VERSION });
+	check(
+		"a hidden thread opens our page once it is registered",
+		testing.openThreadTab("session-page-main", hiddenPageThread) === true &&
+			String(openedResources[0]?.address).startsWith("dsh-resource://quote-sidechat/session/" + hiddenPageThread + "?"),
+		JSON.stringify(openedResources)
+	);
+	testing.rememberThreadTarget(hiddenPageThread, null);
 	nativeForkImpl = async () => "session-page-2";
 	await testing.nativeSideChatRequest("session-page-main-2", "页签标题", false, null, "");
 	const opened = openedResources.find((entry) => String(entry.address).includes("session-page-2"));

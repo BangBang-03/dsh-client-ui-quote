@@ -2,9 +2,15 @@
 
 ## Unreleased
 
+_（下一轮）_
+
+## 0.13.4 — 2026-10-29
+
 ### Fixed
 
-- **隐藏线程首次发送仍报 `subagent/not-resumable`**（issue #2 的第一层原因，0.13.2 之后仍在）：创建后我们一直持有子 agent 的活句柄，而侧聊页发送走宿主 subagent manager 的 `agents.resume()`——它要从磁盘再打开同一个会话，活着的写句柄让这次打开失败，manager 把它统一包成 `not-resumable`。现在创建完、定完标题就 `dispose()`，只把会话留在磁盘上。断言 711 组不变（「disposer 被保留」改写为「创建后立即释放」）。
+- **隐藏线程第二次发送报 `subagent/not-resumable`**（issue #2）：真实原因是会话存储要求**第一个 surface 节点是受保护的系统头**（`system/message` append），而旧种子把上下文 `user/message` 放在最前——首个真实回合的 `system/message` 在重载时被判 `system/message requires a protected first surface head`，之后每次发送都以 `subagent/not-resumable` 失败（v4 的收口回合缺这个头，v5 的无回合种子更不用说）。现在种子是一个收口回合：`turn/start` → `step/start` → **空内容的 `system/message`（头）** → 隐性上下文 → `step/end` → `turn/end` → descriptor（+ 可选 `model/selection`）。**2026-10-29 真机验证通过**：同一线程连发两条，磁盘日志里 system 头是 kind=system-prompt、content=0，turn 2 与 turn 3 都是 completed，各有 request/header。侧边对话在**本插件自己的 `quote-sidechat` 页签**里进行，发送走标准会话路径，从磁盘打开这份合法的日志；子 agent 创建完、定完标题就 `dispose`（活句柄会让宿主的子代理 resume 失败——真机里 v6 子会话的历史加载就是这样被拒的）。隐藏线程形状版本戳升到 `v: 6`，旧线程下一次点击自动替换。断言：种子形状改写为「受保护 system 头 + 收口回合 + 上下文位置」，另有「自营页签注册后 hidden 线程开自营页」1 组。
+- **自营侧聊页的 blank 兜底（v6 种子通常不会走到）**：宿主 `ui-conversation` 的 `ConversationContent` 在 `hero` 为真时渲染欢迎页（「探索未至之境」）与 hero 输入条（未选工作区时禁用），引用芯片落不进去。自营页固定 `hero: false`、phase 走 `settling → active`；宿主若仍把子会话判成 blank，空态块兜底。断言补「blank 子会话仍走聊天态」「打开中/父会话可用性未知时先 settling」2 组。
+- **blank 兜底：视图区没有 DOM 时侧聊页只剩输入卡**（宿主 `ConversationSession` 在 `session.blank` 时直接 `return null`）：输入卡被排到页签栏下方，`引用 ×N` 条盖住页签条。自营页在视图槽里补一个空态块（首条消息后自动隐藏），把输入条放回页底。断言补「视图区空态」1 组。离线断言 **715 组**（check 12 + capsule 493 + panel 163 + host 47）；新增 4 组：自营页签、blank 仍走聊天态、settling、视图区空态。
 
 _（下一轮）_
 

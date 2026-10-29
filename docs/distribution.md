@@ -1,6 +1,6 @@
 # 市场提交信息
 
-> 状态核对：**2026-10-28，`v0.13.3`**。提交动作需要仓库所有者账号；这里是可以直接粘贴的元数据、各渠道的真实入口与待办。
+> 状态核对：**2026-10-28，`v0.13.4`**。提交动作需要仓库所有者账号；这里是可以直接粘贴的元数据、各渠道的真实入口与待办。
 
 ## 身份
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | npm | `dsh-client-ui-quote` |
 | 仓库 | https://github.com/BangBang-03/dsh-client-ui-quote |
-| 版本 | `0.13.3`（发版时同步；最终以 `package.json` 为准） |
+| 版本 | `0.13.4`（发版时同步；最终以 `package.json` 为准） |
 | License | MIT |
 | 图标 | `icon.svg` |
 
@@ -143,4 +143,4 @@ https://github.com/BangBang-03/dsh-client-ui-quote/tree/main/docs/screenshots �
 
 ## 已复核
 
-`npm test` **708 组**离线断言（check 12 + capsule 489 + panel 163 + host 44）；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm 包均加载成功，`__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见、`probe().nativeSideChat === true`；`npm pack --dry-run` 包含 README、四张截图、GIF、`docs/*.md` 与 `submission/`。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。
+`npm test` **715 组**离线断言（check 12 + capsule 493 + panel 163 + host 47）；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm 包均加载成功，`__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见、`probe().nativeSideChat === true`；`npm pack --dry-run` 包含 README、四张截图、GIF、`docs/*.md` 与 `submission/`。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。

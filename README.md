@@ -16,7 +16,7 @@
 2. 在消息、文件预览、终端或 diff 里**选中一段文字**，浮层选「评论」或「添加到对话」。
 3. 发送后回原文看高亮，悬停胶囊可**跳回**、可**复制为 Markdown**；右侧栏「引用清单」（桌面 `Alt+L`）可搜索、导出、审阅。
 
-「侧边对话」默认**不需要 `dsh-better-sidebar`**：本插件的宿主半会建一个 `origin: "subagent"` 的隐藏子会话（不出现在会话列表），再把主会话**最近几轮的原话**作为一条**隐性上下文**注进去——模型有背景，侧聊里却不会把整段历史铺出来。页签用宿主内置的 `subagentchat` 打开，引用以**原生芯片**落进它的草稿（宿主没有芯片面时退回块引用），**仍然只写草稿，不替你发送**。宿主半不可用时自动退回 fork + 本插件页签；想优先用 better-sidebar，把 `sideChatBackend` 设成 `"better"`。
+「侧边对话」默认**不需要 `dsh-better-sidebar`**：本插件的宿主半会建一个 `origin: "subagent"` 的隐藏子会话（不出现在会话列表），再把主会话**最近几轮的原话**作为一条**隐性上下文**注进去——模型有背景，侧聊里却不会把整段历史铺出来。页签用本插件自己的 `quote-sidechat` 打开（宿主缺页签注册能力时退回内置 `subagentchat`），引用以**原生芯片**落进它的草稿（宿主没有芯片面时退回块引用），**仍然只写草稿，不替你发送**。宿主半不可用时自动退回 fork + 本插件页签；想优先用 better-sidebar，把 `sideChatBackend` 设成 `"better"`。
 
 选中正文 → 浮层动作 → 引用变成输入框里的行内胶囊（不是纯文本），评论也放在同一颗芯片里；发送之后，引用和评论**合成一颗胶囊**留在消息里，不会摊成一屏 `>` 行。第三项「侧边对话」则把引用写进右侧栏一条**独立的侧边线程的输入框**（一条主会话一条线程，反复点就反复追加），问什么由你写，主会话一点都不动。评论框里**引用正文本身也可编辑**（选多了当场裁）；从**文件预览、终端或 diff**划选的引用以**围栏代码块**的线格式发给模型，模型看到的是真正的代码块。引用落进草稿后，**原句在来源消息里留下高亮与序号**，输入框上方出现 **`引用 ×N`** 的聚合条；发送块里的坐标行前面还带一段人可读的 **`引自第 N 轮 · 助手`**，模型不用解码就知道这段话从哪来。
 
@@ -44,7 +44,7 @@
 | --- | --- |
 | **评论** | 浮层就地变成评论框（`写一句评论…` + `取消` / `添加到对话`）。评论框里**引用正文也在自己的输入框里、可以改**——选多了就当场裁掉。评论框打开期间，原选区用 Chromium 的 `CSS.highlights` 保持高亮，焦点进了输入框也不会丢参照；不支持该 API 的宿主静默退化，评论框里仍有原文。`Enter` 提交、`Esc` 关闭、引用或评论为空时确认按钮禁用；输入法组合输入不会误触发。 |
 | **添加到对话** | 直接把引用加进输入框，不弹评论框。输入框里已经写好的文字会留在原位：引用落到草稿**最上方**，你的文字另起一行接在下面，光标停在末尾，接着写正式提问即可。 |
-| **侧边对话** | 把引用写进一条**独立的侧边对话**的输入框。默认走**内置隐藏线程**：本插件的宿主半用 `agents.create` 建一个 `origin: "subagent"` 子会话（会话列表不显示它），主会话最近几轮的原话作为**一条可折叠的隐性上下文**注进去，而不是把整条历史铺出来，用宿主内置的 `subagentchat` 页签打开——聊天记录、输入框、流式输出与工具调用全是 DSH 原生的。宿主半不可用（旧宿主 / 父会话不在线 / 创建被拒）时自动退回 `sessions.fork` + 本插件 `quote-sidechat` 页签；把 `sideChatBackend` 设成 `"better"` 才优先走 dsh-better-sidebar。**不装 better-sidebar 也有隐藏线程**；装了也不会冲突，两边共享 `Side: ` 持久约定但路由、存储与 descriptor 各自独立。所有后端都**什么都不发送**，线程独立运行、不污染主会话，页签自动在右侧栏打开。同一条主会话只开一条线程，之后每次点都在同一条线程的草稿后面接着追加。鲸鱼蓝（`#4d6bfe`）的图标是它在浮层里的标识。浮层里**只有一项**「侧边对话」——两个长得一样的入口只会让人犹豫；早期版本按引用分过线程的记录仍会被识别并复用。引用清单页底部会列出这个会话的**全部侧边线程**，每条都能重新打开。 |
+| **侧边对话** | 把引用写进一条**独立的侧边对话**的输入框。默认走**内置隐藏线程**：本插件的宿主半用 `agents.create` 建一个 `origin: "subagent"` 子会话（会话列表不显示它），主会话最近几轮的原话作为**一条可折叠的隐性上下文**注进去（种子里先落一个空的 `system/message` 作系统头，再放这条上下文，都在一个收口回合里），而不是把整条历史铺出来，用本插件自己的 `quote-sidechat` 页签打开（页体渲染宿主的嵌入式会话，固定聊天态，不画宿主的欢迎页；宿主若仍判 blank，视图区用空态兜底）——聊天记录、输入框、流式输出与工具调用全是 DSH 原生的；宿主缺页签注册能力时退回内置 `subagentchat` 页。宿主半不可用（旧宿主 / 父会话不在线 / 创建被拒）时自动退回 `sessions.fork`（同样是本插件的 `quote-sidechat` 页签）；把 `sideChatBackend` 设成 `"better"` 才优先走 dsh-better-sidebar。**不装 better-sidebar 也有隐藏线程**；装了也不会冲突，两边共享 `Side: ` 持久约定但路由、存储与 descriptor 各自独立。所有后端都**什么都不发送**，线程独立运行、不污染主会话，页签自动在右侧栏打开。同一条主会话只开一条线程，之后每次点都在同一条线程的草稿后面接着追加。鲸鱼蓝（`#4d6bfe`）的图标是它在浮层里的标识。浮层里**只有一项**「侧边对话」——两个长得一样的入口只会让人犹豫；早期版本按引用分过线程的记录仍会被识别并复用。引用清单页底部会列出这个会话的**全部侧边线程**，每条都能重新打开。 |
 | **键盘直达** | 桌面端 `Alt+Q` 引用 / `Alt+C` 评论 / `Alt+B` 侧边对话——同一个浮层的三个动作，不弹浮层直接办。走 DSH 的快捷键服务注册，所以出现在设置里、可改键、与宿主键位冲突会在注册时报错；没有选区时返回 `pass`，按键不会被吞掉。 |
 | **原文侧高亮** | 引用落进草稿或发出后，被引用的原句回到**来源消息**里留下淡黄高亮与**序号角标**（序号就是坐标里的同句序号，和 `「引用N」` 对得上）。**芯片被移出草稿（没有发送）时，这块高亮与序号一起收回**——不想添加了就不该在原文上留标记；已经作为胶囊发过的引用不受影响。支持 `CSS.highlights` 的宿主由浏览器**直接绘制高亮**，滚动、流式输出、虚拟列表重排都跟手，不靠逐帧重画去追；不支持时才退回浮层矩形（只画序号徽章）。行不在视口里、文字已经变了、宿主不给 `Range` 时就静默跳过，**不改宿主的 DOM**（高亮不包 `mark`，也不搬节点）。表格单元格、表格行、段落、列表项、`<br>` 这些块级边界按浏览器选区报告的 `\t` / `\n` 对齐，所以跨单元格、跨行、跨段落的引用也能画回来。 |
 | **聚合引用条** | 输入框上方一条 **`引用 ×N`**：每颗芯片一个摘要胶囊，点一下跳回原文（跳不到就把光标放到芯片上，一次退格删掉），悬停就是完整卡片；每条末尾有 **`✎` 编辑**与 **`×` 移除**：编辑把原引用与评论回填进注释框，确认后旧芯片让位、新芯片原地插入；移除优先走宿主自己的 `consumeToken`（按芯片的 detect 区间与 `draftRev` 做 CAS 精确删除，不会碰错别的文本），宿主没有这个读取面或同名芯片无法区分时才退回「聚焦芯片 + 退格」并提示。**移除（或直接退格删掉芯片）之后，如果这条引用从没真正发出去，原句上的高亮与序号也一起收回**；页面上已经有它发出的胶囊时则照旧保留。**整条索引存在本机**：宿主会跨刷新恢复草稿里的芯片，插件的索引也一起恢复，所以刷新后条、卡片与「打开文件」都还在。主会话与侧边线程各自的输入框各有一条；芯片删光时条自己消失。整条带 `role=toolbar`，每颗胶囊的可访问名是完整引用+评论，不是截断后的标签。 |
@@ -74,7 +74,7 @@
 
 ### 方式一：npm 包（推荐）
 
-已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.3**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
+已发布到 npm：`dsh-client-ui-quote`（0.10.0 起上架；稳定版当前 **0.13.4**）。仓库只有一个 `main` 分支：把 `vX.Y.Z` 标签打在 `main` 头上，CI 就发到 npm 的 `latest` 并建 GitHub Release；`main` 的普通 push 只跑测试，不发布。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
@@ -88,7 +88,7 @@ npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国�
 
 1. 把包装进 profile：`cd <DSH_HOME>/profiles/<profile> && pnpm add dsh-client-ui-quote`；
 2. 编辑 `<DSH_HOME>/profiles/<profile>/package.json`：
-   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.13.3"`（安装器会写）；
+   - `dependencies` 里应有 `"dsh-client-ui-quote": "^0.13.4"`（安装器会写）；
    - `dsh.profile.bundles` 追加 `"dsh-client-ui-quote"`；
 3. 重启 DSH（profile 打开 `patchReload` 时也会自动重载）。
 
@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**711 项**：check 12 + capsule 489 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**715 项**：check 12 + capsule 493 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -165,7 +165,7 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：711 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：715 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
@@ -173,10 +173,11 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 - **可选服务注册**：引用源和四个快捷键通过 Cordis `ctx.inject` 等待 `inputTriggers` / `shortcuts`，服务提供者卸载时释放旧注册，重载后在新实例注册。DSH 0.2.1-rc.2 的快捷键注册器会校验所有平台默认值，裸 Alt 的 Web 默认值会使整条命令注册失败，因此仅保留桌面默认绑定。
 
-- **隐藏线程的模型路由**（app.asar 0.2.1-rc.3，issue #2 实测）：种子里的收口回合从未真正请求过模型，子会话因此没有 `modelSelection` 投影；标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value` 失败。0.13.1 起在 `setup` 里按宿主 `api-session-controller` 的做法装 `system-prompt/assemble` 钩子并 append 一条 `model/selection`；线程重建后是否同样生效取决于宿主是否从投影恢复选择，实测前先按「重建后可能仍需重开线程」理解。
+- **隐藏线程的模型路由**（app.asar 0.2.1-rc.3，issue #2 实测）：旧种子里的收口回合从未真正请求过模型，子会话因此没有 `modelSelection` 投影；标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value` 失败。0.13.1 起在 `setup` 里按宿主 `api-session-controller` 的做法装 `system-prompt/assemble` 钩子并 append 一条 `model/selection`；线程重建后是否同样生效取决于宿主是否从投影恢复选择，实测前先按「重建后可能仍需重开线程」理解。
 - **内置隐藏线程依赖宿主内部契约**（app.asar 0.2.1-rc.3 实测）：宿主半 `lib/index.js` 用 `ctx.inject(["webServer"])` 注册 `POST /ui-quote/api/sidechat.start`，在宿主服务就绪后从父会话 `snapshotEvents()` 取原话合成一条隐性上下文（不复制日志），再用 `ctx.get("agents").create({ meta: { parentSession, isSeeded: true, origin: "subagent", delegationDepth, agentPreset }, seed, inheritedEventCount, agentOptions, setup })` 建子会话；descriptor 为 `{version: 3, mode: "continuable", provider: "ui-quote", label}`，标题 `Side: <引用首行>`。`webServer` / `connection.requestRejection` / `agents` 缺失时探针失败，客户端退回 fork；`agents.create` 失败只影响这一条线程。
-  **种子不复制父会话日志，只带一条隐性上下文**：`seed` 固定七个事件——`session/end-seed { inherited: true }`（切点在下标 0）、一个**已收口的小回合**（`turn/start` → `step/start` → 上下文消息 → `step/end` → `turn/end{done}`）、以及 `subagent/descriptor`。那个回合不是摆设：宿主把「一个 turn 都没有」的会话算成 `blank`，`blank` 会话渲染的是欢迎页（探索未至之境）而不是聊天页——没有输入框，引用草稿无处可落，0.12.3-lab.29 就踩了这个坑；有回合才会进正常聊天态。那条消息里是主会话最近若干轮的**纯文本**（用户/助手、上限 8000 字，工具调用与注入上下文都跳过），消息里带一句「只作背景、别继续执行」的指令——所以模型仍有上下文，而侧聊界面只把它折叠成一行「上下文」，不会把整段主会话铺出来，也不再为复制整条日志付一遍 token。宿主读子会话身份时走 `subagent` 投影（最后一次 descriptor 生效），并在 `api-session-controller` 里要求 `identity.seq >= inheritedEventCount`，否则整个子会话的历史都打不开（`subagent/catalog-diagnostic` · "subagent descriptor is unavailable"）——descriptor 必须排在切点之后，0.12.3-lab.26 就是栽在这一步。
-  **旧线程靠形状版本戳识别，不靠 `sessions.retain`**：retain 对这类坏线程**照样成功**（只有历史 RPC 会拒），所以客户端给新建的线程在 `dsh-client-ui-quote:v1:sidechat-target` 里盖当前形状版本（现在是 `v: 4`：收口回合 + 隐性上下文），只复用自己盖过章的线程；better-sidebar 的、旧版本的、清单里扫描发现的线程一律丢弃重建——点一次就自愈，代价是最多重建一条线程。隐藏线程是 `continuable` 子会话，**父会话在线时可继续**；父会话关闭后宿主内置 `subagentchat` 页按自己的规则只读，重新打开父会话即可继续。宿主升级改了 `agents.create` / 种子格式时，线程创建会失败并自动退回 `sessions.fork`，不会白屏或报错。
+  **种子不复制父会话日志，只带一条隐性上下文**：`seed` 固定八个事件（带模型选择时九个）——`session/end-seed { inherited: true }`（切点在下标 0）、一个**收口回合**（`turn/start` → `step/start` → **空内容的 `system/message`** → 上下文消息 → `step/end` → `turn/end{done}`）、以及 `subagent/descriptor`（再加一条可选的 `model/selection`）。**回合的第一条必须是 system 消息**：会话存储把第一个 surface 节点当作受保护的系统头；任何在它之前出现的其它 surface 节点（比如把上下文直接放最前）都会让首个真实回合的 `system/message` 在重载时报 `system/message requires a protected first surface head`，之后每次发送都以 `subagent/not-resumable` 失败——v4 的回合缺这个头、v5 干脆没有回合，都栽在这里。空 system 消息是宿主自己的空提示形状；首个真实回合会替换它，或在其后追加自己的系统提示。那条消息里是主会话最近若干轮的**纯文本**（用户/助手、上限 8000 字，工具调用与注入上下文都跳过），带一句「只作背景、别继续执行」的指令——所以模型仍有上下文，侧聊界面把它折叠成一行「上下文」，不会把整段主会话铺出来，也不再为复制整条日志付一遍 token。宿主读子会话身份时走 `subagent` 投影（最后一次 descriptor 生效），并在 `api-session-controller` 里要求 `identity.seq >= inheritedEventCount`，否则整个子会话的历史都打不开（`subagent/catalog-diagnostic` · "subagent descriptor is unavailable"）——descriptor 必须排在切点之后，0.12.3-lab.26 就是栽在这一步。
+  **旧线程靠形状版本戳识别，不靠 `sessions.retain`**：retain 对这类坏线程**照样成功**（只有历史 RPC 会拒），所以客户端给新建的线程在 `dsh-client-ui-quote:v1:sidechat-target` 里盖当前形状版本（现在是 `v: 6`：收口回合 + 空 system 头 + 隐性上下文 + 自营页签），只复用自己盖过章的线程；better-sidebar 的、旧版本的、清单里扫描发现的线程一律丢弃重建——点一次就自愈，代价是最多重建一条线程。隐藏线程是 `continuable` 子会话，**父会话在线时可继续**；父会话关闭后是否还能写由宿主对 `continuable` 子会话的规则决定（通常只读），重新打开父会话即可继续。宿主升级改了 `agents.create` / 种子格式时，线程创建会失败并自动退回 `sessions.fork`，不会白屏或报错。
+  **自营页的 hero 契约**（app.asar 0.2.1-rc.3，`ui-conversation` 的 `ConversationContent` 实测）：`hero` 为真时宿主渲染欢迎页（「探索未至之境」）与 hero 输入条，未选工作区时输入条禁用——引用芯片无处可落。自营页固定 `hero: false`、phase 走 `settling → active`。v6 种子自带收口回合，子会话通常不是 `blank`；宿主若仍把它判成 `blank`（例如旧宿主忽略了种子里的回合），`ConversationSession` 会返回 null，视图区没有 DOM、输入条会被排到页签栏下方——所以自营页的视图槽仍带一个空态块（有回合后自动隐藏），把输入条留在页底。
   想优先用 dsh-better-sidebar（实测 0.28.0）的侧聊 UI，把 `sideChatBackend` 设成 `"better"`；它仍走自己的 `POST /sidebar/api/sidechat.start`，父会话未运行时会收到 409。两边共享 `Side: ` 标题约定，装不装都不会互相抢自动打开的焦点。
 - **「改这条引用」是追加，不是原地编辑**：DSH 的 transcript 只追加（侦察确认全树没有 `editMessage` / `updateMessage` / `rewriteMessage` / 回收 API，只有**尚未进入会话**的队列条目可改）。所以修订发出一条新引用（评论、引用正文都可改），旧胶囊只挂 `已修订` 标记——标记存在**本机** `localStorage`（`dsh-client-ui-quote:v1:quote-revised`，按 **`ref + 引用原文`** 归一键、上限 60 条），同一句话从两个不同位置引用时互不影响；没有 ref 的旧引用仍按原文键读写。它不会跨标签页、跨设备同步，也不进入模型上下文；模型看到的是那条改后的新引用。正文改过后键仍是旧原文：`已修订` 挂在**旧**胶囊上（它的卡片里显示改后的原文与评论），改后的新胶囊不挂标。
 - **代码引用的识别靠首行围栏**：块首是 `> ❝ ``` `、块尾有配对的收尾围栏时，这块按代码解析（围栏剥掉、胶囊等宽）。因此一条**普通**引用如果正文恰好以 ``` 或 `~~~` 开头（比如在 Markdown 文件预览里引用了源码），只要它没有配对的收尾围栏，就仍然按正文读回——首行不会被当成围栏吃掉，引用与清单里都是原文。写成代码引用时收尾围栏始终成对，所以正文自带 ``` 的代码引用改用 `~~~` 也不会与这条规则打架。
@@ -207,16 +208,16 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 - **回合级引用依赖宿主的回合尾槽位**：宿主把每条回合的尾部做成一个列表子槽位（`conversation.chat.turnTail`，`kind:"list"`、`scope:"session"`），本插件往里加一条。宿主没有这个槽位时按钮不出现——功能缺失，其它能力不受影响。
 - **引用清单的本机索引只在本机**：它兜的是「上下文压缩把消息裁掉」这一种丢失，记录不进模型上下文、不跨设备、不跨浏览器；没读过的引用它当然也不知道。
-- **侧边对话有一条内置主路 + 三条退路**：默认是宿主半创建的内置隐藏线程（`origin: "subagent"` + 宿主 `subagentchat` 页，会话列表不显示）；父会话不在线 / 宿主半不可用时退回 `sessions.fork` + 本插件 `quote-sidechat` 页签（线程作为普通 fork 出现在会话列表）；再不行才走 dsh-better-sidebar（仅显式 `sideChatBackend: "better"` 或最后兜底）。隐藏线程与 better-sidebar 共享 `Side: ` 标题约定，所以两边的线程列表可以互相看见，但存储键、路由与 descriptor provider 各自独立。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。所有后端都不可用时浮层里没有侧边对话那一行。
+- **侧边对话有一条内置主路 + 三条退路**：默认是宿主半创建的内置隐藏线程（`origin: "subagent"` + 本插件 `quote-sidechat` 页，会话列表不显示）；父会话不在线 / 宿主半不可用时退回 `sessions.fork` + 本插件 `quote-sidechat` 页签（线程作为普通 fork 出现在会话列表）；再不行才走 dsh-better-sidebar（仅显式 `sideChatBackend: "better"` 或最后兜底）。隐藏线程与 better-sidebar 共享 `Side: ` 标题约定，所以两边的线程列表可以互相看见，但存储键、路由与 descriptor provider 各自独立。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。所有后端都不可用时浮层里没有侧边对话那一行。
 
 ## 自检
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，711 组
+npm test          # check + capsule + panel + host，715 组
 ```
 
-合计 **711 组**（check 12 + capsule 489 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **715 组**（check 12 + capsule 493 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 

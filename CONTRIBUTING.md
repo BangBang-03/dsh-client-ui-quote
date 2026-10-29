@@ -8,7 +8,7 @@
 git clone https://github.com/BangBang-03/dsh-client-ui-quote.git
 cd dsh-client-ui-quote
 node --check lib/client.js
-npm test          # 708 组离线断言，必须全绿
+npm test          # 715 组离线断言，必须全绿
 ```
 
 插件没有运行期依赖（客户端 bundle 只 `require("react")`），**不需要 `npm install`**，也不要在 PR 里新增依赖。
