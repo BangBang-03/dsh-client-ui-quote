@@ -172,11 +172,11 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 | `exports["./locale/*.json"]` | 必须导出：host 通过 ESM 解析器逐个读语言文件。 |
 | `icon` | 卡片图标。**相对路径**（不能绝对路径、不能带协议）、SVG/PNG/JPEG/WebP、≤ 256 KiB、realpath 后必须留在包目录内；host 读成 `data:` URL 交给插件页。 |
 | `locale/<lang>.json` | `{"meta": {"title": …, "description": …}}`。`locale/en.json` 是英文锚点（host 以它所在目录为准扫描同目录 `*.json`，语言名取自文件名）；缺 `en.json` 就没词条，`en` 回退到 `package.json` 的 `name` / `description`。 |
-| `engines.dsh`（清单根） | 声明兼容的 DSH 版本范围。当前 host 不校验它（声明式）。 |
+| `engines.dsh`（清单根） | 声明兼容的 DSH 版本范围。DSH 加载前的兼容性检查读取它：范围不满足时该行在组合期被 `disabled`（`dsh plugin allow-version` 或插件页豁免可放行）；有它时 dsh peers 不再参与判断。本插件是 `>=0.2.0-rc.2`（只有下限、没有上限），0.2.1-rc.5 判定通过。 |
 | `dsh.manifestVersion: 1` | 清单格式号，同样只作文档。 |
-| `peerDependencies` | **故意留空**：`@deepseek-ai/dsh*` 的 peer 范围是唯一被强制校验的兼容性字段，范围不满足时 preflight 会在组合期把该行 `disabled`（需要 `dsh plugin allow-version` 或 profile 的 `compatibility.json` 豁免）。本插件只 require 平台基线模块 `react`，不需要 peer。 |
+| `peerDependencies` | **故意留空**：只有在清单没有 `engines.dsh` 时，DSH 才逐个校验 `@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` peer；范围不满足时该行同样在组合期被 `disabled`（需要 `dsh plugin allow-version` 或 profile 的 `compatibility.json` 豁免）。本插件用根级 `engines.dsh` 声明，只 require 平台基线模块 `react`，不需要 peer。 |
 
-`npm test` 会逐条复核上面这些：补丁文件、三个导出、图标类型与体积、中英词条、以及「没有会被强制校验的 peer」。
+`npm test` 会逐条复核上面这些：补丁文件、三个导出、图标类型与体积、中英词条、以及「没有 peerDependencies」。
 
 ## 结构
 

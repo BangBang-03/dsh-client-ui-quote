@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Docs
+
+- **DSH 0.2.1-rc.5 兼容性复核**：`engines.dsh` 保持 `>=0.2.0-rc.2`（只有下限、没有上限），DSH 的加载前检查在 0.2.1-rc.5 上判定通过，不会像写了上界的插件那样被禁用。实机复核了宿主半路由（同源围栏返回本插件的 403 JSON）、`webServer.register` / `connection.requestRejection` / `agents.create` 的 `seed` 与 `inheritedEventCount`、`subagent/descriptor` v3，以及客户端槽位与 DOM 属性（`conversation.chat.turnTail`、`data-chat-turn`、`reference-chip`）。README「已知限制」与 `docs/design.md` 的声明说明同步更新；插件行为与离线断言数不变。
 
 ## 0.14.0 — 2026-10-29
 
