@@ -3831,6 +3831,27 @@ try {
 	check("a reasoning kind is not read as the answer", testing.turnTextAt(reasonRow, 7, "assistant").text.includes("内部推理") === false, JSON.stringify(testing.turnTextAt(reasonRow, 7, "assistant").text));
 	check("a labelled reasoning paragraph is dropped", testing.turnTextAt(labelled, 7, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(labelled, 7, "assistant").text));
 
+	// The reasoning group is keyed exactly like the answer and carries no
+	// data-step-process on its own node; only its flow kind tells them apart.
+	const reasoningGroup = dom.document.createElement("div");
+	reasoningGroup.setAttribute("data-chat-turn", "8");
+	reasoningGroup.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasoningGroup.textContent = "The user refreshed but still sees the same problem.";
+	const answerSibling = dom.document.createElement("div");
+	answerSibling.setAttribute("data-chat-turn", "8");
+	answerSibling.setAttribute("data-chat-flow-kind", "assistant-step");
+	answerSibling.setAttribute("data-chat-group-part", "response");
+	answerSibling.textContent = "真正的回答";
+	pane.append(reasoningGroup, answerSibling);
+	check("a reasoning group key is not quoted", testing.turnTextAt(reasoningGroup, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(reasoningGroup, 8, "assistant").text));
+
+	const unknownKind = dom.document.createElement("div");
+	unknownKind.setAttribute("data-chat-turn", "8");
+	unknownKind.setAttribute("data-chat-flow-kind", "turn-process");
+	unknownKind.textContent = "还在分析";
+	pane.append(unknownKind);
+	check("a scaffolding kind is not quoted", testing.turnTextAt(unknownKind, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(unknownKind, 8, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
