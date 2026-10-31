@@ -3785,7 +3785,30 @@ try {
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
 
 	const turnSlot = registered.find((entry) => entry.spec.name === "conversation.chat.turnTail");
-	check("the turn tail slot is registered", turnSlot !== undefined && turnSlot.spec.id === "ui-quote.turn", JSON.stringify(turnSlot?.spec));
+	check(
+		"the turn tail slot is registered",
+		turnSlot !== undefined && turnSlot.spec.id === "ui-quote.turn" && turnSlot.Component({ turn: 3 })?.props?.["data-dshq-turn"] === "3",
+		JSON.stringify(turnSlot?.spec)
+	);
+
+	// A sent quote's mark is retired once its turn has a tail: the coordinate
+	// stays (jump/card/list), the visual mark and ordinal do not.
+	const sentQuote = "这一轮的回答";
+	const sentSource = testing.saveSource(sentQuote, "session-turn", { attr: "data-chat-anchor-key", key: "row-turn-a", turn: "3", role: "assistant" });
+	const sentCap = dom.document.createElement("div");
+	sentCap.setAttribute("data-dshq-jump", testing.capsuleJumpKey(sentQuote, "session-turn", sentSource));
+	answer.append(sentCap);
+	const tail = dom.document.createElement("span");
+	tail.setAttribute("data-dshq-turn", "3");
+	pane.append(tail);
+	const retired = testing.clearSpentSources();
+	const retiredTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const retiredEntry = Object.values(retiredTable).flat().find((entry) => entry?.key === "row-turn-a" && entry?.turn === "3");
+	check(
+		"a finished turn retires the source highlight but keeps the coordinate",
+		retired === true && retiredEntry?.spent === true,
+		JSON.stringify({ retired, candidate: retiredEntry })
+	);
 	pane.remove();
 }
 

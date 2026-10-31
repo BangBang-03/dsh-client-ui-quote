@@ -43,7 +43,7 @@ React 重渲染不会出现第二颗、引用变了就地重建、消息被删�
 **浮层不跟着座位生死**（`conversation.input.overlay` 没挂载也能选中出栏、挂上两个会话座位既不叠加也不丢监听、
 座位不在时用输入框自己的 `actions` 落芯片、无处可插时给 toast 而不是静默返回、effect 卸载/重装后监听恰好一份、
 **放弃动作不留高亮**（浮层 `mousedown` 保住的选区在 `Esc` / 取消退场时被还回去））；
-（共 505 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**侧聊坐标在发出前不着色、`promoteSource` 转正后才补画**、**草稿芯片删掉（没发送）后原文高亮与序号收回、芯片回来或胶囊出现才补画（已有胶囊/整个输入框离页不误收）**、**胶囊已在页面时迟到的转正会自愈、发送缝隙里的收回会让路**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、原生 `quote-sidechat` 页签的注册 / 地址 / 标题 / retain-release、页签注册后 hidden 线程开自营页、自营页固定聊天态（blank 子会话不画 hero、视图区带空态）、内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
+（共 506 项，含文件路径与逐条回应的线上形态、`parseCodeSource`/`fileAddressFor` 与「卡片/清单点击打开 session 文件并带上起始行」、**表格单元格 / 表格行 / 段落 / 列表项 / `<br>` 边界的引用高亮**、**侧聊坐标在发出前不着色、`promoteSource` 转正后才补画**、**草稿芯片删掉（没发送）后原文高亮与序号收回、芯片回来或胶囊出现才补画（已有胶囊/整个输入框离页不误收）**、**回合回复结束后高亮与序号自动收回、坐标保留**、**胶囊已在页面时迟到的转正会自愈、发送缝隙里的收回会让路**、**输入框已有文字时引用置顶并将原文另起一行**、聊天代码块划选的语言探测与跨界降级、选区的链接/行内代码保真与纯文本回退、回合级引用的取文与坐标、英文逐条指令与「Quote N」徽章、草稿芯片索引的跨刷新恢复与聚合条编辑/移除、回复徽章的建立/重建/卸载与悬停卡片复用、原生 `quote-sidechat` 页签的注册 / 地址 / 标题 / retain-release、页签注册后 hidden 线程开自营页、自营页固定聊天态（blank 子会话不画 hero、视图区带空态）、内置 subagentchat 的降级与复用，以及评论框两个输入区的自适应高度——引用正文那格曾经在被挂进栏之前就量高，读到 0 后被写成 `height:0`，首行因此被裁掉）。
 `test/capsule.html` 是同一套断言的真浏览器版（51 项），用 `file://` 打开即可（页面会把结果写进标题与 `#probe-out`）。这一版修好了它**缺失的 `<body>` 标签**——脚本在 `<head>` 里执行时 `document.body` 为 null，这个页面以前在真浏览器里是直接坏的；并补上真 `Range` 的链接/行内代码断言（真浏览器的 `cloneContents()` 返回的是 DocumentFragment，不是元素——序列化器只认元素的话，链接在真浏览器里会退化成纯文本；离线桩现在也用真片段，不再放过这一类），另外补了 `CSS.highlights` 选区保持与关闭清理。
 
 `test/panel.mjs` 单独跑引用清单页与侧边线程回流（163 项）：只认**持久**的 `user/message`（`transient`、助手消息、`data: null` 都跳过）、
@@ -64,4 +64,4 @@ Markdown 的标题/编号/块引用/评论行/时间戳与空列表兜底、超�
 
 `test/host.mjs` 不需要浏览器：它直接 import 宿主半，用桩 `agents` / `agentPresets` / `sessionTitle` / `webServer` 驱动。断言包括：`Side: ` 标签的前缀与截断；种子固定一个收口回合（`session/end-seed{inherited:true}` → `turn/start` → `step/start` → **空 `system/message` 头** → `source.kind="session-context"` 的 `user/message` → `step/end` → `turn/end` → `subagent/descriptor`）、`inheritedEventCount` 恒为 0、上下文字段只收用户与助手的原话（最新在后、8000 字上限、跳过 `runtime-context` 与工具事件）、空日志也有可读文案；descriptor 排在切点之后且 seq 连续；`agents.create` 收到 `origin: "subagent"` / `parentSession` / `isSeeded` / `inheritedEventCount` / 父会话当前模型路由 / preset setup / 清空继承 inbox / 固定标题；探针、409、503、403、405、404 与 `apply` 的注册/卸载全部有断言。
 
-合计 **727 组**（check 12 + capsule 505 + panel 163 + host 47），`npm test` 全绿。
+合计 **728 组**（check 12 + capsule 506 + panel 163 + host 47），`npm test` 全绿。

@@ -6,6 +6,14 @@
 
 - **DSH 0.2.1-rc.5 兼容性复核**：`engines.dsh` 保持 `>=0.2.0-rc.2`（只有下限、没有上限），DSH 的加载前检查在 0.2.1-rc.5 上判定通过，不会像写了上界的插件那样被禁用。实机复核了宿主半路由（同源围栏返回本插件的 403 JSON）、`webServer.register` / `connection.requestRejection` / `agents.create` 的 `seed` 与 `inheritedEventCount`、`subagent/descriptor` v3，以及客户端槽位与 DOM 属性（`conversation.chat.turnTail`、`data-chat-turn`、`reference-chip`）。README「已知限制」与 `docs/design.md` 的声明说明同步更新；插件行为与离线断言数不变。
 
+### Changed
+
+- **引用高亮在回合结束后收回**：引用作为胶囊发出后，回合尾的 `data-dshq-turn` 作为完成信号，`paintAnchors` 把对应 source 标成 `spent`；坐标保留（跳回/卡片/清单照常），高亮与序号不再绘制。`keepHighlight: true` 可保留常亮。新增 1 组断言。
+
+### 断言
+
+离线断言 **728 组**（check 12 + capsule 506 + panel 163 + host 47）。
+
 ## 0.14.0 — 2026-10-29
 
 ### Added
