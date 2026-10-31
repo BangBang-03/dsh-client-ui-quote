@@ -3780,6 +3780,25 @@ try {
 	check("a turn's answer is read too", answered.text === "这一轮的回答", JSON.stringify(answered.text));
 	check("another turn is not mixed in", testing.turnTextAt(question, 4, "user").text === "", JSON.stringify(testing.turnTextAt(question, 4, "user").text));
 
+	// The host may hand the turn over as a record instead of a number, and it
+	// names the role with `data-chat-flow-kind` ("assistant-step" for a streamed
+	// answer). Both shapes must resolve, or the tail buttons always report an
+	// empty turn on a host that renders either of them.
+	const byRecord = testing.turnTextAt(answer, { id: 3 }, "assistant");
+	check("a turn record still resolves through the row's own turn number", byRecord.text === "这一轮的回答", JSON.stringify(byRecord.text));
+
+	const stepRow = dom.document.createElement("div");
+	stepRow.setAttribute("data-chat-turn", "5");
+	stepRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	stepRow.textContent = "分步回答";
+	const userStepRow = dom.document.createElement("div");
+	userStepRow.setAttribute("data-chat-turn", "5");
+	userStepRow.setAttribute("data-chat-flow-kind", "user-echo");
+	userStepRow.textContent = "用户补充";
+	pane.append(stepRow, userStepRow);
+	check("a flow-kind row supplies the role", testing.turnTextAt(stepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(stepRow, 5, "assistant").text));
+	check("a suffixed user role is not read as the answer", testing.turnTextAt(userStepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(userStepRow, 5, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));

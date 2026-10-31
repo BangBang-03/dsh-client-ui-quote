@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Fixed
+
+- **回合尾的两个按钮在新版宿主上恒报「这一轮没有可引用的内容」**：turnTail 槽位把「轮次」作为记录（对象）传入，`String(turn)` 得到 `[object Object]`，永远匹配不上消息行上的 `data-chat-turn`；角色属性实际是 `data-chat-flow-kind`（不在 `ROLE_ATTRS` 里）；助手行的值是 `assistant-step`，被 `^(assistant|bot|model|ai)$` 的锚定正则排除。三处都改成容忍：轮次不是数字时从按钮所在行向上取最近的 `data-chat-turn`；`ROLE_ATTRS` 增加 `data-chat-flow-kind`；角色正则允许 `-`/`_` 后缀。新增 3 组断言。
 
 ## 0.14.1 — 2026-10-31
 
@@ -16,7 +18,7 @@ _（下一轮）_
 
 ### 断言
 
-离线断言 **728 组**（check 12 + capsule 506 + panel 163 + host 47）。
+离线断言 **731 组**（check 12 + capsule 509 + panel 163 + host 47）。
 
 ## 0.14.0 — 2026-10-29
 

@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**728 项**：check 12 + capsule 506 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**731 项**：check 12 + capsule 509 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -167,13 +167,14 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：728 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：731 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
 ## 已知限制
 
 - **DSH 版本兼容声明（2026-10-30 在 0.2.1-rc.5 复核）**：`package.json` 的 `engines.dsh` 是 `>=0.2.0-rc.2`——只有下限、没有上限。DSH 加载前的兼容性检查只读这个字段（存在时忽略 `@deepseek-ai/dsh*` peers）；范围满足就放行，所以 0.2.1-rc.5 及后续版本不会仅因版本号被禁用。本次复核确认：宿主半路由仍挂载（同源围栏对探针返回本插件自己的 403 JSON）、`webServer.register` / `connection.requestRejection` / `agents.create` 的 `seed` 与 `inheritedEventCount` / `subagent/descriptor` v3 / 客户端槽位与 DOM 属性（`conversation.chat.turnTail`、`data-chat-turn`、`reference-chip`）都还在。**开区间的代价是没有预警**：DSH 改内部接口时表现为静默降级，升级后请跑 `npm test` 和一次侧聊探针；**不要写上界**（写成 `<0.2.1-rc.4` 之类的插件，下一次 rc 就会被 DSH 直接禁用）。
+- **回合尾按钮依赖宿主的两个 DOM 属性**（2026-10-31 在 0.2.1-rc.5 实测）：turnTail 槽位把轮次作为**记录**传入（不是数字），真实轮次写在按钮所在行的 `data-chat-turn` 上；角色读 `data-chat-flow-kind`，助手行是 `assistant-step`、用户行是 `user`。0.14.1 及更早只认数字轮次与 `data-chat-role` 一类的属性名，因此在新版宿主上两个按钮恒报「这一轮没有可引用的内容」；本版起向上取最近的 `data-chat-turn`、把 `data-chat-flow-kind` 纳入角色属性、并接受带 `-`/`_` 后缀的角色值。宿主若再改这两个属性，按钮会退回同一条 toast，不会报错。
 - **可选服务注册**：引用源和四个快捷键通过 Cordis `ctx.inject` 等待 `inputTriggers` / `shortcuts`，服务提供者卸载时释放旧注册，重载后在新实例注册。DSH 0.2.1-rc.2 的快捷键注册器会校验所有平台默认值，裸 Alt 的 Web 默认值会使整条命令注册失败，因此仅保留桌面默认绑定。
 
 - **隐藏线程的模型路由**（app.asar 0.2.1-rc.3，issue #2 实测）：旧种子里的收口回合从未真正请求过模型，子会话因此没有 `modelSelection` 投影；标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value` 失败。0.13.1 起在 `setup` 里按宿主 `api-session-controller` 的做法装 `system-prompt/assemble` 钩子并 append 一条 `model/selection`；0.13.4 起种子里也带一条 `model/selection`，所以线程被从磁盘重新打开（重启后、或同一条线程的第二条消息）时投影依然有值。**2026-10-29 真机连发两条均 `completed`**，不再出现该错误。
@@ -217,10 +218,10 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，728 组
+npm test          # check + capsule + panel + host，731 组
 ```
 
-合计 **728 组**（check 12 + capsule 506 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **731 组**（check 12 + capsule 509 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 
