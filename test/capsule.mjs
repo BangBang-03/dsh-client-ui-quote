@@ -3799,6 +3799,24 @@ try {
 	check("a flow-kind row supplies the role", testing.turnTextAt(stepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(stepRow, 5, "assistant").text));
 	check("a suffixed user role is not read as the answer", testing.turnTextAt(userStepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(userStepRow, 5, "assistant").text));
 
+	// A finished turn interleaves the answer with its scaffolding: reasoning and
+	// tool-call groups carry data-step-process and must never be quoted.
+	const reasonedRow = dom.document.createElement("div");
+	reasonedRow.setAttribute("data-chat-turn", "6");
+	reasonedRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	reasonedRow.textContent = "回答正文";
+	const processPart = dom.document.createElement("div");
+	processPart.setAttribute("data-step-process", "true");
+	processPart.textContent = "思考过程";
+	reasonedRow.append(processPart);
+	const processOnly = dom.document.createElement("div");
+	processOnly.setAttribute("data-chat-turn", "6");
+	processOnly.setAttribute("data-step-process", "true");
+	processOnly.textContent = "已完成分析";
+	pane.append(reasonedRow, processOnly);
+	check("a nested process block is cut out of the answer", testing.turnTextAt(reasonedRow, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(reasonedRow, 6, "assistant").text));
+	check("a process-only row is never quoted", testing.turnTextAt(processOnly, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(processOnly, 6, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
