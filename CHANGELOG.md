@@ -6,6 +6,7 @@
 
 - **回合尾的两个按钮在新版宿主上恒报「这一轮没有可引用的内容」**：turnTail 槽位把「轮次」作为记录（对象）传入，`String(turn)` 得到 `[object Object]`，永远匹配不上消息行上的 `data-chat-turn`；角色属性实际是 `data-chat-flow-kind`（不在 `ROLE_ATTRS` 里）；助手行的值是 `assistant-step`，被 `^(assistant|bot|model|ai)$` 的锚定正则排除。三处都改成容忍：轮次不是数字时从按钮所在行向上取最近的 `data-chat-turn`；`ROLE_ATTRS` 增加 `data-chat-flow-kind`；角色正则允许 `-`/`_` 后缀。新增 3 组断言。
 - **引用整轮时不再带上思考过程与工具过程**：一轮里的推理组与工具调用组都带 `data-step-process`，它们和正文同属一个 `data-chat-turn`，原先会被拼进「引用回答」的原文里。现在跳过 `data-step-process` 行，并从保留下来的行里剔掉嵌套的过程子树。新增 2 组断言。
+- **推理行的另一种形状也不再混进引用**：有的宿主给推理单独一种 flow kind（`assistant-reasoning` 一类），角色后缀规则会把它当成正文；展开后推理还会以「思考 …」段落的形式直接出现在正文文本里。现在按 kind 过滤推理行，并丢掉以 `思考` + 空白/冒号开头、以及折叠标记 `已完成分析` 的段落。新增 2 组断言。
 
 ## 0.14.1 — 2026-10-31
 
@@ -19,7 +20,7 @@
 
 ### 断言
 
-离线断言 **733 组**（check 12 + capsule 511 + panel 163 + host 47）。
+离线断言 **735 组**（check 12 + capsule 513 + panel 163 + host 47）。
 
 ## 0.14.0 — 2026-10-29
 

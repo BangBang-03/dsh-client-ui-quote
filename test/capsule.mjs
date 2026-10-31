@@ -3817,6 +3817,20 @@ try {
 	check("a nested process block is cut out of the answer", testing.turnTextAt(reasonedRow, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(reasonedRow, 6, "assistant").text));
 	check("a process-only row is never quoted", testing.turnTextAt(processOnly, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(processOnly, 6, "assistant").text));
 
+	// Some hosts give reasoning its own kind, and render the label inline when it
+	// is expanded. Neither shape belongs in a quoted turn.
+	const reasonRow = dom.document.createElement("div");
+	reasonRow.setAttribute("data-chat-turn", "7");
+	reasonRow.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasonRow.textContent = "思考 内部推理";
+	const labelled = dom.document.createElement("div");
+	labelled.setAttribute("data-chat-turn", "7");
+	labelled.setAttribute("data-chat-flow-kind", "assistant-step");
+	labelled.textContent = "真正的回答\n\n思考 The user refreshed but still sees the same problem.";
+	pane.append(reasonRow, labelled);
+	check("a reasoning kind is not read as the answer", testing.turnTextAt(reasonRow, 7, "assistant").text.includes("内部推理") === false, JSON.stringify(testing.turnTextAt(reasonRow, 7, "assistant").text));
+	check("a labelled reasoning paragraph is dropped", testing.turnTextAt(labelled, 7, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(labelled, 7, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
