@@ -3780,6 +3780,78 @@ try {
 	check("a turn's answer is read too", answered.text === "这一轮的回答", JSON.stringify(answered.text));
 	check("another turn is not mixed in", testing.turnTextAt(question, 4, "user").text === "", JSON.stringify(testing.turnTextAt(question, 4, "user").text));
 
+	// The host may hand the turn over as a record instead of a number, and it
+	// names the role with `data-chat-flow-kind` ("assistant-step" for a streamed
+	// answer). Both shapes must resolve, or the tail buttons always report an
+	// empty turn on a host that renders either of them.
+	const byRecord = testing.turnTextAt(answer, { id: 3 }, "assistant");
+	check("a turn record still resolves through the row's own turn number", byRecord.text === "这一轮的回答", JSON.stringify(byRecord.text));
+
+	const stepRow = dom.document.createElement("div");
+	stepRow.setAttribute("data-chat-turn", "5");
+	stepRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	stepRow.textContent = "分步回答";
+	const userStepRow = dom.document.createElement("div");
+	userStepRow.setAttribute("data-chat-turn", "5");
+	userStepRow.setAttribute("data-chat-flow-kind", "user-echo");
+	userStepRow.textContent = "用户补充";
+	pane.append(stepRow, userStepRow);
+	check("a flow-kind row supplies the role", testing.turnTextAt(stepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(stepRow, 5, "assistant").text));
+	check("a suffixed user role is not read as the answer", testing.turnTextAt(userStepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(userStepRow, 5, "assistant").text));
+
+	// A finished turn interleaves the answer with its scaffolding: reasoning and
+	// tool-call groups carry data-step-process and must never be quoted.
+	const reasonedRow = dom.document.createElement("div");
+	reasonedRow.setAttribute("data-chat-turn", "6");
+	reasonedRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	reasonedRow.textContent = "回答正文";
+	const processPart = dom.document.createElement("div");
+	processPart.setAttribute("data-step-process", "true");
+	processPart.textContent = "思考过程";
+	reasonedRow.append(processPart);
+	const processOnly = dom.document.createElement("div");
+	processOnly.setAttribute("data-chat-turn", "6");
+	processOnly.setAttribute("data-step-process", "true");
+	processOnly.textContent = "已完成分析";
+	pane.append(reasonedRow, processOnly);
+	check("a nested process block is cut out of the answer", testing.turnTextAt(reasonedRow, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(reasonedRow, 6, "assistant").text));
+	check("a process-only row is never quoted", testing.turnTextAt(processOnly, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(processOnly, 6, "assistant").text));
+
+	// Some hosts give reasoning its own kind, and render the label inline when it
+	// is expanded. Neither shape belongs in a quoted turn.
+	const reasonRow = dom.document.createElement("div");
+	reasonRow.setAttribute("data-chat-turn", "7");
+	reasonRow.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasonRow.textContent = "思考 内部推理";
+	const labelled = dom.document.createElement("div");
+	labelled.setAttribute("data-chat-turn", "7");
+	labelled.setAttribute("data-chat-flow-kind", "assistant-step");
+	labelled.textContent = "真正的回答\n\n思考 The user refreshed but still sees the same problem.";
+	pane.append(reasonRow, labelled);
+	check("a reasoning kind is not read as the answer", testing.turnTextAt(reasonRow, 7, "assistant").text.includes("内部推理") === false, JSON.stringify(testing.turnTextAt(reasonRow, 7, "assistant").text));
+	check("a labelled reasoning paragraph is dropped", testing.turnTextAt(labelled, 7, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(labelled, 7, "assistant").text));
+
+	// The reasoning group is keyed exactly like the answer and carries no
+	// data-step-process on its own node; only its flow kind tells them apart.
+	const reasoningGroup = dom.document.createElement("div");
+	reasoningGroup.setAttribute("data-chat-turn", "8");
+	reasoningGroup.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasoningGroup.textContent = "The user refreshed but still sees the same problem.";
+	const answerSibling = dom.document.createElement("div");
+	answerSibling.setAttribute("data-chat-turn", "8");
+	answerSibling.setAttribute("data-chat-flow-kind", "assistant-step");
+	answerSibling.setAttribute("data-chat-group-part", "response");
+	answerSibling.textContent = "真正的回答";
+	pane.append(reasoningGroup, answerSibling);
+	check("a reasoning group key is not quoted", testing.turnTextAt(reasoningGroup, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(reasoningGroup, 8, "assistant").text));
+
+	const unknownKind = dom.document.createElement("div");
+	unknownKind.setAttribute("data-chat-turn", "8");
+	unknownKind.setAttribute("data-chat-flow-kind", "turn-process");
+	unknownKind.textContent = "还在分析";
+	pane.append(unknownKind);
+	check("a scaffolding kind is not quoted", testing.turnTextAt(unknownKind, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(unknownKind, 8, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
