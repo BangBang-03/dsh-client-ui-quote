@@ -3791,6 +3791,30 @@ try {
 		JSON.stringify(turnSlot?.spec)
 	);
 
+	// The slot declares `locale: NS`, so the host injects `t`. The chips must use
+	// it: a reader whose host has no Chinese dictionary (a third-party `ru` pack,
+	// for instance) then gets that chain's copy instead of the zh fallback.
+	const translatedTail = turnSlot.Component({
+		turn: 3,
+		t: (key) => (key === "turnQuestion" ? "Quote the question" : key === "turnAnswer" ? "Quote the answer" : key)
+	});
+	const tailLabels = (translatedTail?.props?.children ?? []).map((child) => child?.props?.children);
+	check(
+		"the turn chips read the host's injected translator",
+		tailLabels[0] === "Quote the question" && tailLabels[1] === "Quote the answer",
+		JSON.stringify(tailLabels)
+	);
+
+	// A host that injects nothing keeps the old path, so a zh reader's copy must
+	// not move: this pins the fallback the patch leaves in place.
+	const plainTail = turnSlot.Component({ turn: 3 });
+	const plainLabels = (plainTail?.props?.children ?? []).map((child) => child?.props?.children);
+	check(
+		"without an injected translator the turn chips keep their Chinese copy",
+		plainLabels[0] === "引用提问" && plainLabels[1] === "引用回答",
+		JSON.stringify(plainLabels)
+	);
+
 	// A sent quote's mark is retired once its turn has a tail: the coordinate
 	// stays (jump/card/list), the visual mark and ordinal do not.
 	const sentQuote = "这一轮的回答";
