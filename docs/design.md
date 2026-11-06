@@ -188,12 +188,12 @@ cordis.patch.yml      组合包层补丁：插入 ui-quote 这个 loader 条目
 lib/index.js          host 半：只提供隐藏侧聊线程的创建路由（/ui-quote/api/sidechat.start）
 lib/client.js         客户端全部功能：vendor-CJS 工厂 + 浮层（三项动作）+ 输入框芯片 + 发送后胶囊 + 原文高亮/聚合条 + 侧边对话接线 + 引用清单页（含多选插入）
 .github/workflows/test.yml  push / PR 的 Node 18/20/22 测试门
-skills/release/SKILL.md    推送与发版清单（推 main / 标签发版 / promote.ps1 -Tag / Release 验收）
+skills/release/SKILL.md    推送与发版清单（推 main / 标签发版 / 发版前 A–F 交付自查 / promote.ps1 -Tag / Release 验收）
 locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，493 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，506 项断言）
 test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 文件路径打开 + 侧边线程回流 + 审阅工作台（状态 / 标签 / 批量）+ JSON 导出 + 本地索引 + 底部 Star 链接，163 项断言）
 test/host.mjs         离线自检（宿主半：标签 / 隐性上下文种子（切点 + 收口回合：空 system 头 → 上下文消息 → descriptor；只带用户与助手的原话、8000 字上限、跳过注入上下文）/ 空日志兜底 / 继承切点与 descriptor 顺序 / agents.create 参数 / 探针 / 围栏 / 路由注册与卸载，47 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选）

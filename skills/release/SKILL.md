@@ -1,6 +1,6 @@
 ---
 name: release
-description: Use when 用户要求推送 main、发版、发布正式版、打 vX.Y.Z 标签、核对 Release 或 npm latest，或排查推送超时、REST 兜底、标签冲突、publish CI 失败（仓库 dsh-client-ui-quote）。
+description: Use when 用户要求推送 main、发版、发布正式版、打 vX.Y.Z 标签、核对 Release 或 npm latest，或排查推送超时、REST 兜底、标签冲突、publish CI 失败；也用于发版前做完整的交付自查（A–F 六组闸门）（仓库 dsh-client-ui-quote）。
 ---
 
 # dsh-client-ui-quote：推送与正式发版
@@ -52,6 +52,81 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 7. **推送通道 git 优先，REST 兜底，同一轮不来回切**（R21）。REST 重建的提交时区归一到 `+0000`，同内容不同 SHA；混推会造出平行提交。
 8. **不把工作稿带进仓库或发布**。`promote.ps1` 的 `git status --porcelain` 会连未跟踪文件一起阻塞；`.dsh-quote-work/`、`.mimosa/`、报告、截图先移出仓库或加入 `.gitignore`，不要为发版 `git add -A`（R22）。
 9. **不发布未经验证的内容**：CI 失败就定位日志，不手工改已发布资产/标签掩盖失败；标签已存在先确认是否已有成功的 stable 发布（没有就重跑该标签的 workflow，有就换下一个补丁号），绝不移动、复用或删除旧标签。
+10. **打标签前必须完整跑一次交付自查**（下节 A–F 六组），结论随汇报给出。这不是抽查、也不能复用上个版本的结论：任何一项不过就停在 `main` 修完重跑，**不 bump、不提交发版号、不打标签**。
+
+## 发版前交付自查（闸门）
+
+**每次发版都要完整跑一遍，一项不落。** 时点是改完版本 / CHANGELOG / README、`npm test` 跑绿之后，`git commit -m "chore(release): vX.Y.Z"` 之前——此时工作区应当是「只差发版」的状态。`PREV` 始终指上一个发版标签，所以 `git diff "$PREV" -- <path>` 查的是这一版的全部改动（已提交 + 未提交）。
+
+| 组 | 查什么 | 怎么查 | 通过标准 |
+| --- | --- | --- | --- |
+| A1 | 改动集合只有发版文件 | `git status --porcelain` | 只有 `package.json`、`CHANGELOG.md`、`README.md`、`docs/distribution.md`（断言数变了再加 `docs/design.md`、`test/README.md`、`AGENTS.md`）；**没有 `??` 未跟踪项** |
+| A2 | 语法门 | `node --check lib/client.js` | 无输出 |
+| A3 | 四套离线断言 | `npm test`；`node test/check.mjs` 数 `OK` 行 | 全绿；四套数字与 `AGENTS.md` R17 记录**逐字一致**（不一致就先按 R17 同步文档，见 B3） |
+| A4 | 断言没被削弱 | `git diff "$PREV" -- test/` | 没有删断言、没有把期望改成实际值换绿；新增断言能在 diff 里逐条指出（R16） |
+| B1 | 版本五处一致 | `npm pkg get version`；README「稳定版当前」+ 安装示例 `"^X.Y.Z"`；`CHANGELOG.md` 小节；`docs/distribution.md` 版本行 | 同一个 `X.Y.Z` |
+| B2 | CHANGELOG 形状 | `grep -n "^## $V " CHANGELOG.md` | 恰好 `## X.Y.Z — YYYY-MM-DD`；`publish.yml` 按 `## ${VERSION} ` 前缀截取 Release notes |
+| B3 | 断言数全仓无旧值 | `grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa`，再看各处的「N 组 / N 项」 | 除 `CHANGELOG.md` 历史小节外，所有数字 = 本次实跑总数；含 R17 六处 + `test/README.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、本 skill 的写法示例、仓库外 `promote.ps1` 提示文案 |
+| B4 | 标签空位 | `git tag --list "v$V"`；`git ls-remote --tags origin "refs/tags/v$V*"` | 本地与远端都为空 |
+| C1 | 中英（含 ru）词条 | `node test/check.mjs`；本轮 diff | 词典键一致；R15 的 `zh`/`en`、`locale/*.json`、`package.json` description 成对改 |
+| C2 | 公开 id 没被顺手改名 | `git diff "$PREV" -- lib/ locale/` | `SOURCE_NAME`、命令、tab kind、class 前缀、存储键前缀与 R10/R14 一致 |
+| C3 | README 口径 = 实际行为 | `git log --oneline "$PREV"..HEAD` 逐条对照功能表 / 已知限制 | 每条用户可见改动有对应行；新宿主契约写了出处（R18） |
+| D1 | 发货白名单 | `npm pack --dry-run` | 有 `icon.svg`/`lib`/`locale`/`test`/`docs`/`cordis.patch.yml`/README/CHANGELOG/LICENSE；**没有** `skills/`、`AGENTS.md`、`CONTRIBUTING.md`、`submission/`、`.workbuddy/`、`.mimosa/`、报告或截图工作区 |
+| D2 | `files` 没被顺手放宽 | `git diff "$PREV" -- package.json` | 只有 `version`（外加本轮明确要发的条目） |
+| D3 | 体积同量级 | `npm pack --dry-run` 的 `total files` / `package size` | 与上一版同量级（0.14.1：32 files / 962 kB）；突增就查是不是混进了大文件 |
+| E1 | 旧消息还能回读 | capsule 的 wire 组；本轮若碰过 `QUOTE_MARK`/`COMMENT_MARK`/`REPLY_MARK`/`REF_PREFIX`/`REF_LINE`/`escapeBodyLine` | 全绿；碰过就拿一条**旧版本**样本跑 `quoteBlock`/`splitQuoteRuns` round-trip，把结果贴进汇报（R7） |
+| E2 | 坐标与本机键没改 | `git diff "$PREV" -- lib/client.js` | 没有改 `dsh-client-ui-quote:v1:`/`v2:` 前缀与 `REF_LINE` 形状（R8/R10） |
+| E3 | 降级路径 | `node test/host.mjs`；check 的「no enforced peers」 | 全绿；缺 `webServer`/`agents`/`connection`/`betterSidebar` 仍是静默降级（R13） |
+| F1 | 远端形状 | `git ls-remote --heads origin` | 只有 `refs/heads/main` |
+| F2 | workflow 没被误改 | `git diff "$PREV" -- .github/` | 无意外改动；改了要能说清动机 |
+| F3 | 凭证还在期 | 对照 `docs/release.md` 的运维备忘 | `NPM_TOKEN` 未过期（2027-01-09）；临近先重签并 `gh secret set` |
+| F4 | 包外没有泄漏 | `git status --porcelain`；`git ls-files` 里搜报告名 | 没有 `.dsh-quote-work/`、报告、截图工作区进入仓库（R22） |
+
+一键自查（在仓库根执行，输出逐项对照上表）：
+
+```bash
+cd C:/Users/15812/Desktop/dsh/dsh-client-ui-quote
+PREV=$(git describe --tags --abbrev=0); V=$(node -p "require('./package.json').version")
+echo "PREV=$PREV  V=$V"
+
+# A 门禁
+git status --porcelain                                  # 只有发版文件，无 ??
+node --check lib/client.js && echo "A2 syntax ok"
+npm test 2>&1 | grep "checks passed"                    # capsule / panel / host
+echo "check: $(node test/check.mjs | grep -c '^OK') 组"  # 期望 12
+git diff "$PREV" -- test/ | head -30                    # 期望空，或本轮新增断言
+
+# B 版本与数字
+grep -n "稳定版当前" README.md
+grep -n '"dsh-client-ui-quote": "\^' README.md
+grep -n "^## $V " CHANGELOG.md
+grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa | grep -v CHANGELOG.md
+git tag --list "v$V"; git ls-remote --tags origin "refs/tags/v$V*"
+
+# C 文案与契约
+node test/check.mjs | tail -1
+git diff "$PREV" --stat -- lib/ locale/ package.json README.md
+
+# D 包内容
+npm pack --dry-run 2>&1 | grep -E "total files|package size"
+npm pack --dry-run 2>&1 | grep -E "skills/|AGENTS\.md|CONTRIBUTING\.md|submission/|\.workbuddy/|\.mimosa/"   # 期望无输出
+
+# E 线格式与降级
+git diff "$PREV" -- lib/client.js | grep -E "^\+.*(QUOTE_MARK|COMMENT_MARK|REPLY_MARK|REF_PREFIX|REF_LINE|escapeBodyLine|dsh-client-ui-quote:v)"   # 期望无输出
+node test/host.mjs | tail -1
+
+# F 发布面
+git ls-remote --heads origin                            # 只有 main
+git diff "$PREV" --stat -- .github/
+git status --porcelain --ignored=matching | head -6     # 只有本地忽略项
+```
+
+**判定与留痕**：
+
+- 有红项：先修，再**从 A 组重跑**（改了文档数字也可能又变）。
+- 本轮确实不涉及的项可以标「不适用」，但必须写原因，不能留空。
+- 结论按组写进汇报：A3 的四个数字、B3 修掉的旧数字、D1 的文件数与体积、E1 是否碰过线格式、不适用项。要落盘就写到仓库外 `.dsh-quote-work/release-check-vX.Y.Z.md`（R22）。
+- 自查结论是发版证据，不是礼貌步骤：用户问「自查做了吗」时，要能一句话给出六组结论。
 
 ## 与 dsh-memory 的差异（同名脚本，不同拓扑）
 
@@ -120,7 +195,7 @@ git ls-remote origin refs/heads/main 'refs/tags/vX.Y.Z*'
 - 目标标签在本地和远端都必须不存在；任一处存在就说明发过了，换下一个补丁号。
 - 默认下一个版本是当前补丁号 +1（`0.12.8` → `0.12.9`）；用户指定则按用户。
 - 确认 `git credential fill` 能返回 github.com 的 token；`promote.ps1` 的最终 SHA 校验依赖它，缺失会在推送后才报错。
-- 可选：`npm pack --dry-run --json` 确认包内没有 `skills/`、工作稿或多余文件（`files` 是白名单）。
+- 包内容不在这里细看：第 3 步闸门的 D1–D3 会完整核对 `npm pack --dry-run`（`files` 是白名单）。
 
 ### 1. 改版本、CHANGELOG、README
 
@@ -141,16 +216,23 @@ npm test
 
 必须全绿（数字以 README R17 记的实跑结果为准）。红就停在 `main` 修，不 bump、不提交发版号、不打标签。
 
-### 3. 提交
+### 3. 交付自查（必做，完整一次）
+
+按上一节「发版前交付自查」的 A–F 六组逐项过，命令直接复制执行。**不能省、不能抽查、不能拿上个版本的结论复用**；红项修完从 A 组重跑。
+
+结论记在手上，第 7 步汇报时按组给出（A3 的四个数字、B3 修掉的旧数字、D1 的包体积、E1 线格式、不适用项及原因）。
+
+### 4. 提交
 
 ```bash
 git add package.json CHANGELOG.md README.md docs/distribution.md
+# 断言数变了再带上：docs/design.md test/README.md AGENTS.md
 git commit -m "chore(release): vX.Y.Z"
 ```
 
-发版提交只包含版本、CHANGELOG、README 的版本/断言数字变化；功能改动应已在之前的提交里。
+发版提交只包含版本、CHANGELOG、README 的版本/断言数字变化；功能改动应已在之前的提交里。若 `git status` 里还有 A1 那组连带文件没 add，闸门和 `promote.ps1`（要求工作区干净）都会拦下来。
 
-### 4. 提升并发布
+### 5. 提升并发布
 
 ```bash
 pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote -Tag vX.Y.Z
@@ -162,7 +244,7 @@ pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote -Tag
 
 如果 git 通道已知不通，第一次就用 `-Channel rest`，不要先跑 auto 再切；同一轮不混用两条通道。
 
-### 5. 验收
+### 6. 验收
 
 ```bash
 # 远端 main 与标签指向同一提交（标签用 ^{} 解引用到提交）
@@ -187,20 +269,22 @@ npm view dsh-client-ui-quote version dist-tags --json
 
 `gh` 未登录时用 `https://github.com/BangBang-03/dsh-client-ui-quote/actions` 与 `/releases` 网页核对；本机 `npm view` 失败不代表发布失败。
 
-### 6. 收尾
+### 7. 收尾
 
 ```bash
 git switch main
 git status -sb
 ```
 
-向用户汇报：版本号、标签提交、`main` 与标签的远端 SHA、`publish-stable` 与 `test` 结论、Release 链接、npm `latest`、跳过的检查。本地必须回到 `main`。
+向用户汇报：版本号、标签提交、`main` 与标签的远端 SHA、`publish-stable` 与 `test` 结论、Release 链接、npm `latest`、**第 3 步交付自查的六组结论**（含不适用项及原因）、跳过的检查。本地必须回到 `main`。
 
 ## 失败处理
 
 | 现象 | 处理 |
 | --- | --- |
 | `npm test` / `node --check` 红 | 停在 `main` 修复；不 bump、不提交发版号、不打标签 |
+| 交付自查有红项（A–F 任一组） | 停在 `main` 修完，**从 A 组重跑**；不 bump、不提交发版号、不打标签；不许「先发再补」 |
+| 自查发现文档旧数字或包内容描述不符 | 以 `npm test` 实跑与 `npm pack --dry-run` 为准修文，再重跑 A–F；`docs/release.md`、`docs/distribution.md`、`CONTRIBUTING.md` 是历史漂移点 |
 | 工作区不干净（含未跟踪） | 先提交或把工作稿移出仓库；不要 `git add -A`，也不要把工作稿塞进发布提交 |
 | git 推送超时/认证失败 | 同一轮改走 REST（`promote.ps1 -Channel rest` 或 `push-branch.mjs main`）；不要在 REST 成功后再 `git push` |
 | `promote.ps1` 报版本/标签不一致 | 先改 `package.json` 或标签名；不要带着不一致继续推送 |
@@ -220,8 +304,20 @@ git status -sb
 - [ ] `main` 已推送；本地在 `main` 且干净
 - [ ] CI `test` 绿（`publish` 不会被 push 触发，这是预期）
 
+### 发版前交付自查（A–F，必做）
+
+- [ ] A1 工作区只有发版文件（无 `??` 未跟踪项）；A2 `node --check` 无输出；A3 `npm test` 全绿且四套数字 = R17
+- [ ] A4 `git diff $PREV -- test/` 没有删断言或放宽期望
+- [ ] B1 版本五处一致；B2 CHANGELOG 小节是 `## X.Y.Z — YYYY-MM-DD`；B3 全仓没有旧断言数残留；B4 标签本地/远端都空
+- [ ] C1 词条成对（含 ru）；C2 公开 id / 存储键未变；C3 README 功能表覆盖本轮用户可见改动
+- [ ] D1 `npm pack --dry-run` 有该有的、没有 `skills/` `AGENTS.md` `CONTRIBUTING.md` `submission/` 工作稿；D2 `files` 未被放宽；D3 体积同量级
+- [ ] E1 线格式组全绿（碰过标记就用旧样本补 round-trip）；E2 坐标键未改；E3 缺服务仍静默降级
+- [ ] F1 远端只有 `main`；F2 workflow 未被误改；F3 `NPM_TOKEN` 未过期；F4 仓库里没有工作稿
+- [ ] 结论已按组记下（留痕在仓库外）；红项修完已从 A 组重跑，不适用项写了原因
+
 ### 正式发版
 
+- [ ] **交付自查 A–F 六组已完整跑过，结论已记录**（红项已从 A 组重跑）
 - [ ] `package.json` 版本 = `vX.Y.Z` = CHANGELOG 小节 = README「稳定版当前」
 - [ ] `node --check` + `npm test` 全绿（数字按 R17 同步）
 - [ ] 发版提交 `chore(release): vX.Y.Z` 已推 `main`

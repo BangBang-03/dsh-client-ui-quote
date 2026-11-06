@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Docs
+
+- **发版前必须完整做一次交付自查**：`skills/release/SKILL.md` 新增「发版前交付自查（闸门）」A–F 六组——门禁与断言、版本与数字、文案与契约、包内容（`npm pack --dry-run` 白名单与体积）、线格式与降级、发布面（远端形状 / workflow / 凭证 / 工作稿），并写进「不可违反」第 10 条与正式发版的第 3 步；`skills/docs/SKILL.md`、`AGENTS.md`、`docs/release.md` 同步指向它。顺手修掉文档里残留的 715 组旧断言数（`CONTRIBUTING.md`、`docs/release.md`、`docs/distribution.md`、`docs/design.md`）与「`submission/` 在 npm 包里」的错误描述。插件行为与离线断言数不变。
 
 ## 0.14.1 — 2026-10-31
 

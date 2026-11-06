@@ -92,7 +92,7 @@
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7394）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138；`locale/zh.json`、`locale/en.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`；分支与通道见 R20/R21 | `npm test` 728 + 远端 `main`/标签一致 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 728 + 远端 `main`/标签一致 + 六组自查结论 |
 
 ### 2.2 按症状找位置
 
@@ -139,7 +139,7 @@
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
 | `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 从根 README 移出的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文全文。根 README 只留功能表、已知限制与入口 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
-| `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、CHANGELOG/Release 验收；不进 npm 包 |
+| `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、**发版前 A–F 六组交付自查**、CHANGELOG/Release 验收；不进 npm 包 |
 | `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与中英词条（R15）怎么对齐；不进 npm 包 |
 
 ### 2.4 命令
@@ -171,7 +171,7 @@ pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote [-Ta
 - [ ] 隐藏线程回归：`node test/host.mjs` 全绿；真宿主（临时 `DSH_HOME` + web profile）探针返回 `available:true`（R18 的 host 契约出处写进 README）。
 - [ ] 中英词条、`locale/*.json`、`package.json` description、README 功能表同改（R15）。
 - [ ] `git status` 只有预期文件；没有 `.workbuddy/`、没有报告、没有把 `AGENTS.md` 加进 `files`（R22）。
-- [ ] 提交在 `main`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`（R20、R21）。
+- [ ] 提交在 `main`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`，**打标签前先把该文件的「发版前交付自查」A–F 六组完整跑一遍**，红项先修（R16、R20、R21）。
 
 ---
 
