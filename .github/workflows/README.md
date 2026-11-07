@@ -6,13 +6,14 @@
 
 - 触发：所有 `push` 与 `pull_request`。
 - 矩阵：Node 18 / 20 / 22（对应 `engines.node >= 18`）。
-- 步骤：`node --check lib/client.js` → `npm test`（728 组离线断言）。
+- 步骤：`node --check lib/client.js` → `npm test`（740 组离线断言）。
 - 插件没有运行期依赖，所以不跑 install。
+- 首次贡献者的 PR 可能停在 `action_required`，需要维护者在 Actions 页点一次 **Approve and run workflows**。
 
 ## `publish.yml`
 
-- `v*` 标签：发 `latest`，并按 `CHANGELOG.md` 同名小节建/更新 GitHub Release。
-- 手动 `workflow_dispatch`：从 `main` 触发时只重发稳定版（标签已存在就更新 notes）。
+- `v*` 标签：发 npm `latest`，并按 `CHANGELOG.md` 同名小节（`## ${VERSION} `）建/更新 GitHub Release；小节缺失时用一句兜底，不让文档缺失把发布拖失败。
+- 手动 `workflow_dispatch`：从 `main` 触发时只重发稳定版；不会建 Release（发布说明这一步只对标签触发）。
 - `main` 的普通 push **不发布**，只跑 `test.yml`；需要验证打包产物时在本机 `npm pack` 后装 tarball。
 - 需要 Secret `NPM_TOKEN`；`prepublishOnly` 会先跑完全部离线断言，失败不发包。
 

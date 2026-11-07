@@ -6,11 +6,17 @@
 | --- | --- |
 | `BangBang-03__dsh-client-ui-quote.yml` | awesome-dsh-plugin 的条目：`url`、`name`、`category: ui`、中英双语 `description`。 |
 
-## 现状（2026-10-28 核对）
+## 现状（2026-10-31 核对）
 
-- **已收录**：awesome-dsh-plugin（PR #6506，2026-10-17 合并；描述是旧版，待更新）、dsh.pub（自动）、dsh.market（自动，`curated: false`）、DSH 应用内市场（按 npm 包名可搜）。
-- **未收录**：dsh-plugin.org（走 issue）、awesome-deepseek-harness（走 PR，**中英两个 README 各加一行**）。
-- 各渠道入口、可粘贴的文案与待办清单见 [`../docs/distribution.md`](../docs/distribution.md)。
+各渠道的入口、可粘贴文案与待办细节见 [`../docs/distribution.md`](../docs/distribution.md)。
+
+- **已收录**：
+  - awesome-dsh-plugin：PR [#6506](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6506) 于 2026-10-17 合并，但库里仍是旧描述；更新 PR [#10188](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10188) 已开、CI 全绿，等合并。
+  - dsh.pub（自动收录，详情页 200）、dsh.market（自动收录，`curated: false`）、DSH 应用内市场（按 npm 包名可搜）。
+- **未收录**：
+  - dsh-plugin.org（走 issue）；
+  - awesome-deepseek-harness（PR [#764](https://github.com/0xsline/awesome-deepseek-harness/pull/764) 已开，中英两个 README 各加一行，等维护者合并）。
+- **同名干扰**：`skyhancloud/dsh-client-ui-quote` 是另一个项目（2026-08-16 创建，更早），npm 上的 `dsh-client-ui-quote` 是本仓库。
 
 ## 约定
 

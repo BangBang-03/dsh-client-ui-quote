@@ -44,14 +44,14 @@
 | R12 | **永不代发**：所有路径（含侧边对话、带回主会话）只写草稿 | 提问由用户写。`sidechat.start` 的 `question: ""` 是契约的一部分——非空会被当成线程第一条消息发出去 | 传非空 question、调发送接口、「顺手」帮用户发出 |
 | R13 | 宿主服务/DOM 缺失 = 静默降级，绝不让整个插件挂掉 | 每个宿主契约都是探测而非保证：缺 `webServer` / `agents` / `connection` 时宿主半不注册路由或返回 503，客户端退回 fork；缺 better-sidebar、`CSS.highlights`、`consumeToken`、turnTail 槽位也都有兜底或直接隐藏 | 顶层 `throw`；`querySelector(...).foo` 空引用；把可选服务写进 bundle 的 `inject` 数组；host 半在 `apply` 里因缺服务抛错 |
 | R14 | 公开 id 不改名：source `quote` + trigger `#`、命令 `ui-quote.quote/comment/sidechat/list`、tab `dsh-client-ui-quote/list`、locale 命名空间 `ui-quote`、class 前缀 `dshq-` | 用户改过的键位、已存的本地数据、离线断言都认这些名字 | 重命名 slot id / tab kind 图省事 |
-| R15 | 文案三处同改：`lib/client.js` 的 `zh`/`en`、`locale/zh.json` + `locale/en.json`、`package.json` 的 description；行为变了顺带改 README 功能表 | `check.mjs` 逐键核对两份字典；插件页只读 `locale/*.json` | 只加中文；改了浮层文案忘了 README |
+| R15 | 文案三处同改：`lib/client.js` 的 `zh`/`en`/`ru`、`locale/zh.json` + `locale/en.json` + `locale/ru.json`、`package.json` 的 description；行为变了顺带改 README 功能表 | `check.mjs` 核对三份 locale 的元数据与 `sourceLost`；插件页只读 `locale/*.json` | 只加中文；改了浮层文案忘了 README |
 
 ### 1.4 质量、范围与发布
 
 | # | 红线 | 为什么 | 违规长什么样 |
 | --- | --- | --- | --- |
-| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 728 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
-| R17 | 数字以实跑为准：check **12** 组 + capsule **506** + panel **163** + host **47** = **728**；`README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
+| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 740 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
+| R17 | 数字以实跑为准：check **12** 组 + capsule **518** + panel **163** + host **47** = **740**；`README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
 | R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N` 之类的预发布号（CI 已不再产生，出现即为手误） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
@@ -79,7 +79,7 @@
 | 跳回原文 | `jumpToSource` 3442、`searchSourceRow` 3360、`alignRow` 3283、`landRow` 3308 | `JUMP_*` 442-445、`markJumpLost` 3416 | capsule「jump」整套 |
 | 草稿聚合条（`引用 ×N`） | `ensureDraftBar` 3675、`syncDraftBars` 3811、`consumeDraftChip` 3746、`removeDraftChip` 3765 | `chipSpanOf` 3707、`PERSISTED_CHIP_KEY` 2293 | capsule「draft bar」 |
 | 改这条引用（追加式修订） | `startRevision` 4943、`startDraftEdit` 4978、`rememberRevision` 3031、`revisedFor` 3048 | `REVISED_KEY` 513 | capsule「改这条引用」 |
-| 逐条回应徽章 | `enhanceRefNode` 4471、`flushRefBadges` 4594 | `REF_LABEL` 4377、`replyInstruction`（zh/en） | capsule「逐条回应 / Quote N」 |
+| 逐条回应徽章 | `enhanceRefNode` 4471、`flushRefBadges` 4594 | `REF_LABEL` 4377、`replyInstruction`（zh/en/ru） | capsule「逐条回应 / Quote N」 |
 | 回合尾「引用提问/回答」 | `TurnTailQuote` 1045 | 槽位 `conversation.chat.turnTail`（`apply` 7417） | capsule 的回合尾段、check 的槽位断言 |
 | 侧边对话（内置隐藏线程 / fork / better 三档；浮层里只有一行） | `sideChatBackend`、`hiddenSideChatRequest`、`probeBuiltinSideChat`、`startBuiltinSideThread`、`nativeSideChatRequest`、`openSideChat`、`openThreadTarget`、`openThreadTab`、`installNativeSideChatPage`、`sideChatPhase`（自营页固定聊天态，不画 hero）、`SideChatFixedView`（视图槽空态）；`sideChatService`、`mintedHiddenThread`（形状版本戳） | `SIDECHAT_BUILTIN_API`、`SIDECHAT_LABEL_PREFIX`、`SIDECHAT_TARGET_KEY`、`targetOfThread` / `threadRetainTarget`、`knownSideThreadIds`、`prefillDraft` / `prefillQuoteDraft`（芯片优先）、线程记忆、`SIDECHAT_API` | capsule「侧边对话」「原生侧聊页」、check 槽位断言 |
 | 隐藏线程创建（宿主半，隐性上下文） | `lib/index.js` 的 `apply`（`ctx.inject(["webServer"])` → `handleSideChatRequest`）、`startSideChat`（创建完、定完标题就 dispose；活句柄会让宿主子代理 resume 失败）、`buildThreadSeed`（切点 → 收口回合：**空 `system/message` 头** → `session-context` 的 `user/message` → `turn/end` → descriptor；第一条 surface 节点必须是 system 头）、`transcriptOf`、`threadLabel`、`parentSelection`、`presetOf` | `package.json` 的 host 入口、R1/R2/R11/R13、`inheritedEventCount` 必须 ≤ descriptor 的 seq、客户端 `openThreadTarget` 优先自营页（内置 `subagentchat` 仅在页签未注册时兜底）、README「已知限制」的宿主契约出处 | `test/host.mjs` 全篇、真宿主探针、`verify-seed`（真构造器 + v4 关系校验器） |
@@ -89,10 +89,10 @@
 | 侧边线程回流 | `loadThreadSummary` 6993、`bringThreadBack` 7006、`exportThread` 7028、`loadThreadList` 6957 | `THREAD_LIMIT` 536、`threadConclusion` 6093 | panel「side thread」 |
 | 快捷键 | `registerShortcut` 7175、`registerPlaceShortcut` 7204 | `shortcutDefaults` 7165 | capsule 键位段、panel「shortcut」 |
 | 配置开关 / 调试探针 | `sanitizeConfig` 249、`config` 273、`setConfig` 287、`installProbe` 7221、`failureSnapshot` 1804 | `CONFIG_KEY` 226、`CONFIG_RANGES` 243 | capsule 的配置段（默认值/清洗/落库）+ 探针段 |
-| 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7394）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
-| 词条 / 插件页文案 | `zh` 54、`en` 138；`locale/zh.json`、`locale/en.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
+| 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7404）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
+| 词条 / 插件页文案 | `zh` 54、`en` 138、`ru` 239；`locale/zh.json`、`locale/en.json`、`locale/ru.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 728 + 远端 `main`/标签一致 + 六组自查结论 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 740 + 远端 `main`/标签一致 + 六组自查结论 |
 
 ### 2.2 按症状找位置
 
@@ -116,22 +116,22 @@
 | 隐藏线程创建失败 / 显示成普通 fork | 宿主半 `apply`、`startSideChat`、`probeBuiltinSideChat`、`probe().sideChatBuiltin` | `webServer` / `agents` / `connection` 没就绪；父会话不在线（409）；`agents.create` 拒绝；客户端按设计退回 fork |
 | 侧聊显示「历史加载失败：subagent descriptor is unavailable」 | 宿主半 `buildThreadSeed` 的继承切点与 `inheritedEventCount`；客户端 `mintedHiddenThread`（形状版本戳）/ `hiddenThreadReadable` | descriptor 的 `seq` 落在 `inheritedEventCount` 之前（没标 `session/end-seed{inherited:true}`，或标记被补在末尾）；这类子会话永远读不出来，客户端下一次点会丢弃它并新建。**别用 `sessions.retain` 判断这类线程**：retain 对坏线程照样成功，只有历史 RPC 会拒 |
 | 线程在 better-sidebar 与我们的清单里重复 | `SIDECHAT_LABEL_PREFIX`、`knownSideThreadIds`、`targetOfThread` | 两边共享 `Side: ` 持久约定，这是有意为之；不是两套数据互相覆盖 |
-| 英文界面混中文 | `zh`/`en` 成对检查、`translateFor` 2119 | 只加了一边；导出函数里写死中文 |
-| `npm test` 挂了 | 先看是哪一套：check / capsule / panel | 新增 DOM API 没垫片；新增词条没进两份字典；manifest 字段动了 |
+| 非中文界面混中文 | `zh`/`en`/`ru` 词典成对检查、`translateFor` 2119 | 只加了一边；导出函数里写死中文 |
+| `npm test` 挂了 | 先看是哪一套：check / capsule / panel | 新增 DOM API 没垫片；新增词条没进三份字典；manifest 字段动了 |
 | 推 main / 发版 / 标签或 publish CI 失败 | `skills/release/SKILL.md`、工作区根 `promote.ps1`、`.github/workflows/publish.yml` | 版本未 bump、标签已存在、未跟踪工作稿阻塞、git 与 REST 混用、CHANGELOG 小节缺失 |
 
 ### 2.3 文件地图
 
 | 文件 | 作用 |
 | --- | --- |
-| `lib/client.js`（≈8.4k 行） | 客户端全部功能。顺序：locale → 配置 → 常量（线格式/选择器/存储键）→ 选区读取 → 线格式 → 芯片插入 → 胶囊/卡片 → 坐标表 → 高亮 → 草稿条 → 侧聊 → 清单页 → 快捷键 → `apply` |
-| `lib/index.js`（≈500 行） | host 半，只做隐藏侧聊线程：`/ui-quote/api/sidechat.start` 路由（同源围栏）、隐性上下文种子（切点 → `session-context` 消息 → descriptor）、`agents.create`、标题固定与卸载清理。不要再往这里加别的功能 |
+| `lib/client.js`（≈9.2k 行） | 客户端全部功能。顺序：locale → 配置 → 常量（线格式/选择器/存储键）→ 选区读取 → 线格式 → 芯片插入 → 胶囊/卡片 → 坐标表 → 高亮 → 草稿条 → 侧聊 → 清单页 → 快捷键 → `apply` |
+| `lib/index.js`（≈0.6k 行） | host 半，只做隐藏侧聊线程：`/ui-quote/api/sidechat.start` 路由（同源围栏）、隐性上下文种子（切点 → `session-context` 消息 → descriptor）、`agents.create`、标题固定与卸载清理。不要再往这里加别的功能 |
 | `cordis.patch.yml` | 组合包层补丁，插入 `ui-quote` loader 条目 |
 | `package.json` | 清单（`dsh.bundle.patch` / `dsh.client.platform` / 四个 `exports` / `icon` / `engines.dsh`）+ `files` 白名单 + 测试脚本 |
 | `icon.svg` | 插件页卡片图标（相对路径、≤ 256 KiB、realpath 必须留在包内） |
-| `locale/zh.json`、`locale/en.json` | 插件页卡片文案；`en.json` 是扫描锚点 |
+| `locale/zh.json`、`locale/en.json`、`locale/ru.json` | 插件页卡片文案；`en.json` 是扫描锚点 |
 | `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer |
-| `test/capsule.mjs` | 506 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
+| `test/capsule.mjs` | 518 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
 | `test/panel.mjs` | 163 组：清单页（解析、搜索、导出、单条复制 Markdown、读取、注册、审阅、JSON、本机索引、线程回流、底部 Star 链接） |
 | `test/host.mjs` | 47 组：宿主半（标签 / 隐性上下文种子（收口回合 + 空 system 头）/ 截断超长单条消息 / 空日志兜底 / 切点与 descriptor 顺序 / `agents.create` 参数 / 探针 / 围栏 / 路由注册与卸载） |
 | `test/dom.mjs` | 最小 DOM / MutationObserver / Range / localStorage 垫片；新 API 先补这里 |
@@ -140,13 +140,13 @@
 | `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 从根 README 移出的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文全文。根 README 只留功能表、已知限制与入口 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
 | `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、**发版前 A–F 六组交付自查**、CHANGELOG/Release 验收；不进 npm 包 |
-| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与中英词条（R15）怎么对齐；不进 npm 包 |
+| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与三语词条（R15）怎么对齐；不进 npm 包 |
 
 ### 2.4 命令
 
 ```bash
 node --check lib/client.js                 # 语法门（CI 也先跑这个）
-npm test                                   # check + capsule + panel + host，728 组
+npm test                                   # check + capsule + panel + host，740 组
 node test/check.mjs                        # 只跑清单/契约
 node test/capsule.mjs                      # 只跑发送后链路
 node test/panel.mjs                        # 只跑清单页
@@ -169,7 +169,7 @@ pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote [-Ta
 - [ ] 旧消息兼容：拿一条旧版线格式样本跑 `quoteBlock` / `splitQuoteRuns` round-trip，`> ❞ …`、`※ │q1:…`、正文自带代码围栏，三者都不串行（R7）。
 - [ ] 宿主缺失路径：在桩里删掉 `betterSidebar` / `webServer` / `agents` / `consumeToken` / `CSS.highlights`，功能降级、不抛错（R13）；宿主半缺 `webServer` 时路由不存在，缺 `agents` 时探针 503。
 - [ ] 隐藏线程回归：`node test/host.mjs` 全绿；真宿主（临时 `DSH_HOME` + web profile）探针返回 `available:true`（R18 的 host 契约出处写进 README）。
-- [ ] 中英词条、`locale/*.json`、`package.json` description、README 功能表同改（R15）。
+- [ ] 三语词条、`locale/*.json`、`package.json` description、README 功能表同改（R15）。
 - [ ] `git status` 只有预期文件；没有 `.workbuddy/`、没有报告、没有把 `AGENTS.md` 加进 `files`（R22）。
 - [ ] 提交在 `main`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`，**打标签前先把该文件的「发版前交付自查」A–F 六组完整跑一遍**，红项先修（R16、R20、R21）。
 

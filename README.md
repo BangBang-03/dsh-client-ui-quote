@@ -12,7 +12,7 @@
 
 ## 30 秒上手
 
-1. 安装：`dsh plugin --profile web add dsh-client-ui-quote`；桌面版在应用内插件页搜索同名包。
+1. 安装：桌面版在应用内插件页搜索 `dsh-client-ui-quote`；CLI 用 `dsh plugin --profile <profile> add dsh-client-ui-quote`（桌面 profile 一般叫 `desktop`，浏览器 profile 一般叫 `web`）。
 2. 在消息、文件预览、终端或 diff 里**选中一段文字**，浮层选「评论」或「添加到对话」。
 3. 发送后回原文看高亮，悬停胶囊可**跳回**、可**复制为 Markdown**；右侧栏「引用清单」（桌面 `Alt+L`）可搜索、导出、审阅。
 
@@ -70,7 +70,7 @@
 
 ## 安装
 
-要求：DSH ≥ 0.2.0-rc.2 的 **web / 桌面** 客户端（`package.json` 里 `engines.dsh` 声明的是最低支持范围，没有上限；0.2.1-rc.5 已复核。插件运行在渲染进程里，headless profile 没有 UI）。
+要求：DSH ≥ 0.2.0-rc.2 的 **web / 桌面** 客户端（`package.json` 里 `engines.dsh` 声明的是最低支持范围，没有上限；0.2.2-rc.1 已复核。插件运行在渲染进程里，headless profile 没有 UI）。
 
 ### 方式一：npm 包（推荐）
 
@@ -80,7 +80,7 @@
 dsh plugin --profile desktop add dsh-client-ui-quote
 ```
 
-npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。Electron 托管的 `desktop` profile 也可以在**应用内市场**里搜索本插件安装（`dsh plugin` 对这类 profile 会拒绝管理，这是 DSH 的限制，不是插件的问题）。
+npmmirror 与 npmjs 一般 10 分钟内同步，DSH 配置了镜像源即可国内直装。Electron 托管的 `desktop` profile 也可以在**应用内市场**里搜索本插件安装；0.2.2-rc.1 实测 `dsh plugin --profile desktop list` 可用，CLI 能读到这个 profile（旧版本若仍拒绝管理，走应用内市场即可）。
 
 安装稳定版：`pnpm install dsh-client-ui-quote@latest`。`@lab` 是已停用的旧预览频道——仍能装到 `0.13.1-lab.61`，但不再更新。
 
@@ -111,7 +111,7 @@ link 的优点是改完刷新即生效；**日常运行请用方式一**，不�
 
 ### 开发与发布
 
-两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**728 项**：check 12 + capsule 506 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
+两种运行方式（`link` / `stable`）、推送通道与发布运维备忘见 [`docs/release.md`](docs/release.md)。断言入口是 `npm test`（**740 项**：check 12 + capsule 518 + panel 163 + host 47），`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。
 
 ### 卸载
 
@@ -167,17 +167,17 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 1. **语义而不是机制**：引用与评论是同一颗节点（对齐 Kimi 的 `quote` 节点 `{text, comment}`），一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片 → 一次复制；机制（reference chip、DOM 增强）谁都能抄，这条链子不好抄。
 2. **引用是带坐标的活对象**：`跳回原文` 在自己的会话面板里找行、按宿主的方式对齐到 24px，行被虚拟列表藏起来或没挂载都能找回来；坐标以「人可读来源头 + base64 尾巴」随消息走——前者让模型知道出处，后者让插件跨刷新回读。base64 确实占一点 prompt，这是用「不依赖本地表」换来的取舍。
 3. **引用有下落**：清单页（搜索 / 跳转 / 导出 Markdown）+ 侧边线程回流（结论写回主会话草稿 / 导出线程），这两件事在同类里仍是少数。
-4. **工程化**：728 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
+4. **工程化**：740 项离线断言（含真跑 `sessions.retain` / `setDraft` / `agents.create` 参数 / 下载链路）、每个宿主契约都在 README 里写明出处、每个版本都有可回读的 release。同类里做到同等断言规模的仍是少数。
 
 > 完整的同类对照、与 Kimi 的逐条对应、以及「本插件不做什么」都在 [`docs/design.md`](docs/design.md)。
 
 ## 已知限制
 
-- **DSH 版本兼容声明（2026-10-30 在 0.2.1-rc.5 复核）**：`package.json` 的 `engines.dsh` 是 `>=0.2.0-rc.2`——只有下限、没有上限。DSH 加载前的兼容性检查只读这个字段（存在时忽略 `@deepseek-ai/dsh*` peers）；范围满足就放行，所以 0.2.1-rc.5 及后续版本不会仅因版本号被禁用。本次复核确认：宿主半路由仍挂载（同源围栏对探针返回本插件自己的 403 JSON）、`webServer.register` / `connection.requestRejection` / `agents.create` 的 `seed` 与 `inheritedEventCount` / `subagent/descriptor` v3 / 客户端槽位与 DOM 属性（`conversation.chat.turnTail`、`data-chat-turn`、`reference-chip`）都还在。**开区间的代价是没有预警**：DSH 改内部接口时表现为静默降级，升级后请跑 `npm test` 和一次侧聊探针；**不要写上界**（写成 `<0.2.1-rc.4` 之类的插件，下一次 rc 就会被 DSH 直接禁用）。
+- **DSH 版本兼容声明（2026-11-07 在 0.2.2-rc.1 复核）**：`package.json` 的 `engines.dsh` 是 `>=0.2.0-rc.2`——只有下限、没有上限。DSH 加载前的兼容性检查只读这个字段（存在时忽略 `@deepseek-ai/dsh*` peers）；范围满足就放行，所以 0.2.2-rc.1 及后续版本不会仅因版本号被禁用。本次复核确认：运行中的 0.2.2-rc.1 上宿主半路由仍挂载（`/ui-quote/api/*` 的无浏览器 Origin 请求先被同源围栏拦成 `403 {"code":"forbidden"}`；同样 POST 到一个不存在的路径是 `405`，说明不是兜底路由）；`webServer.register` / `connection.requestRejection` / `agents.create` / `inheritedEventCount` / `subagent/descriptor` v3 仍能在 `app.asar` 里检索到；客户端槽位与 DOM 属性（`conversation.chat.turnTail`、`data-chat-turn`、`data-conversation-content`、`reference-chip`、`data-textpreview-path`）也都还在。0.2.2 的 `message-quotes` 还会把用户消息里的 Markdown blockquote 解码后渲染到 `[data-quote-preview]`（`quoteTextOf` 剥掉每行 `> `；`app.asar` 的 `@deepseek-ai/dsh-message-quotes/lib/client.js` 与运行窗口实测）：发送后的引用因此以解码形态到达 DOM，插件按这个 surface 识别并替换，宿主原生引用（没有 `❝`）保持原样——这是本轮修复补上的宿主契约。**开区间的代价是没有预警**：DSH 改内部接口时表现为静默降级，升级后请跑 `npm test` 和一次侧聊探针；**不要写上界**（写成 `<0.2.1-rc.4` 之类的插件，下一次 rc 就会被 DSH 直接禁用）。
 - **可选服务注册**：引用源和四个快捷键通过 Cordis `ctx.inject` 等待 `inputTriggers` / `shortcuts`，服务提供者卸载时释放旧注册，重载后在新实例注册。DSH 0.2.1-rc.2 的快捷键注册器会校验所有平台默认值，裸 Alt 的 Web 默认值会使整条命令注册失败，因此仅保留桌面默认绑定。
 
 - **隐藏线程的模型路由**（app.asar 0.2.1-rc.3，issue #2 实测）：旧种子里的收口回合从未真正请求过模型，子会话因此没有 `modelSelection` 投影；标准 preset 的 persona 里 `{{model}}` 取不到值，任何一轮都会以 `prompt variable "{{model}}" has no value` 失败。0.13.1 起在 `setup` 里按宿主 `api-session-controller` 的做法装 `system-prompt/assemble` 钩子并 append 一条 `model/selection`；0.13.4 起种子里也带一条 `model/selection`，所以线程被从磁盘重新打开（重启后、或同一条线程的第二条消息）时投影依然有值。**2026-10-29 真机连发两条均 `completed`**，不再出现该错误。
-- **内置隐藏线程依赖宿主内部契约**（app.asar 0.2.1-rc.3 首次实测；0.2.1-rc.5 复核路由与契约仍在）：宿主半 `lib/index.js` 用 `ctx.inject(["webServer"])` 注册 `POST /ui-quote/api/sidechat.start`，在宿主服务就绪后从父会话 `snapshotEvents()` 取原话合成一条隐性上下文（不复制日志），再用 `ctx.get("agents").create({ meta: { parentSession, isSeeded: true, origin: "subagent", delegationDepth, agentPreset }, seed, inheritedEventCount, agentOptions, setup })` 建子会话；descriptor 为 `{version: 3, mode: "continuable", provider: "ui-quote", label}`，标题 `Side: <引用首行>`。`webServer` / `connection.requestRejection` / `agents` 缺失时探针失败，客户端退回 fork；`agents.create` 失败只影响这一条线程。
+- **内置隐藏线程依赖宿主内部契约**（app.asar 0.2.1-rc.3 首次实测；0.2.1-rc.5 与 0.2.2-rc.1 复核路由与契约仍在）：宿主半 `lib/index.js` 用 `ctx.inject(["webServer"])` 注册 `POST /ui-quote/api/sidechat.start`，在宿主服务就绪后从父会话 `snapshotEvents()` 取原话合成一条隐性上下文（不复制日志），再用 `ctx.get("agents").create({ meta: { parentSession, isSeeded: true, origin: "subagent", delegationDepth, agentPreset }, seed, inheritedEventCount, agentOptions, setup })` 建子会话；descriptor 为 `{version: 3, mode: "continuable", provider: "ui-quote", label}`，标题 `Side: <引用首行>`。`webServer` / `connection.requestRejection` / `agents` 缺失时探针失败，客户端退回 fork；`agents.create` 失败只影响这一条线程。
   **种子不复制父会话日志，只带一条隐性上下文**：`seed` 固定八个事件（带模型选择时九个）——`session/end-seed { inherited: true }`（切点在下标 0）、一个**收口回合**（`turn/start` → `step/start` → **空内容的 `system/message`** → 上下文消息 → `step/end` → `turn/end{done}`）、以及 `subagent/descriptor`（再加一条可选的 `model/selection`）。**回合的第一条必须是 system 消息**：会话存储把第一个 surface 节点当作受保护的系统头；任何在它之前出现的其它 surface 节点（比如把上下文直接放最前）都会让首个真实回合的 `system/message` 在重载时报 `system/message requires a protected first surface head`，之后每次发送都以 `subagent/not-resumable` 失败——v4 的回合缺这个头、v5 干脆没有回合，都栽在这里。空 system 消息是宿主自己的空提示形状；首个真实回合会替换它，或在其后追加自己的系统提示。那条消息里是主会话最近若干轮的**纯文本**（用户/助手、上限 8000 字，工具调用与注入上下文都跳过），带一句「只作背景、别继续执行」的指令——所以模型仍有上下文，侧聊界面把它折叠成一行「上下文」，不会把整段主会话铺出来，也不再为复制整条日志付一遍 token。宿主读子会话身份时走 `subagent` 投影（最后一次 descriptor 生效），并在 `api-session-controller` 里要求 `identity.seq >= inheritedEventCount`，否则整个子会话的历史都打不开（`subagent/catalog-diagnostic` · "subagent descriptor is unavailable"）——descriptor 必须排在切点之后，0.12.3-lab.26 就是栽在这一步。
   **旧线程靠形状版本戳识别，不靠 `sessions.retain`**：retain 对这类坏线程**照样成功**（只有历史 RPC 会拒），所以客户端给新建的线程在 `dsh-client-ui-quote:v1:sidechat-target` 里盖当前形状版本（现在是 `v: 6`：收口回合 + 空 system 头 + 隐性上下文 + 自营页签），只复用自己盖过章的线程；better-sidebar 的、旧版本的、清单里扫描发现的线程一律丢弃重建——点一次就自愈，代价是最多重建一条线程。隐藏线程是 `continuable` 子会话，**父会话在线时可继续**；父会话关闭后是否还能写由宿主对 `continuable` 子会话的规则决定（通常只读），重新打开父会话即可继续。宿主升级改了 `agents.create` / 种子格式时，线程创建会失败并自动退回 `sessions.fork`，不会白屏或报错。
   **自营页的 hero 契约**（app.asar 0.2.1-rc.3，`ui-conversation` 的 `ConversationContent` 实测）：`hero` 为真时宿主渲染欢迎页（「探索未至之境」）与 hero 输入条，未选工作区时输入条禁用——引用芯片无处可落。自营页固定 `hero: false`、phase 走 `settling → active`。v6 种子自带收口回合，子会话通常不是 `blank`；宿主若仍把它判成 `blank`（例如旧宿主忽略了种子里的回合），`ConversationSession` 会返回 null，视图区没有 DOM、输入条会被排到页签栏下方——所以自营页的视图槽仍带一个空态块（有回合后自动隐藏），把输入条留在页底。
@@ -211,16 +211,16 @@ __dshQuote.probe()                     // 宿主服务可见性（inputTriggers 
 
 - **回合级引用依赖宿主的回合尾槽位**：宿主把每条回合的尾部做成一个列表子槽位（`conversation.chat.turnTail`，`kind:"list"`、`scope:"session"`），本插件往里加一条。宿主没有这个槽位时按钮不出现——功能缺失，其它能力不受影响；**高亮自动收回也依赖这个槽位**，槽位缺失时高亮保持常亮（等同于 `keepHighlight: true`）。
 - **引用清单的本机索引只在本机**：它兜的是「上下文压缩把消息裁掉」这一种丢失，记录不进模型上下文、不跨设备、不跨浏览器；没读过的引用它当然也不知道。
-- **侧边对话与主对话的记忆不互通**：它只带创建时的一份主会话快照（最近几轮，上限 8000 字），之后主会话的新消息不会同步进去，侧聊的新消息也不会自动回到主会话。引用只写进侧聊的草稿；回答要带回来，必须在引用清单页点「带回主会话」。**侧边对话有一条内置主路 + 三条退路**：默认是宿主半创建的内置隐藏线程（`origin: "subagent"` + 本插件 `quote-sidechat` 页，会话列表不显示）；父会话不在线 / 宿主半不可用时退回 `sessions.fork` + 本插件 `quote-sidechat` 页签（线程作为普通 fork 出现在会话列表）；再不行才走 dsh-better-sidebar（仅显式 `sideChatBackend: "better"` 或最后兜底）。隐藏线程与 better-sidebar 共享 `Side: ` 标题约定，所以两边的线程列表可以互相看见，但存储键、路由与 descriptor provider 各自独立。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。所有后端都不可用时浮层里没有侧边对话那一行。
+- **侧边对话与主对话的记忆不互通**：它只带创建时的一份主会话快照（最近几轮，上限 8000 字），之后主会话的新消息不会同步进去，侧聊的新消息也不会自动回到主会话。引用只写进侧聊的草稿；回答要带回来，必须在引用清单页点「带回主会话」。**侧边对话有一条内置主路 + 两条退路**：默认是宿主半创建的内置隐藏线程（`origin: "subagent"` + 本插件 `quote-sidechat` 页，会话列表不显示）；父会话不在线 / 宿主半不可用时退回 `sessions.fork` + 本插件 `quote-sidechat` 页签（线程作为普通 fork 出现在会话列表）；再不行才走 dsh-better-sidebar（仅显式 `sideChatBackend: "better"` 或最后兜底）。隐藏线程与 better-sidebar 共享 `Side: ` 标题约定，所以两边的线程列表可以互相看见，但存储键、路由与 descriptor provider 各自独立。未在侧聊里提问前执行「带回主会话」，可能取到复制过来的最后一轮，先在侧聊里问一句即可。所有后端都不可用时浮层里没有侧边对话那一行。
 
 ## 自检
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，728 组
+npm test          # check + capsule + panel + host，740 组
 ```
 
-合计 **728 组**（check 12 + capsule 506 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **740 组**（check 12 + capsule 518 + panel 163 + host 47），`npm test` 全绿。四套断言各自覆盖什么、真浏览器版（51 项）怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 贡献
 

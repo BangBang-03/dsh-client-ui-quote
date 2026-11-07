@@ -8,7 +8,7 @@
 git clone https://github.com/BangBang-03/dsh-client-ui-quote.git
 cd dsh-client-ui-quote
 node --check lib/client.js
-npm test          # 728 组离线断言，必须全绿
+npm test          # 740 组离线断言，必须全绿
 ```
 
 插件没有运行期依赖（客户端 bundle 只 `require("react")`），**不需要 `npm install`**，也不要在 PR 里新增依赖。
@@ -26,7 +26,7 @@ npm test          # 728 组离线断言，必须全绿
 
 - `node --check lib/client.js && npm test` 全绿。
 - **新增行为必须带断言**；**不许删断言、也不许放宽期望值换绿**。
-- 断言数量变了：README 四处（`npm test` 入口、工程化第 4 条、自检合计、真机验证）+ [`test/README.md`](test/README.md) + [`CHANGELOG.md`](CHANGELOG.md) 各一处一起改。
+- 断言数量变了：README 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ [`docs/design.md`](docs/design.md) 的「真机验证」一处 + [`CHANGELOG.md`](CHANGELOG.md) 一处 + [`test/README.md`](test/README.md) 一起改。
 - 改了界面文案：`lib/client.js` 的 `zh`/`en`/`ru`、`locale/zh.json`、`locale/en.json`、`locale/ru.json`、README 功能表一起改（三语成对）。
 - **不要改 `package.json` 的 `version`**：版本号由维护者在发版提交里统一改。
 

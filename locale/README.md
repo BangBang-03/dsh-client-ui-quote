@@ -1,6 +1,6 @@
 # locale
 
-插件页卡片的本地化元数据，宿主按 `locale/*.json` 扫描。
+插件页卡片的本地化元数据，宿主按 `locale/*.json` 扫描。**插件内界面文案不在这里**——那三份词典在 `lib/client.js` 的 `zh` / `en` / `ru` 里，由 `language` 开关决定。
 
 | 文件 | 作用 |
 | --- | --- |
@@ -10,6 +10,6 @@
 
 ## 约定
 
-- 三份字典的键必须成对；`test/check.mjs` 会逐键核对，并断言 `sourceLost` 与插件内词典一致。
+- 三份字典的键应当成对（新增词条时三份一起加）；`test/check.mjs` 会核对每份 locale 的 `meta.title` / `meta.description`，并断言 `sourceLost` 与插件内词典逐字一致。
 - 文案改动要三处同改：`lib/client.js` 的 `zh` / `en` / `ru`、这里的 `zh.json` / `en.json` / `ru.json`、`package.json` 的 `description`；行为变了顺带改根 README 的功能表。
 - 本目录只放 JSON（可选 README）；不要放脚本或构建产物。
