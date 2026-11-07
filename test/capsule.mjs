@@ -258,6 +258,41 @@ check(
 		testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true))?.[0]?.code === "",
 	JSON.stringify(testing.splitQuoteRuns(testing.quoteBlock("const x = 1;", "", true)))
 );
+// DSH 0.2.2's `message-quotes` decodes a blockquote before rendering it
+// (`quoteTextOf` strips every `> ` prefix), so a sent quote reaches the DOM as
+// `❝ …` / `❞ …` / `※ … │q1:…` with no blockquote markers. That form still has
+// to read back as the same quote; the host only calls us for a node it already
+// recognized as a blockquote, which is why a leading ❝ is the signal.
+const decodedRef = { s: "session-1", a: "data-chat-anchor-key", k: "14:assistant-step1:2", t: "1", n: 1 };
+const decodedOf = (wire) => String(wire).split("\n").map((line) => line.replace(/^> ?/u, "")).join("\n");
+const decodedPlain = testing.splitDecodedQuote(decodedOf(testing.quoteBlock("原话", "我的评论", false, { ref: decodedRef, label: "引自第 2 轮" })));
+check(
+	"a decoded quote reads back without the blockquote markers",
+	decodedPlain?.quote === "原话" && decodedPlain?.comment === "我的评论" && decodedPlain?.code === null,
+	JSON.stringify(decodedPlain)
+);
+check(
+	"a decoded ref still decodes",
+	decodedPlain?.ref?.k === "14:assistant-step1:2" && decodedPlain?.ref?.s === "session-1",
+	JSON.stringify(decodedPlain?.ref)
+);
+const decodedReply = testing.splitDecodedQuote(decodedOf(testing.quoteBlock("原话", "", false, { reply: true, ref: decodedRef })));
+check(
+	"a decoded 逐条回应 instruction stays transport",
+	decodedReply?.quote === "原话" && decodedReply?.comment === "" && decodedReply?.ref?.k === "14:assistant-step1:2",
+	JSON.stringify(decodedReply)
+);
+const decodedCode = testing.splitDecodedQuote(decodedOf(testing.quoteBlock("const x = 1;", "", true)));
+check(
+	"a decoded code quote reads back as code",
+	decodedCode?.quote === "const x = 1;" && decodedCode?.code === "",
+	JSON.stringify(decodedCode)
+);
+check(
+	"a decoded host-native quote is left to the host",
+	testing.splitDecodedQuote("第一行\n第二行") === null,
+	JSON.stringify(testing.splitDecodedQuote("第一行\n第二行"))
+);
 // R7: the wire format only grows, so every message an older version wrote has
 // to keep parsing exactly as it did. Every writer emitted the closing fence
 // unconditionally, so a code quote's fences were always paired - which is
@@ -4024,6 +4059,81 @@ try {
 		"uninstalling the page takes its type and style with it",
 		testing.nativeSideChatReady() === false && dom.document.getElementById("dsh-quote-sidechat-style") === null
 	);
+}
+
+// ---- the host decodes the blockquote into its own quote surface -------------
+// DSH 0.2.2 hands the transcript a `[data-quote-preview]` span whose text has
+// already lost its `> ` prefixes. The plugin must replace that whole surface
+// (one capsule), not the inner text run, and must leave a host-native quote —
+// which has no `❝` — exactly as the host drew it.
+{
+	const quoteHost = dom.document.createElement("div");
+	quoteHost.setAttribute("data-conversation-content", "");
+	quoteHost.setAttribute("data-conversation-session", "session-host-quote");
+	dom.document.body.append(quoteHost);
+
+	const hostRef = { s: "session-host-quote", a: "data-chat-anchor-key", k: "14:assistant-step1:2", t: "1", n: 1 };
+	const hostDecoded = decodedOf(testing.quoteBlock("宿主解码后的原话", "宿主解码后的评论", false, { ref: hostRef }));
+	const surface = dom.document.createElement("span");
+	surface.setAttribute("data-quote-preview", "");
+	// The marker is an SVG in the real host, so it contributes no text.
+	surface.append(dom.document.createElement("span"));
+	const source = dom.document.createElement("span");
+	source.className = "source";
+	source.textContent = hostDecoded;
+	surface.append(source);
+	quoteHost.append(surface);
+
+	// A native DSH quote is the same surface shape but never carries our marks.
+	const native = dom.document.createElement("span");
+	native.setAttribute("data-quote-preview", "");
+	const nativeSource = dom.document.createElement("span");
+	nativeSource.textContent = "第一行\n第二行";
+	native.append(nativeSource);
+	quoteHost.append(native);
+
+	dom.document.deliver();
+	await wait(120);
+	const hostCaps = () => quoteHost.querySelectorAll(".dshq-cap");
+	check("a host-decoded quote still becomes one capsule", hostCaps().length === 1, hostCaps().length + " capsule(s)");
+	check(
+		"the host's quote surface is hidden, not removed",
+		surface.isConnected && surface.style.display === "none",
+		"connected=" + surface.isConnected + " display=" + JSON.stringify(surface.style.display)
+	);
+	check(
+		"the capsule replaces the whole surface",
+		hostCaps()[0]?.parentNode === quoteHost,
+		JSON.stringify(hostCaps()[0]?.parentNode === quoteHost)
+	);
+	check(
+		"the capsule reads the decoded quote and comment",
+		quoteHost.querySelector(".dshq-cap-quote")?.textContent === "宿主解码后的原话" &&
+			quoteHost.querySelector(".dshq-cap-comment")?.textContent === "宿主解码后的评论",
+		JSON.stringify(quoteHost.querySelector(".dshq-cap-quote")?.textContent) + " / " + JSON.stringify(quoteHost.querySelector(".dshq-cap-comment")?.textContent)
+	);
+	check(
+		"the inner text run is not painted twice",
+		source.style.display === "" && quoteHost.querySelectorAll(".dshq-body").length === 0,
+		JSON.stringify(source.style.display)
+	);
+	check(
+		"a host-native quote is left alone",
+		native.isConnected && native.style.display === "" && native.textContent === "第一行\n第二行",
+		JSON.stringify(native.style.display)
+	);
+	// React can re-render the text inside the surface without replacing it; the
+	// mutation lands on the inner span, so the surface has to be found from its
+	// ancestor and the capsule refreshed in place.
+	source.textContent = decodedOf(testing.quoteBlock("改过的宿主原话", "改过的评论"));
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"a re-render inside the host surface refreshes the capsule",
+		hostCaps().length === 1 && quoteHost.querySelector(".dshq-cap-quote")?.textContent === "改过的宿主原话",
+		hostCaps().length + " capsule(s) / " + JSON.stringify(quoteHost.querySelector(".dshq-cap-quote")?.textContent)
+	);
+	quoteHost.remove();
 }
 
 // Optional services may arrive after the plugin and later be replaced.
