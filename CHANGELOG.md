@@ -2,9 +2,22 @@
 
 ## Unreleased
 
+_（下一轮）_
+
+## 0.14.2 — 2026-11-07
+
+### Fixed
+
+- **DSH 0.2.2 解码后的引用仍能变成胶囊**：0.2.2 的 `message-quotes` 会把用户消息里的 Markdown blockquote 解码后渲染到 `[data-quote-preview]`（每行 `> ` 被 `quoteTextOf` 剥掉），发送后的引用因此不再以 `> ❝ …` 形态出现在 DOM 里；`splitQuoteRuns` 只认 `>` 开头的块，于是整段被当成普通文本重画——原文气泡、没有胶囊、`※ 引自… │q1:` 传输行原样露出。现在 `isQuoteRun` 把宿主 surface 让给 `isHostQuote`，`splitDecodedQuote` 读取解码形态（`❞` 评论、`※ 指令` 与 `│q1:` 坐标、代码围栏都能还原），`enhance` 以整个 surface 为单位隐藏并插入胶囊；宿主原生引用（没有 `❝`）保持原样。新增 12 组断言。
+
 ### Docs
 
+- **README 全量对齐现状**：根 README 的安装命令（`desktop` / `web` profile）、`dsh plugin` 对 desktop profile 的说明、DSH 兼容复核（0.2.2-rc.1）与侧聊退路计数按实测更正；`docs/README.en.md` 重写为覆盖当前功能、配置与限制的英文版；`docs/README.md` 补齐文档索引；`lib/README.md` 修正 host 半职责与行数；`test/README.md` 补上三语词典与语言开关覆盖；`locale/README.md`、`submission/README.md`、`.github/README.md`、`.github/workflows/README.md` 同步插件页文案来源、市场状态与 PR 模板。插件行为与离线断言数不变。
 - **发版前必须完整做一次交付自查**：`skills/release/SKILL.md` 新增「发版前交付自查（闸门）」A–F 六组——门禁与断言、版本与数字、文案与契约、包内容（`npm pack --dry-run` 白名单与体积）、线格式与降级、发布面（远端形状 / workflow / 凭证 / 工作稿），并写进「不可违反」第 10 条与正式发版的第 3 步；`skills/docs/SKILL.md`、`AGENTS.md`、`docs/release.md` 同步指向它。顺手修掉文档里残留的 715 组旧断言数（`CONTRIBUTING.md`、`docs/release.md`、`docs/distribution.md`、`docs/design.md`）与「`submission/` 在 npm 包里」的错误描述。插件行为与离线断言数不变。
+
+### 断言
+
+离线断言 **740 组**（check 12 + capsule 518 + panel 163 + host 47）。
 
 ## 0.14.1 — 2026-10-31
 
