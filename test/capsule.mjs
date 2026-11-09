@@ -3866,6 +3866,37 @@ try {
 	check("a reasoning kind is not read as the answer", testing.turnTextAt(reasonRow, 7, "assistant").text.includes("内部推理") === false, JSON.stringify(testing.turnTextAt(reasonRow, 7, "assistant").text));
 	check("a labelled reasoning paragraph is dropped", testing.turnTextAt(labelled, 7, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(labelled, 7, "assistant").text));
 
+	// The reasoning-label fallback is about the answer. A reader's own question
+	// may legitimately open with "思考 …"; it must not lose that paragraph.
+	const thinkingQuestion = dom.document.createElement("div");
+	thinkingQuestion.setAttribute("data-chat-turn", "7");
+	thinkingQuestion.setAttribute("data-chat-flow-kind", "user");
+	thinkingQuestion.textContent = "思考 一下这个问题\n\n第二段问题";
+	pane.append(thinkingQuestion);
+	check(
+		"a user question that opens with 思考 keeps its wording",
+		testing.turnTextAt(thinkingQuestion, 7, "user").text === "思考 一下这个问题\n\n第二段问题",
+		JSON.stringify(testing.turnTextAt(thinkingQuestion, 7, "user").text)
+	);
+
+	// A process block can repeat words from the answer. Cutting the *first*
+	// occurrence of its text out of textContent removed the answer's words and
+	// left the process copy behind; the walk must skip only the subtree.
+	const collisionRow = dom.document.createElement("div");
+	collisionRow.setAttribute("data-chat-turn", "70");
+	collisionRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	collisionRow.textContent = "工具输出 是答案";
+	const collisionPart = dom.document.createElement("div");
+	collisionPart.setAttribute("data-step-process", "true");
+	collisionPart.textContent = "工具输出";
+	collisionRow.append(collisionPart);
+	pane.append(collisionRow);
+	check(
+		"a process block repeating the answer does not cut the answer",
+		testing.turnTextAt(collisionRow, 70, "assistant").text === "工具输出 是答案",
+		JSON.stringify(testing.turnTextAt(collisionRow, 70, "assistant").text)
+	);
+
 	// The reasoning group is keyed exactly like the answer and carries no
 	// data-step-process on its own node; only its flow kind tells them apart.
 	const reasoningGroup = dom.document.createElement("div");
@@ -4499,6 +4530,44 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 		againQuote?.n === 1,
 		JSON.stringify(againQuote?.n)
 	);
+}
+
+/* ------------------------------------------------------------------ *
+ * 回合结束收回 — record-shaped turn must still carry the number
+ * ------------------------------------------------------------------ */
+
+{
+	// Newer hosts pass the turn as a record, and the slot's own attribute used
+	// to read `[object Object]`. clearSpentSources matched that against the
+	// capsule's real turn, found nothing, and the source highlight stayed
+	// forever after the reply finished. The row still has the number.
+	const root = dom.document.createElement("div");
+	root.setAttribute("data-conversation-content", "");
+	root.setAttribute("data-conversation-session", "session-spent");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-spent");
+	row.setAttribute("data-chat-turn", "9");
+	row.textContent = "前文 回复结束后应当收回的引用 后文";
+	const quote = "回复结束后应当收回的引用";
+	const saved = testing.saveSource(quote, "session-spent", { attr: "data-chat-anchor-key", key: "row-spent", turn: "9" });
+	const capsule = dom.document.createElement("div");
+	capsule.setAttribute("data-dshq-jump", testing.capsuleJumpKey(quote, "session-spent", saved));
+	const tail = dom.document.createElement("span");
+	// Exactly what the slot renders for a record turn before the fix.
+	tail.setAttribute("data-dshq-turn", "[object Object]");
+	row.append(capsule, tail);
+	root.append(row);
+	dom.document.body.append(root);
+	const retired = testing.clearSpentSources();
+	const stored = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const entry = Object.values(stored).flat().find((candidate) => candidate?.key === "row-spent");
+	check(
+		"a record-shaped turn still retires its source mark",
+		retired === true && entry?.spent === true,
+		JSON.stringify({ retired, spent: entry?.spent })
+	);
+	check("the retirement is not repeated on the next pass", testing.clearSpentSources() === false, String(testing.clearSpentSources()));
+	root.remove();
 }
 
 console.log(

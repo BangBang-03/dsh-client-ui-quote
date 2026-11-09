@@ -66,7 +66,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | --- | --- |
 | `lib/` | 插件两个出口：`client.js` 承载客户端全部功能，`index.js` 是宿主半、只做隐藏侧聊线程。见 [`lib/README.md`](lib/README.md)。 |
 | `locale/` | 插件页卡片的 zh / en / ru 元数据；界面词条在 `client.js` 的词典里。见 [`locale/README.md`](locale/README.md)。 |
-| `test/` | 四套离线断言（776 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
+| `test/` | 四套离线断言（780 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
 | `docs/` | 设计、自检、发布、市场材料与英文版。见 [`docs/README.md`](docs/README.md)。 |
 | `docs/screenshots/` | 本页「界面」一节用到的截图与轮播 GIF。见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。 |
 | `skills/` | 仓库内 agent 流程（文档同步 / 发版），不随 npm 包发布。见 [`skills/README.md`](skills/README.md)。 |
@@ -95,10 +95,10 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，776 组
+npm test          # check + capsule + panel + host，780 组
 ```
 
-合计 **776 组**（check 12 + capsule 554 + panel 163 + host 47），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **780 组**（check 12 + capsule 558 + panel 163 + host 47），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 已知限制
 
