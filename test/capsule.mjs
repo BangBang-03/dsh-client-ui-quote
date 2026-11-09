@@ -3815,6 +3815,78 @@ try {
 	check("a turn's answer is read too", answered.text === "这一轮的回答", JSON.stringify(answered.text));
 	check("another turn is not mixed in", testing.turnTextAt(question, 4, "user").text === "", JSON.stringify(testing.turnTextAt(question, 4, "user").text));
 
+	// The host may hand the turn over as a record instead of a number, and it
+	// names the role with `data-chat-flow-kind` ("assistant-step" for a streamed
+	// answer). Both shapes must resolve, or the tail buttons always report an
+	// empty turn on a host that renders either of them.
+	const byRecord = testing.turnTextAt(answer, { id: 3 }, "assistant");
+	check("a turn record still resolves through the row's own turn number", byRecord.text === "这一轮的回答", JSON.stringify(byRecord.text));
+
+	const stepRow = dom.document.createElement("div");
+	stepRow.setAttribute("data-chat-turn", "5");
+	stepRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	stepRow.textContent = "分步回答";
+	const userStepRow = dom.document.createElement("div");
+	userStepRow.setAttribute("data-chat-turn", "5");
+	userStepRow.setAttribute("data-chat-flow-kind", "user-echo");
+	userStepRow.textContent = "用户补充";
+	pane.append(stepRow, userStepRow);
+	check("a flow-kind row supplies the role", testing.turnTextAt(stepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(stepRow, 5, "assistant").text));
+	check("a suffixed user role is not read as the answer", testing.turnTextAt(userStepRow, 5, "assistant").text === "分步回答", JSON.stringify(testing.turnTextAt(userStepRow, 5, "assistant").text));
+
+	// A finished turn interleaves the answer with its scaffolding: reasoning and
+	// tool-call groups carry data-step-process and must never be quoted.
+	const reasonedRow = dom.document.createElement("div");
+	reasonedRow.setAttribute("data-chat-turn", "6");
+	reasonedRow.setAttribute("data-chat-flow-kind", "assistant-step");
+	reasonedRow.textContent = "回答正文";
+	const processPart = dom.document.createElement("div");
+	processPart.setAttribute("data-step-process", "true");
+	processPart.textContent = "思考过程";
+	reasonedRow.append(processPart);
+	const processOnly = dom.document.createElement("div");
+	processOnly.setAttribute("data-chat-turn", "6");
+	processOnly.setAttribute("data-step-process", "true");
+	processOnly.textContent = "已完成分析";
+	pane.append(reasonedRow, processOnly);
+	check("a nested process block is cut out of the answer", testing.turnTextAt(reasonedRow, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(reasonedRow, 6, "assistant").text));
+	check("a process-only row is never quoted", testing.turnTextAt(processOnly, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(processOnly, 6, "assistant").text));
+
+	// Some hosts give reasoning its own kind, and render the label inline when it
+	// is expanded. Neither shape belongs in a quoted turn.
+	const reasonRow = dom.document.createElement("div");
+	reasonRow.setAttribute("data-chat-turn", "7");
+	reasonRow.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasonRow.textContent = "思考 内部推理";
+	const labelled = dom.document.createElement("div");
+	labelled.setAttribute("data-chat-turn", "7");
+	labelled.setAttribute("data-chat-flow-kind", "assistant-step");
+	labelled.textContent = "真正的回答\n\n思考 The user refreshed but still sees the same problem.";
+	pane.append(reasonRow, labelled);
+	check("a reasoning kind is not read as the answer", testing.turnTextAt(reasonRow, 7, "assistant").text.includes("内部推理") === false, JSON.stringify(testing.turnTextAt(reasonRow, 7, "assistant").text));
+	check("a labelled reasoning paragraph is dropped", testing.turnTextAt(labelled, 7, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(labelled, 7, "assistant").text));
+
+	// The reasoning group is keyed exactly like the answer and carries no
+	// data-step-process on its own node; only its flow kind tells them apart.
+	const reasoningGroup = dom.document.createElement("div");
+	reasoningGroup.setAttribute("data-chat-turn", "8");
+	reasoningGroup.setAttribute("data-chat-flow-kind", "assistant-reasoning");
+	reasoningGroup.textContent = "The user refreshed but still sees the same problem.";
+	const answerSibling = dom.document.createElement("div");
+	answerSibling.setAttribute("data-chat-turn", "8");
+	answerSibling.setAttribute("data-chat-flow-kind", "assistant-step");
+	answerSibling.setAttribute("data-chat-group-part", "response");
+	answerSibling.textContent = "真正的回答";
+	pane.append(reasoningGroup, answerSibling);
+	check("a reasoning group key is not quoted", testing.turnTextAt(reasoningGroup, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(reasoningGroup, 8, "assistant").text));
+
+	const unknownKind = dom.document.createElement("div");
+	unknownKind.setAttribute("data-chat-turn", "8");
+	unknownKind.setAttribute("data-chat-flow-kind", "turn-process");
+	unknownKind.textContent = "还在分析";
+	pane.append(unknownKind);
+	check("a scaffolding kind is not quoted", testing.turnTextAt(unknownKind, 8, "assistant").text === "真正的回答", JSON.stringify(testing.turnTextAt(unknownKind, 8, "assistant").text));
+
 	const opened = testing.openCommentFor(asked.text, "session-turn", asked.source, null);
 	const turnBar = dom.document.getElementById("dsh-quote-bar");
 	check("the box opens on the turn's wording", opened === true && turnBar?.querySelector(".dshq-quote-input")?.value === "这一轮的问题", JSON.stringify(turnBar?.querySelector(".dshq-quote-input")?.value));
@@ -3824,6 +3896,30 @@ try {
 		"the turn tail slot is registered",
 		turnSlot !== undefined && turnSlot.spec.id === "ui-quote.turn" && turnSlot.Component({ turn: 3 })?.props?.["data-dshq-turn"] === "3",
 		JSON.stringify(turnSlot?.spec)
+	);
+
+	// The slot declares `locale: NS`, so the host injects `t`. The chips must use
+	// it: a reader whose host has no Chinese dictionary (a third-party `ru` pack,
+	// for instance) then gets that chain's copy instead of the zh fallback.
+	const translatedTail = turnSlot.Component({
+		turn: 3,
+		t: (key) => (key === "turnQuestion" ? "Quote the question" : key === "turnAnswer" ? "Quote the answer" : key)
+	});
+	const tailLabels = (translatedTail?.props?.children ?? []).map((child) => child?.props?.children);
+	check(
+		"the turn chips read the host's injected translator",
+		tailLabels[0] === "Quote the question" && tailLabels[1] === "Quote the answer",
+		JSON.stringify(tailLabels)
+	);
+
+	// A host that injects nothing keeps the old path, so a zh reader's copy must
+	// not move: this pins the fallback the patch leaves in place.
+	const plainTail = turnSlot.Component({ turn: 3 });
+	const plainLabels = (plainTail?.props?.children ?? []).map((child) => child?.props?.children);
+	check(
+		"without an injected translator the turn chips keep their Chinese copy",
+		plainLabels[0] === "引用提问" && plainLabels[1] === "引用回答",
+		JSON.stringify(plainLabels)
 	);
 
 	// A sent quote's mark is retired once its turn has a tail: the coordinate
@@ -4196,6 +4292,213 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	check("plugin teardown releases old and replacement registrations", activeSources.size === 0 && commands.size === 0
 		&& replacementSources.size === 0 && replacementCommands.size === 0
 		&& !window.__dshQuote.probe().running.source && window.__dshQuote.probe().running.runtime === 0);
+}
+
+/* ------------------------------------------------------------------ *
+ * 本轮 fork / issue 回归 — transport lines, self-scroll, overlay scroll
+ * ------------------------------------------------------------------ */
+
+{
+	// issue #11: a slash command splits one message into several text runs, so
+	// the coordinate line can land in loose prose instead of inside a block.
+	const leaked = "补下测试用例\n> ※ 引自第 18 轮 │q1:eyJ2IjoxfQ\n\n> ❝ 引用文字 B\n> ❞ ok";
+	const segments = testing.splitQuoteRuns(leaked);
+	const shown = (segments ?? []).map((segment) => segment.text ?? "").join("\n");
+	check("a transport line outside a quote block never reaches a text segment", shown.indexOf("│q1:") === -1, JSON.stringify(shown));
+	check("the reader's own wording beside it is kept", shown.indexOf("补下测试用例") !== -1, JSON.stringify(shown));
+	check("the quote after that line still becomes a capsule", (segments ?? []).some((segment) => segment.type === "quote" && segment.quote === "引用文字 B"), JSON.stringify(segments));
+	check("an instruction line in loose prose is stripped too", testing.stripTransportLines("> ※ 指令：逐条回答\n自己的话").indexOf("指令") === -1, JSON.stringify(testing.stripTransportLines("> ※ 指令：逐条回答\n自己的话")));
+	check("ordinary prose is not touched by the strip", testing.stripTransportLines("第一句\n第二句") === "第一句\n第二句", JSON.stringify(testing.stripTransportLines("第一句\n第二句")));
+
+	// issue #8: measuring the bar can provoke a scroll event of its own; a
+	// scroll inside one of our overlays is the reader scrolling a long quote.
+	testing.noteBarPositioned(1000);
+	check("a scroll right after positioning does not dismiss the bar", testing.scrollClosesBar({ type: "scroll", target: null }, 1100) === false);
+	check("a later scroll still dismisses it", testing.scrollClosesBar({ type: "scroll", target: null }, 1300) === true);
+	const overlayBar = dom.document.getElementById("dsh-quote-bar");
+	check("a scroll inside the floating bar never dismisses it", testing.scrollClosesBar({ type: "scroll", target: overlayBar }, 1300) === false);
+
+	// The CSS half of #8 / #10: initial coordinates, scrollable textarea, and
+	// no global overflow lock (PR #9's extra rule would freeze the host UI).
+	const style = testing.barStyleText();
+	check("the bar starts with fixed coordinates", style.includes("left:0;top:0"), String(style.includes("left:0;top:0")));
+	check("a long comment box scrolls instead of clipping", style.includes("overflow-y:auto"), String(style.includes("overflow-y:auto")));
+	check("the host's scrolling is never disabled", style.includes("overflow:hidden!important") === false, String(style.includes("overflow:hidden!important")));
+
+	// issue #10-7: the host settings modal's backdrop is z-index 1000, so every
+	// one of our floating layers has to stay under it (and above the composer,
+	// whose seat and menus live at 7–100). The old 2147483xxx values floated the
+	// quote bar over the settings panel.
+	const layerLevel = (text, selector) => {
+		const at = text.indexOf(selector + "{");
+		if (at === -1) return null;
+		const end = text.indexOf("}", at);
+		const found = /z-index:(\d+)/u.exec(text.slice(at, end));
+		return found === null ? null : Number(found[1]);
+	};
+	const barCss = testing.barStyleText();
+	const capsuleCss = testing.capsuleStyleText();
+	const draftbarZ = layerLevel(capsuleCss, ".dshq-draftbar");
+	const barZ = layerLevel(barCss, "#dsh-quote-bar");
+	const popoverZ = layerLevel(capsuleCss, "#dsh-quote-popover");
+	const toastZ = layerLevel(barCss, "#dsh-quote-toast");
+	check(
+		"every floating layer stays under the host modal",
+		[draftbarZ, barZ, popoverZ, toastZ].every((value) => Number.isFinite(value) && value > 100 && value < 1000),
+		JSON.stringify({ draftbar: draftbarZ, bar: barZ, popover: popoverZ, toast: toastZ })
+	);
+	check(
+		"the old astronomically high layers are gone",
+		barCss.includes("2147483") === false && capsuleCss.includes("2147483") === false,
+		JSON.stringify({ bar: barCss.includes("2147483"), capsule: capsuleCss.includes("2147483") })
+	);
+}
+
+/* ------------------------------------------------------------------ *
+ * issue #10 第 8–9 项 — 切会话恢复的芯片、删除后的原文高亮与序号
+ * ------------------------------------------------------------------ */
+
+{
+	// #10-8: switching sessions unmounts the composer card; the host restores
+	// that draft's chips as new nodes without minting anything. The scan gate
+	// used to wait for a mint, so the restored chips stayed unwired: no bar,
+	// and a later delete could not retract the source mark (#10-9).
+	const root = dom.document.createElement("div");
+	root.setAttribute("data-conversation-content", "");
+	root.setAttribute("data-conversation-session", "session-return");
+	const rowA = dom.document.createElement("div");
+	rowA.setAttribute("data-chat-anchor-key", "row-return-a");
+	rowA.setAttribute("data-chat-turn", "30");
+	rowA.textContent = "前文 切回会话后的第一句 后文";
+	const rowB = dom.document.createElement("div");
+	rowB.setAttribute("data-chat-anchor-key", "row-return-b");
+	rowB.setAttribute("data-chat-turn", "31");
+	rowB.textContent = "前文 切回会话后的第二句 后文";
+	root.append(rowA, rowB);
+	dom.document.body.append(root);
+	const quoteA = "切回会话后的第一句";
+	const quoteB = "切回会话后的第二句";
+	const savedA = testing.saveSource(quoteA, "session-return", { attr: "data-chat-anchor-key", key: "row-return-a", turn: "30" }, { chip: true });
+	const savedB = testing.saveSource(quoteB, "session-return", { attr: "data-chat-anchor-key", key: "row-return-b", turn: "31" }, { chip: true });
+	const refA = { v: 1, s: "session-return", a: "data-chat-anchor-key", k: "row-return-a", t: "30", n: savedA?.n ?? 1 };
+	const refB = { v: 1, s: "session-return", a: "data-chat-anchor-key", k: "row-return-b", t: "31", n: savedB?.n ?? 1 };
+	testing.rememberChip(quoteA, "", "session-return", false, { ref: refA });
+	testing.rememberChip(quoteB, "", "session-return", false, { ref: refB });
+	const baseline = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	const cardOld = dom.document.createElement("div");
+	cardOld.setAttribute("data-composer-card", "");
+	const oldA = dom.document.createElement("span");
+	oldA.textContent = testing.chipLabel(quoteA, "");
+	oldA.setAttribute("data-dshq-chip", "1");
+	const oldB = dom.document.createElement("span");
+	oldB.textContent = testing.chipLabel(quoteB, "");
+	oldB.setAttribute("data-dshq-chip", "1");
+	cardOld.append(oldA, oldB);
+	dom.document.body.append(cardOld);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"two draft chips paint two source marks",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baseline + 2,
+		JSON.stringify({ baseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	const badgesBefore = Array.from(dom.document.querySelectorAll(".dshq-anchor-badge")).map((badge) => badge.textContent);
+	check(
+		"the marks are numbered in mint order",
+		badgesBefore.slice(-2).join(",") === "1,2",
+		JSON.stringify(badgesBefore)
+	);
+
+	// The card leaves the page (session switch). The draft's mark must stay —
+	// the quote was not taken back — but its bar goes away with the composer.
+	cardOld.remove();
+	testing.resetChipWiring();
+	testing.wireChips();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"a session switch keeps the draft's source mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baseline + 2,
+		JSON.stringify({ baseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	check("the bar leaves with its composer", dom.document.querySelector(".dshq-draftbar") === null, "a bar survived its card");
+
+	// Coming back restores the same chips as fresh, unmarked nodes. No mint
+	// happens on this path, so wiring must re-arm on the new card itself.
+	const cardNew = dom.document.createElement("div");
+	cardNew.setAttribute("data-composer-card", "");
+	const newA = dom.document.createElement("span");
+	newA.textContent = testing.chipLabel(quoteA, "");
+	const newB = dom.document.createElement("span");
+	newB.textContent = testing.chipLabel(quoteB, "");
+	cardNew.append(newA, newB);
+	dom.document.body.append(cardNew);
+	testing.resetChipWiring();
+	testing.wireChips();
+	check(
+		"restored draft chips are wired without a new mint",
+		newA.getAttribute("data-dshq-chip") === "1" && newB.getAttribute("data-dshq-chip") === "1",
+		JSON.stringify({ a: newA.getAttribute("data-dshq-chip"), b: newB.getAttribute("data-dshq-chip") })
+	);
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	const restoredBar = dom.document.querySelector(".dshq-draftbar");
+	check(
+		"the aggregate bar returns with the restored draft",
+		restoredBar !== null && String(restoredBar.textContent).includes(quoteA) && String(restoredBar.textContent).includes(quoteB),
+		JSON.stringify(restoredBar?.textContent)
+	);
+	check(
+		"the restored chips still paint their marks",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baseline + 2,
+		JSON.stringify({ baseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+
+	// Deleting one restored chip must retract its mark, and the survivor's
+	// badge is renumbered: the badge counts the marks on screen, not every
+	// quote ever taken (the wire ordinal stays frozen in the sent ref).
+	newA.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"deleting a restored chip drops its source mark",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baseline + 1,
+		JSON.stringify({ baseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	const badgesAfter = Array.from(dom.document.querySelectorAll(".dshq-anchor-badge")).map((badge) => badge.textContent);
+	check(
+		"the remaining badge is renumbered after the deletion",
+		badgesAfter.slice(-1)[0] === "1",
+		JSON.stringify(badgesAfter)
+	);
+	newB.remove();
+	testing.syncDraftBars();
+	testing.paintAnchors();
+	check(
+		"the last restored chip takes its mark away too",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baseline,
+		JSON.stringify({ baseline, ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	cardNew.remove();
+	testing.syncDraftBars();
+	root.remove();
+
+	// The wire ordinal is the occurrence index of *this wording* inside the row.
+	// Two different quotes in the same turn both start at 1; the old per-bin
+	// counter gave the second one 2 and aimed at a nonexistent occurrence.
+	const firstQuote = testing.saveSource("序号测试第一句", "session-ordinal", { attr: "data-chat-anchor-key", key: "row-ordinal", turn: "1" });
+	const secondQuote = testing.saveSource("序号测试第二句", "session-ordinal", { attr: "data-chat-anchor-key", key: "row-ordinal", turn: "1" });
+	const againQuote = testing.saveSource("序号测试第一句", "session-ordinal", { attr: "data-chat-anchor-key", key: "row-ordinal", turn: "1" });
+	check(
+		"a second, different quote in the same turn also starts at ordinal 1",
+		firstQuote?.n === 1 && secondQuote?.n === 1,
+		JSON.stringify({ first: firstQuote?.n, second: secondQuote?.n })
+	);
+	check(
+		"re-saving the same quote keeps its ordinal",
+		againQuote?.n === 1,
+		JSON.stringify(againQuote?.n)
+	);
 }
 
 console.log(
