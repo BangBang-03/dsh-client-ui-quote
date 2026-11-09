@@ -41,6 +41,7 @@ Asset notes: [`screenshots/README.md`](screenshots/README.md).
 | **Side chat** | Writes the quote into one independent side thread per main session. By default the host half builds a hidden `origin: "subagent"` child session with one implicit context message; if the host half is unavailable it falls back to `sessions.fork`, and `sideChatBackend: "better"` prefers dsh-better-sidebar. **No backend sends anything.** |
 | **Chips and the Quotes ×N bar** | Quotes are native inline chips; the toolbar above the composer jumps back, edits (`✎`) and removes (`×`) each one, preferring the host's `consumeToken` and falling back to focus + Backspace. |
 | **Sent capsule** | Quote and comment collapse into one capsule in the message; hover for the full card, click to expand, copy from the card; several quotes in one message give several capsules with the rest of the text untouched. |
+| **Whole-turn quote** | The **Quote question / Quote answer** buttons at the end of a turn bring that turn's text into the comment box; only conversational text is taken, reasoning and tool scaffolding are excluded, and record-shaped turns still resolve. |
 | **Source highlight and jump-back** | The source sentence keeps a highlight and ordinal, **retired when that turn's reply completes** (`keepHighlight: true` keeps them). **Jump back** parks the source message 24px from the top and flashes it. |
 | **Quote list** | A right-sidebar page: search, jump back, copy one row / **Export Markdown** / **Export JSON**, Open / Resolved plus `#tags`, bulk insert, and side-thread bring-back with a host self-check at the bottom. |
 | **Revise and per-quote replies** | **Revise this quote** appends a new quote and marks the old capsule **Revised**; with per-quote replies on, `「Quote N」` in the answer becomes a hoverable badge that jumps back. |
@@ -49,7 +50,7 @@ Asset notes: [`screenshots/README.md`](screenshots/README.md).
 
 ## Install
 
-Requires a **DSH ≥ 0.2.0-rc.2 web or desktop client** (`engines.dsh` is a lower bound only, re-checked on 0.2.2-rc.1). Current stable: **0.14.2**.
+Requires a **DSH ≥ 0.2.0-rc.2 web or desktop client** (`engines.dsh` is a lower bound only, re-checked on 0.2.2-rc.1). Current stable: **0.14.3**.
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote

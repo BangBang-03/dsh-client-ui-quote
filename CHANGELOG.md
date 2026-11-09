@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+_（下一轮）_
+
+## 0.14.3 — 2026-11-09
+
 ### Fixed
 
 - **回合尾「引用提问 / 引用回答」在新版宿主上恒为空**（issue #5，合并 fork PR #4，[@hsthanb4](https://github.com/hsthanb4)）：`turnTail` 槽位传入的轮次是记录对象，`String(turn)` 得到 `[object Object]`，与行上的 `data-chat-turn` 永不相等；角色属性实际是 `data-chat-flow-kind`，助手行值是 `assistant-step`。现在轮次退化时从按钮所在行向上取真实轮次，`ROLE_ATTRS` 增加 `data-chat-flow-kind`、角色正则允许 `-`/`_` 后缀，并用 `CONVERSATION_KINDS` 白名单 + `data-step-process` 把思考/工具脚手架排除在整轮引用之外。新增 9 组断言。

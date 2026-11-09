@@ -42,6 +42,7 @@
 | **侧边对话** | 引用写进一条独立侧边线程的草稿。默认由宿主半建隐藏子会话（`origin: "subagent"`，不在会话列表）并注入一条隐性上下文；宿主半不可用退回 `sessions.fork`；`sideChatBackend: "better"` 时优先 dsh-better-sidebar。三种后端都**不发送**，一条主会话只开一条线程。 |
 | **草稿芯片与聚合条** | 引用是原生行内芯片；输入框上方 `引用 ×N` 聚合条支持逐条跳回、`✎` 编辑、`×` 移除（优先宿主 `consumeToken` 精确删除，退回聚焦 + 退格）。 |
 | **发送后胶囊** | 引用与评论合成一颗胶囊留在消息里；悬停出全文卡片，可展开、可复制；一条消息多处引用就是多颗胶囊，中间原话位置不变。 |
+| **整轮引用** | 助手回合末尾的「引用提问 / 引用回答」把整轮原文带进评论框；只取对话正文，思考与工具过程不混入，记录型轮次也能定位。 |
 | **原文高亮与跳回** | 原句留下高亮与序号，**回合回复结束后自动收回**（`keepHighlight: true` 可常亮）；`跳回原文` 把来源消息停到视野上方 24px 并闪一下。 |
 | **引用清单** | 右侧栏页面：搜索、跳回、单条复制 / `导出 Markdown`、`导出 JSON`、`待处理 / 已解决` 与 `#标签`、批量插入，底部是侧边线程回流与宿主自检。 |
 | **修订与逐条回应** | `改这条引用` 追加一条新引用并给旧胶囊挂 `已修订`；勾选逐条回应后，回复里的 `「引用N」` / `「Quote N」` 变成可悬停、可跳回的小徽章。 |
@@ -50,13 +51,13 @@
 
 ## 安装
 
-要求 DSH ≥ 0.2.0-rc.2 的 **web / 桌面**客户端（`engines.dsh` 只有下限、没有上限，0.2.2-rc.1 已复核）。稳定版当前 **0.14.2**。
+要求 DSH ≥ 0.2.0-rc.2 的 **web / 桌面**客户端（`engines.dsh` 只有下限、没有上限，0.2.2-rc.1 已复核）。稳定版当前 **0.14.3**。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
 ```
 
-开发时用 `dsh plugin --profile desktop add link:<clone-path>`，改完刷新即生效；日常运行请用 npm 包。手工注册时把 `"dsh-client-ui-quote": "^0.14.2"` 写进 profile 的 `dependencies`、`dsh.profile.bundles` 追加同名条目再重启（包自带 `cordis.patch.yml`，不用手写 loader）；卸载就是移除这两处。完整流程见 [`docs/release.md`](docs/release.md)。
+开发时用 `dsh plugin --profile desktop add link:<clone-path>`，改完刷新即生效；日常运行请用 npm 包。手工注册时把 `"dsh-client-ui-quote": "^0.14.3"` 写进 profile 的 `dependencies`、`dsh.profile.bundles` 追加同名条目再重启（包自带 `cordis.patch.yml`，不用手写 loader）；卸载就是移除这两处。完整流程见 [`docs/release.md`](docs/release.md)。
 
 ## 目录结构
 
