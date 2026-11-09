@@ -1,0 +1,57 @@
+name: 功能建议
+description: 新能力、用法改进或范围讨论
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本项目的范围红线见 [AGENTS.md](https://github.com/BangBang-03/dsh-client-ui-quote/blob/main/AGENTS.md) 的 R19：**不做**图片 / 截图引用、Topic 系统、常显大块引用、翻译 / 改写类选区动作、原地编辑已发送消息。
+        不是不能提，但请说明它为什么不破坏「文本引用 + 坐标 + 发送后的管理」这条主线。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 场景 / 痛点
+      description: 你在什么场景下需要它？现在怎么绕过？
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提议方案
+      description: 你希望它怎么工作？界面、触发方式、数据落在哪里
+    validations:
+      required: true
+
+  - type: dropdown
+    id: redline
+    attributes:
+      label: 是否触碰 R19 范围红线
+      options:
+        - 不涉及
+        - 图片 / 截图引用
+        - Topic 系统
+        - 常显大块引用
+        - 翻译 / 改写类选区动作
+        - 原地编辑已发送消息
+        - 不确定，想先讨论
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 有没有不改插件、或改得更小的做法
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 参与意愿
+      options:
+        - label: 我愿意提 PR（会先读 CONTRIBUTING 与 AGENTS 的红线）
+        - label: 我可以提供真实场景与复现材料

@@ -42,7 +42,7 @@ Asset notes: [`screenshots/README.md`](screenshots/README.md).
 | **Chips and the Quotes ×N bar** | Quotes are native inline chips; the toolbar above the composer jumps back, edits (`✎`) and removes (`×`) each one, preferring the host's `consumeToken` and falling back to focus + Backspace. |
 | **Sent capsule** | Quote and comment collapse into one capsule in the message; hover for the full card, click to expand, copy from the card; several quotes in one message give several capsules with the rest of the text untouched. |
 | **Whole-turn quote** | The **Quote question / Quote answer** buttons at the end of a turn bring that turn's text into the comment box; only conversational text is taken, reasoning and tool scaffolding are excluded, and record-shaped turns still resolve. |
-| **Source highlight and jump-back** | The source sentence keeps a highlight and ordinal, **retired when that turn's reply completes** (`keepHighlight: true` keeps them). **Jump back** parks the source message 24px from the top and flashes it. |
+| **Source highlight and jump-back** | The source sentence keeps a highlight and ordinal, **retired when that turn's reply completes** (`keepHighlight: true` keeps them); multiple quotes from one message keep separate marks, and returning from another conversation or tab repaints them. **Jump back** parks the source message 24px from the top and flashes it. |
 | **Quote list** | A right-sidebar page: search, jump back, copy one row / **Export Markdown** / **Export JSON**, Open / Resolved plus `#tags`, bulk insert, and side-thread bring-back with a host self-check at the bottom. |
 | **Revise and per-quote replies** | **Revise this quote** appends a new quote and marks the old capsule **Revised**; with per-quote replies on, `「Quote N」` in the answer becomes a hoverable badge that jumps back. |
 | **Sources** | Messages, file previews, terminals, diffs and rendered chat code blocks are all selectable; code-like sources travel as fenced code blocks, and previews / diffs also carry a detected path and line range that the card can open. |
@@ -64,7 +64,7 @@ For development use `dsh plugin --profile desktop add link:<clone-path>` so a re
 | --- | --- |
 | `lib/` | The two entry points: `client.js` holds every client feature, `index.js` is the host half that only creates hidden side threads. See [`../lib/README.md`](../lib/README.md). |
 | `locale/` | Plugin-card metadata for zh / en / ru; in-plugin strings live in the dictionaries inside `client.js`. See [`../locale/README.md`](../locale/README.md). |
-| `test/` | Four offline suites (780 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
+| `test/` | Four offline suites (784 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
 | `docs/` | Design, testing, release, distribution and this English page. See [`README.md`](README.md). |
 | `docs/screenshots/` | Screenshots and the carousel GIF used above. See [`screenshots/README.md`](screenshots/README.md). |
 | `skills/` | Agent workflows kept in the repo (docs sync / release); not published to npm. See [`../skills/README.md`](../skills/README.md). |
@@ -93,10 +93,10 @@ Debug handle `window.__dshQuote`: `config()`, `setConfig({...})`, `state()` and 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host, 780 assertions
+npm test          # check + capsule + panel + host, 784 assertions
 ```
 
-**780 assertions** (check 12 + capsule 558 + panel 163 + host 47) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
+**784 assertions** (check 12 + capsule 562 + panel 163 + host 47) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
 
 ## Known limitations
 
@@ -107,7 +107,9 @@ npm test          # check + capsule + panel + host, 780 assertions
 - **The wire format only grows**: `> ❝ …` / `> ❞ …` / `> ※ 指令：…` / `> ※ 引自第 N 轮 · 助手 │q1:…`. Marker-shaped body lines are escaped; old messages without the escape layer still parse. Code quotes are recognised by the opening fence, which must be paired with a closing one.
 - **Paths and line numbers are DOM probes**: when the host does not mark them, they are simply absent; the quote itself is unaffected. Markdown previews have no source-line anchor.
 - **Selections spanning two messages carry no source head**: they are sent as usual but without `from turn N` and without a jump-back coordinate.
+- **The same wording repeated in one row is de-duplicated by text**: the coordinate's `n` records "which occurrence of this wording", but the selection path cannot tell which occurrence the reader picked, so saving the same sentence again reuses the existing coordinate and points at the first one. Different sentences from the same row are unaffected (stored separately by `ref + wording`).
 - **Highlights rely on `CSS.highlights`**: where supported the browser paints them (tracking scroll and streaming); otherwise a fixed overlay draws just the ordinal. Rows outside the viewport, changed text or a host without `Range` degrade silently, and host DOM is never modified. Without the turn-tail slot the highlight simply stays on.
+- **Repainting after a tab/sidebar returns depends on how the host hides it**: DSH 0.2.2-rc.1 hides dock tabs with the `hidden` attribute and a collapsed right sidebar with `aria-hidden` (inspected in the `app.asar` 0.2.2-rc.1 sources). If a host switches to pure CSS `display` / `visibility`, the proactive repaint does not fire; the next scroll or message restores it. Only one repaint is skipped — coordinates and capsules are unaffected.
 - **Our overlays sit between host layers**: the host settings backdrop is `z-index:1000` and the host toast 1100 (the `dsh-web-frontend` asset CSS on 0.2.2); the aggregate bar, quote bar, toast and hover card stay at 980–983, so a settings panel is never covered. If the host changes its scale, only the stacking order moves, not the quote itself.
 - **Side chat and the main session do not share memory**: the thread only carries a snapshot of recent turns (8000 character cap). Bringing an answer back is a manual action in the Quote list (writes a draft, never sends).
 - **The Quote list reads the event log plus a local index**: history is paged, older quotes need **Load older messages**, and quotes cut by context compaction are covered only by the local index (same machine, no sync). Without the right-sidebar services the page is not registered and `Alt+L` only shows a toast.

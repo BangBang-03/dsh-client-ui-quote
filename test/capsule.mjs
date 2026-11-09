@@ -3504,6 +3504,127 @@ try {
 }
 
 /* ------------------------------------------------------------------ *
+ * 多对话 / 多页签 — 被隐藏的转写再出现时要重画原文高亮
+ * ------------------------------------------------------------------ */
+
+{
+	// The host keeps a conversation mounted while its dock tab is hidden.
+	// `paintAnchors` skips rows it cannot see (correct: they have no rects),
+	// but showing the tab again is an attribute change, not a childList
+	// mutation — before the visibility observer the previous conversation's
+	// highlight and ordinal simply stayed missing until the reader scrolled.
+	testing.paintAnchors();
+	const layer = dom.document.querySelector(".dshq-anchor-layer");
+	const baselineRanges = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	const baselineBadges = layer?.querySelectorAll(".dshq-anchor-badge").length ?? 0;
+	const dockCell = dom.document.createElement("div");
+	dockCell.setAttribute("data-dockkit-host", "dock");
+	const pane = dom.document.createElement("div");
+	pane.setAttribute("data-conversation-content", "");
+	pane.setAttribute("data-conversation-session", "session-visible-tab");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-visible-tab");
+	row.setAttribute("data-chat-turn", "21");
+	const quote = "切到另一个对话再回来还要亮着的原文";
+	row.textContent = "前文 " + quote + " 后文";
+	pane.append(row);
+	dockCell.append(pane);
+	dom.document.body.append(dockCell);
+	testing.saveSource(quote, "session-visible-tab", { attr: "data-chat-anchor-key", key: "row-visible-tab", turn: "21" });
+	testing.paintAnchors();
+	const shownRanges = highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0;
+	const shownBadges = layer?.querySelectorAll(".dshq-anchor-badge").length ?? 0;
+	check(
+		"a visible conversation paints its quote and ordinal",
+		shownRanges === baselineRanges + 1 && shownBadges === baselineBadges + 1,
+		JSON.stringify({ baselineRanges, shownRanges, baselineBadges, shownBadges })
+	);
+	dockCell.setAttribute("hidden", "");
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"hiding the conversation retires the mark from the page",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === baselineRanges &&
+			(layer?.querySelectorAll(".dshq-anchor-badge").length ?? 0) === baselineBadges,
+		JSON.stringify({
+			ranges: highlightRegistry.get("dshq-quote")?.ranges?.length,
+			badges: layer?.querySelectorAll(".dshq-anchor-badge").length
+		})
+	);
+	dockCell.removeAttribute("hidden");
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"showing the conversation again repaints the mark without a scroll",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) === shownRanges &&
+			(layer?.querySelectorAll(".dshq-anchor-badge").length ?? 0) === shownBadges,
+		JSON.stringify({
+			ranges: highlightRegistry.get("dshq-quote")?.ranges?.length,
+			badges: layer?.querySelectorAll(".dshq-anchor-badge").length
+		})
+	);
+	dockCell.remove();
+	testing.paintAnchors();
+}
+
+/* ------------------------------------------------------------------ *
+ * 同一行里的多条草稿引用 — 共用一个 ref 时仍各画各的高亮
+ * ------------------------------------------------------------------ */
+
+{
+	// Three different sentences selected from the same message row all carry
+	// the same wire coordinate (the row plus the occurrence of each wording;
+	// `n` is 1 for every one of them). The full-text cache used to be keyed by
+	// the ref alone, so remembering the third sentence made the first two
+	// paint the third sentence's span (or drop out entirely) before the draft
+	// was sent.
+	const root = dom.document.createElement("div");
+	root.setAttribute("data-conversation-content", "");
+	root.setAttribute("data-conversation-session", "session-same-row");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-same-row");
+	row.setAttribute("data-chat-turn", "31");
+	const quotes = ["原文第一句", "原文第二句", "原文第三句"];
+	row.textContent = quotes.join(" ");
+	root.append(row);
+	dom.document.body.append(root);
+	const card = dom.document.createElement("div");
+	card.setAttribute("data-composer-card", "");
+	dom.document.body.append(card);
+	const refs = [];
+	for (const quote of quotes) {
+		const saved = testing.saveSource(quote, "session-same-row", { attr: "data-chat-anchor-key", key: "row-same-row", turn: "31" }, { chip: true });
+		const ref = { v: 1, s: "session-same-row", a: "data-chat-anchor-key", k: "row-same-row", t: "31", n: saved?.n ?? 1 };
+		refs.push(ref);
+		testing.rememberChip(quote, "", "session-same-row", false, { ref });
+		const chip = dom.document.createElement("span");
+		chip.textContent = testing.chipLabel(quote, "");
+		chip.setAttribute("data-dshq-chip", "1");
+		card.append(chip);
+		testing.syncDraftBars();
+		testing.paintAnchors();
+	}
+	// Sending the third quote must promote only its own coordinate; the two
+	// siblings share the ref and must stay as draft chips.
+	testing.promoteSource(refs[2], quotes[2]);
+	testing.paintAnchors();
+	const painted = highlightRegistry.get("dshq-quote")?.ranges ?? [];
+	const starts = painted.map((range) => range.start?.offset).sort((left, right) => left - right);
+	const stored = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const savedRows = Object.values(stored).flat().filter((candidate) => candidate && candidate.sessionId === "session-same-row");
+	const chipOf = (text) => savedRows.find((candidate) => candidate.quote === text)?.chip === true;
+	check(
+		"three quotes from one row keep separate highlights and only the sent one is promoted",
+		painted.length === 3 && JSON.stringify(starts) === JSON.stringify([0, 6, 12]) &&
+			chipOf(quotes[0]) && chipOf(quotes[1]) && chipOf(quotes[2]) === false,
+		JSON.stringify({ starts, chips: quotes.map(chipOf) })
+	);
+	root.remove();
+	card.remove();
+	testing.paintAnchors();
+}
+
+/* ------------------------------------------------------------------ *
  * 配置 + 调试句柄 — the switches and the window onto the plugin
  * ------------------------------------------------------------------ */
 

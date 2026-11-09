@@ -1,0 +1,43 @@
+name: 使用问题
+description: 用法、配置、兼容性咨询（不是 bug）
+title: "[question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先查 [README](https://github.com/BangBang-03/dsh-client-ui-quote#readme) 的「安装」「配置」「已知限制」，以及 `docs/design.md`、`docs/testing.md`。
+        如果确认是行为错误，请改用「Bug 报告」表单。
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 你想做什么
+      description: 目标场景，而不是你猜的实现方式
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已经试过什么
+      description: 配置项、命令、文档里看到的做法
+    validations:
+      required: true
+
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH 版本与运行形态
+      description: 桌面端还是 web；版本见「设置 → 关于」或安装包
+      placeholder: 桌面端 0.2.2-rc.1 / web
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我读过 README 的「已知限制」
+        - label: 我搜过已有 issue

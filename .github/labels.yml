@@ -1,0 +1,26 @@
+# 本项目自建标签。GitHub 默认标签（bug / enhancement / question / ...）不在这里重复。
+# 用法：Settings → Labels 手动创建；或接 label-sync 时把 delete-other-labels 设为 false。
+- name: needs-triage
+  color: fbca04
+  description: 新 issue 尚未分类，等待维护者处理
+- name: needs-repro
+  color: d4c5f9
+  description: 缺少复现步骤或环境信息
+- name: compat
+  color: bfd4f2
+  description: 与 DSH 宿主版本或内部契约相关
+- name: "area:client"
+  color: 1d76db
+  description: "lib/client.js：浮层、芯片、胶囊、侧聊等客户端功能"
+- name: "area:panel"
+  color: 5319e7
+  description: 引用清单页、导出与审阅工作台
+- name: "area:host"
+  color: 006b75
+  description: "lib/index.js：隐藏侧聊线程与本地路由"
+- name: "area:docs"
+  color: 0e8a16
+  description: README、docs、skills、locale 文案
+- name: blocked
+  color: b60205
+  description: 等待上游 / 宿主修复或外部依赖

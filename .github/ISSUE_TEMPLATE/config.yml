@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 先读「已知限制」
+    url: https://github.com/BangBang-03/dsh-client-ui-quote/blob/main/README.md#已知限制
+    about: 宿主契约、降级行为、跨消息选区等边界，报 bug 前先对照
+  - name: 设计与测试文档
+    url: https://github.com/BangBang-03/dsh-client-ui-quote/tree/main/docs
+    about: 设计取舍、断言怎么跑、发版流程
+  - name: npm 页面
+    url: https://www.npmjs.com/package/dsh-client-ui-quote
+    about: 安装方式与最新版本

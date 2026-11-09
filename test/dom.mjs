@@ -185,10 +185,13 @@ class ShimElement extends ShimNode {
 
 	setAttribute(name, value) {
 		this.attributes.set(name, String(value));
+		this.ownerDocument?.record({ type: 'attributes', target: this, attributeName: String(name) });
 	}
 
 	removeAttribute(name) {
+		if (!this.attributes.has(name)) return;
 		this.attributes.delete(name);
+		this.ownerDocument?.record({ type: 'attributes', target: this, attributeName: String(name) });
 	}
 
 	// Reflected the way the real DOM reflects it, so the virtualizer can hide a
@@ -396,7 +399,10 @@ class ShimDocument extends ShimNode {
 		const records = this.mutations;
 		this.mutations = [];
 		if (records.length === 0) return 0;
-		for (const observer of this.observers) observer.callback(records);
+		for (const observer of this.observers) {
+			const accepted = records.filter((record) => observer.accepts(record));
+			if (accepted.length > 0) observer.callback(accepted);
+		}
 		return records.length;
 	}
 
@@ -474,11 +480,25 @@ class ShimMutationObserver {
 	constructor(callback) {
 		this.callback = callback;
 		this.target = null;
+		this.options = {};
 	}
 
-	observe(target) {
+	observe(target, options) {
 		this.target = target;
+		this.options = options ?? {};
 		target.ownerDocument.observers.push(this);
+	}
+
+	/** Apply the options a real observer is configured with. */
+	accepts(record) {
+		if (record.type === 'attributes') {
+			if (this.options.attributes !== true) return false;
+			const filter = this.options.attributeFilter;
+			return Array.isArray(filter) === false || filter.includes(record.attributeName);
+		}
+		if (record.type === 'characterData') return this.options.characterData !== false;
+		if (record.type === 'childList') return this.options.childList !== false;
+		return true;
 	}
 
 	disconnect() {

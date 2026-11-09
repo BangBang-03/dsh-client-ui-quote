@@ -1,0 +1,86 @@
+name: Bug 报告
+description: 行为不对、报错，或与 DSH 版本不兼容
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先对照 [README 的「已知限制」](https://github.com/BangBang-03/dsh-client-ui-quote#已知限制)：宿主契约、降级行为、跨消息选区等边界可能已经写明。
+        涉及浮层 / 芯片 / 胶囊 / 侧聊时，DSH 版本与运行形态（桌面 / web）是定位问题的关键。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象
+      description: 实际发生了什么？有报错、toast 或控制台异常吗？
+      placeholder: 选中一句话后浮层没有出现……
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开 DSH 开始按顺序写；能稳定复现最好
+      placeholder: |
+        1. 打开会话 …
+        2. 选中 …
+        3. 点击 …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望 vs 实际
+      description: 你期望发生什么，实际发生了什么
+    validations:
+      required: true
+
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH 版本与运行形态
+      description: 桌面端还是 web；版本见「设置 → 关于」或安装包
+      placeholder: 桌面端 0.2.2-rc.1 / web
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: 插件页卡片、package.json 或 npm 上的版本
+      placeholder: 0.14.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: probe
+    attributes:
+      label: probe() 输出
+      description: 在开发者工具 Console 跑 `window.__dshQuote.probe()`，粘贴结果。只含阶段与原因，不含引用正文。
+      render: json
+      placeholder: |
+        { "host": { … }, "lastFailure": { … } }
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: environment
+    attributes:
+      label: 环境
+      description: 勾选符合的项
+      options:
+        - label: 同时安装了 dsh-better-sidebar 或其它改输入框 / 侧栏的插件
+        - label: 使用了隔离的 DSH_HOME 或多个 profile
+        - label: 刷新页面或重开窗口后仍能复现
+
+  - type: textarea
+    id: media
+    attributes:
+      label: 截图 / 录屏
+      description: 直接拖进来；能看清浮层、芯片或胶囊的状态最好
+    validations:
+      required: false
