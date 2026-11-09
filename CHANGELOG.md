@@ -4,9 +4,9 @@
 
 ### Fixed
 
-- **回合尾「引用提问 / 引用回答」在新版宿主上恒为空**（issue #5，合并 fork PR #4）：`turnTail` 槽位传入的轮次是记录对象，`String(turn)` 得到 `[object Object]`，与行上的 `data-chat-turn` 永不相等；角色属性实际是 `data-chat-flow-kind`，助手行值是 `assistant-step`。现在轮次退化时从按钮所在行向上取真实轮次，`ROLE_ATTRS` 增加 `data-chat-flow-kind`、角色正则允许 `-`/`_` 后缀，并用 `CONVERSATION_KINDS` 白名单 + `data-step-process` 把思考/工具脚手架排除在整轮引用之外。新增 9 组断言。
-- **回合尾按钮忽略宿主注入的翻译**（合并 fork PR #7）：槽位声明了 `locale: NS`，宿主注入 `t`；组件原先用模块级 `translate()`，非中文读者仍看到中文兜底。现在优先 `props.t`，未注入时保持原中文路径。新增 2 组断言。
-- **划词浮层撑出视口滚动条、菜单秒消失**（issue #8，采纳 fork PR #9 的定位修复、拒绝其全局样式）：`#dsh-quote-bar` 补上初始 `left:0;top:0`，并让 `onScrollOrResize` 忽略自身浮层与刚定位完的短窗口内的 scroll 事件。**未采纳** PR #9 的 `html,body{overflow:hidden!important}`——它会冻结宿主滚动。新增 5 组断言。
+- **回合尾「引用提问 / 引用回答」在新版宿主上恒为空**（issue #5，合并 fork PR #4，[@hsthanb4](https://github.com/hsthanb4)）：`turnTail` 槽位传入的轮次是记录对象，`String(turn)` 得到 `[object Object]`，与行上的 `data-chat-turn` 永不相等；角色属性实际是 `data-chat-flow-kind`，助手行值是 `assistant-step`。现在轮次退化时从按钮所在行向上取真实轮次，`ROLE_ATTRS` 增加 `data-chat-flow-kind`、角色正则允许 `-`/`_` 后缀，并用 `CONVERSATION_KINDS` 白名单 + `data-step-process` 把思考/工具脚手架排除在整轮引用之外。新增 9 组断言。
+- **回合尾按钮忽略宿主注入的翻译**（合并 fork PR #7，[@kesha4](https://github.com/kesha4)）：槽位声明了 `locale: NS`，宿主注入 `t`；组件原先用模块级 `translate()`，非中文读者仍看到中文兜底。现在优先 `props.t`，未注入时保持原中文路径。新增 2 组断言。
+- **划词浮层撑出视口滚动条、菜单秒消失**（issue #8，采纳 fork PR #9 的定位修复、拒绝其全局样式，[@yxn3hc](https://github.com/yxn3hc)）：`#dsh-quote-bar` 补上初始 `left:0;top:0`，并让 `onScrollOrResize` 忽略自身浮层与刚定位完的短窗口内的 scroll 事件。**未采纳** PR #9 的 `html,body{overflow:hidden!important}`——它会冻结宿主滚动。新增 5 组断言。
 - **长评论框不可滚动、悬停卡片滚轮闪退、聚合条不可横滚、删除错位与连带删除、全局按键被反复接管**（issue #10 第 1–6 项）：`.dshq-input` 改 `overflow-y:auto`；卡片内滚动不再被 `onPopoverViewport` 误判为页面滚动、`mouseleave` 给宽限期；聚合条把竖向滚轮映射为横向滚动且不锁页面；删除时按位置重新解析实时芯片并强制重建聚合条；`onKeyUp` 不再对带 Ctrl/Meta/Alt 的按键与空闲状态调用 `refresh()`。新增 1 组 CSS 断言，其余为事件路径、需真机复核。
 - **斜杠命令切断 run 导致 `│q1:` 坐标行泄漏到气泡**（issue #11）：`splitQuoteRuns` 现在对松散文本同样剥离 `> ※ … │q1:` 与 `> ※ 指令：` 传输行。新增 5 组断言。
 - **引用浮层浮在宿主设置面板之上**（issue #10 第 7 项）：聚合条、划词栏、toast、悬停卡片从 `2147483xxx` 降到 980–983，落在宿主 Modal 背景（`z-index:1000`）之下、输入框与宿主菜单（7–100）之上；设置面板打开时不会再被引用气泡盖住。新增 2 组断言。
