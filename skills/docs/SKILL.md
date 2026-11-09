@@ -13,8 +13,8 @@ description: Use when 用户说「更新文件」「更新文档」「更新日�
 
 | 文件 | 它管什么 | 什么时候必须动 |
 | --- | --- | --- |
-| `README.md` | 落地页：三句卖点、功能表（**验收口径**）、安装、使用、配置、已知限制、自检入口 | 行为变了（功能表）、版本变了（「稳定版当前」+ 安装示例）、新增/删除了已知限制、断言数变了 |
-| `AGENTS.md` | 红线 R1–R22、路由表、文件地图、自检清单 | 新增/改动红线、新增文件或脚本、断言数变了（R16/R17）、分支或发版流程变了 |
+| `README.md` | 落地页：三句简介、界面截图、功能一览（**验收口径**）、安装、目录结构、配置、自检、已知限制 | 行为变了（功能表）、版本变了（「当前稳定版」+ 安装示例）、新增/删除了已知限制、目录结构变了、断言数变了 |
+| `AGENTS.md` | 红线 R1–R22 与路由表（按改动目标 / 按症状 / 文件地图） | 新增/改动红线、新增文件或脚本、断言数变了（R16/R17）、分支或发版流程变了 |
 | `CHANGELOG.md` | 面向用户与 Release notes 的唯一来源 | 每个用户可见的改动；发版时把 `## Unreleased` 变成 `## X.Y.Z — YYYY-MM-DD` |
 | `test/README.md` | 四套断言各自覆盖什么 | 断言数、套件职责变了 |
 | `docs/design.md` | 工作原理、同类对照、`package.json` 声明、结构、下一步 | 架构/取舍变了；R17 的「真机验证」那条就在这里 |
@@ -29,14 +29,14 @@ description: Use when 用户说「更新文件」「更新文档」「更新日�
 ## 2. 三条强制同步（漏了就是错）
 
 1. **版本号**（发版时）：`package.json` 的 `version`、README 的「稳定版当前 **X.Y.Z**」与安装示例 `"^X.Y.Z"`、CHANGELOG 的 `## X.Y.Z — YYYY-MM-DD`、`docs/distribution.md` 的版本行——**四处逐字一致**。
-2. **断言数（R17）**：`README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ `CHANGELOG.md` 一处；连带 `test/README.md`、`AGENTS.md` 的 R16/R17 与文件地图、仓库外 `promote.ps1` 的提示文案。数字必须来自 `npm test` 的实跑输出，不许手写推算。**发版前还要全仓搜一遍旧数字**（`grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa`，CHANGELOG 历史小节除外）：`docs/release.md`、`docs/distribution.md`、`CONTRIBUTING.md`、`docs/design.md`、`.github/workflows/README.md`、PR 模板这几处都漂过，是 `skills/release/SKILL.md` 交付自查 B3 的固定检查点。
+2. **断言数（R17）**：**凡写到断言数的文件都要同改**——`README.md`、`docs/README.en.md`、`docs/design.md`（「真机验证」那条）、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`test/README.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、`CHANGELOG.md` 当轮小节；连带 `AGENTS.md` 的 R16/R17 与文件地图、仓库外 `promote.ps1` 的提示文案。数字必须来自 `npm test` 的实跑输出，不许手写推算。**发版前还要全仓搜一遍旧数字**（`grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa`，CHANGELOG 历史小节除外）：上面这些文件都漂过，是 `skills/release/SKILL.md` 交付自查 B3 的固定检查点。
 3. **三语词条（R15）**：`lib/client.js` 的 `zh` / `en` / `ru`、`locale/zh.json`、`locale/en.json`、`locale/ru.json`、`package.json` 的 `description` 成对改。这是代码改动，不属于「只更新文档」，但只要碰了文案就必须一起走。
 
 ## 3. 「更新日志」的写法
 
 - **平时**：写进 `## Unreleased`，用小节区分：`### Added` / `### Fixed` / `### Changed` / `### Docs`。每条写**发生了什么、影响谁**，不写 commit hash。
 - **发版时**：把 `## Unreleased` 下这一轮的内容挪成 `## X.Y.Z — YYYY-MM-DD`，`Unreleased` 留 `_（下一轮）_`。`publish.yml` 会用 `## ${VERSION} ` 前缀截取这一段当 GitHub Release notes，所以**标题格式不能改**。
-- 断言数那一条单独成行（R17 要求），格式：`离线断言 **740 组**（check 12 + capsule 518 + panel 163 + host 47）；新增 N 组：…`（数字以 `npm test` 实跑为准，别照抄这行）。
+- 断言数那一条单独成行（R17 要求），格式：`离线断言 **776 组**（check 12 + capsule 554 + panel 163 + host 47）；新增 N 组：…`（数字以 `npm test` 实跑为准，别照抄这行）。
 - 修外部贡献者的东西：点名 `@用户名` 与 PR 编号。
 
 ## 4. 自检

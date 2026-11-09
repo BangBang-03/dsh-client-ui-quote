@@ -93,6 +93,7 @@ DSH 的输入框是 Lexical，没有 Kimi 的 `quote` 节点，但有一个通�
 - **写进输入框**：页签打开后，`ctx.get("conversation").input.shell(childId)` 拿到子会话的输入框外壳（`SessionInputShell`），走与主输入框同一条 `prefillQuoteDraft`：外壳有 `insertReference` 时写**原生引用芯片**（芯片的 `ref` 里带那条引用的线格式，发送时由 `codec.serialize` 还原，和主会话完全同形），没有芯片面时退回**纯块引用**（`>` 逐行前缀，不带 `❝` 标记——那两个标记是主会话胶囊增强器的识别符，侧边线程用不上）。输入框里已经有你写的内容时，引用接在下面、空行隔开；**不发送，也不碰别的东西**。子会话的输入框要等页签挂载后才存在（`shell(id)` 在此之前会抛「resolved no binding」），所以这里按 200ms 轮询等它出现；外壳在而 `setDraft` / `insertReference` 都不在（版本对不上）则立刻放弃，不空等 5 秒。
 - **没发出去的引用不落到原文上**：第三项会为这条引用预先算好坐标（跳回与悬停卡片都要它），但坐标以 `draft` 记在表里，`paintAnchors` 跳过它——原文上**不会**出现高亮与序号徽标。读者把侧边对话关掉、或者根本不发送，主会话的文面上干干净净；只有这句引用真的以胶囊形态出现在某条 transcript 里（`capsuleFor` 认到同一个 ref），`promoteSource` 才把它转正并立刻补画标记。
 - **回复结束即收回**：引用作为胶囊发出去后，回合尾的 `data-dshq-turn` 是完成信号；`paintAnchors` 把该回合胶囊对应的 source 标成 `spent`，坐标保留（跳回/卡片/清单照常），高亮与序号不再绘制。`keepHighlight: true` 可保留常亮。
+- **徽章编号跟着当前绘制走**：徽章显示的是这一刻原文上还画着的引用序号（按会话、按 `at` 升序从 1 排），删掉一条草稿或回合结束收回后，其余徽章前移，不会把历史引用累计进今天的编号。wire 里的 `n` 不参与显示、也不重排——它只回答「同一句话在行内第几次出现」，已经发出去的 ref 不能改。切会话时宿主把草稿芯片作为新节点恢复，`wireChips` 以输入框卡片集合变化为信号重新布线，所以恢复的芯片仍有聚合条，删除时也照常收回原文高亮。
 - **放弃动作要把选区还回去**：浮层自己的 `mousedown` 调了 `preventDefault()`（否则点行的一瞬间选区就没了），所以它必须自己收尾——`close()` 见到 `state.keptSelection` 就 `removeAllRanges()`，取消 / `Esc` / 点别处都不会留下一块再也点不掉的高亮。
 - **一条主会话一条线程**：线程 id 按主会话记住，优先读本插件自己的 `dsh-client-ui-quote:v1:sidechat-thread`；隐藏线程的父会话记在 `dsh-client-ui-quote:v1:sidechat-target`。旧版 better-sidebar 的 `dsh-sidebar:v1:sidechat-thread` 只作为旧线程迁移的只读回退，不再优先于我们自己的记忆。第二次点第三项不再新建线程，只把新引用接进同一条线程的输入框。
 - **防重复**：同一会话的请求还在途中时，再次点击直接并入第一次（模块级 `Map<sessionId, Promise>` 记账，结算后自行清除）。
@@ -144,7 +145,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 - `dsh-side-chat-plus`（1,920/月）与 `dsh-sidenote` 0.6：都把侧聊放进原生右栏；我们的「一条主会话一条线程 + 隐性上下文」仍是差异化，默认已改成宿主半创建的隐藏子会话 + 自营 `quote-sidechat` 页（fork 与 better-sidebar 都是退路/增强）。
 - `dsh-quote-reply`（GitHub 安装）：把引用放到输入框上方的独立层，经 `systemPrompt.context` 注入、回合尾显示「引用(N)」；我们坚持把坐标写进消息文本，换取导出/审阅/跨刷新，不改架构。
 - `dsh-selection-quote`（594/月）与 `dsh-xwide-annotation`（1,148/月）：分别补了右键菜单/持续选区高亮与每条颜色/大纲；我们的清单已是大纲，颜色不是主线，右键菜单也不比现有浮层快。
-- `dsh-code-quote`（776/月，粘贴 `路径:行` + 代码 → chip + pre-step 快照）与 `dsh-quote-to-agent`（引用分派子代理）是相邻赛道，不并入；`dsh-web-annotator`/`dsh-image-annotate` 进一步证明图片/网页批注应独立成插件。
+- `dsh-code-quote`（762/月，粘贴 `路径:行` + 代码 → chip + pre-step 快照）与 `dsh-quote-to-agent`（引用分派子代理）是相邻赛道，不并入；`dsh-web-annotator`/`dsh-image-annotate` 进一步证明图片/网页批注应独立成插件。
 - 本轮唯一落到代码的修正是：宿主其实有 `consumeToken`（`app.asar` 的 conversation shell），已用它替换「聚焦 + 合成 Backspace」；详见「已知限制」。
 
 同一份快照里几个仍然很窄的格子：
@@ -156,7 +157,7 @@ transcript 侧的 `.dshq-cap` 胶囊：一颗胶囊同时装引用与评论，`�
 - **图片/截图**：`dsh-selection-toolbar` 与 Kimi 桌面端已经支持；我们仍是纯文本引用。
 - **「原地编辑已发送的批注」**：DSH 仍没有编辑已发送消息的 API（侦察确认 `editMessage`/`updateMessage`/`rewriteMessage` 全树 0 命中），本插件走**追加式修订**；`dsh-plugin-message-edit` 走的是另一条路（原地保存 + 分支重生成 + 版本时间线），两条路线不冲突。
 
-本插件相对同类的**可验证**优势集中在四件事上（语义节点、带坐标的活对象、引用的下落、工程化），根 README 的「[为什么是这一个](../README.md#为什么是这一个)」保留了这份清单与断言数；这里不重复，接着看取舍。
+本插件相对同类的**可验证**优势集中在四件事上：**语义节点**（引用与评论是同一颗节点，一颗芯片 → 一个块 → 一颗胶囊 → 一张卡片）、**带坐标的活对象**（`│q1:` 随消息文本走，跨刷新/跨窗口都能跳回）、**引用的下落**（清单页 + 侧边线程回流）、**工程化**（776 组离线断言，每个宿主契约都写出处）。前三点在根 README 的功能表里有验收口径，这里不重复，接着看取舍。
 
 反过来也要说清楚：**本插件不做的**——不做翻译/解释/改写/飞书投递类选区动作；不做图片/截图引用（**明确取舍**：图片引用要的是另一套胶囊/卡片/附件语义，是第二个产品的量级，塞进这里只会把「文本引用带坐标」这条主线冲淡；`dsh-selection-toolbar` 与 Kimi 桌面端已经做了，真要做建议独立成插件）；不做完整 Topic 系统；不做常显大块引用。它只把「引用」这一件事做穿——但「做穿」包括发送后的管理、来源闭环和审阅，不只是浮层。
 
@@ -193,7 +194,7 @@ locale/zh.json        插件页卡片文案（中文）
 locale/en.json        插件页卡片文案（英文）
 test/check.mjs        离线自检（清单 + 组件契约）
 test/dom.mjs          给离线自检用的最小 DOM / MutationObserver 垫片
-test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，518 项断言）
+test/capsule.mjs      离线自检（发送后胶囊 + 悬停卡片 + 跳回原文 + 键位 + 改这条引用 + 代码引用 + 文件路径打开 + 聊天代码块划选 + 选区保结构 + 回合级引用 + 逐条回应双语 + 草稿引用编辑/持久化 + 聚合条移除/无障碍/移除后原文标记收回 + 行范围标记 + 浮层不随座位失效，554 项断言）
 test/panel.mjs        离线自检（引用清单：解析 / 搜索 / Markdown / 读取 / 导出 / 页面注册 + 文件路径打开 + 侧边线程回流 + 审阅工作台（状态 / 标签 / 批量）+ JSON 导出 + 本地索引 + 底部 Star 链接，163 项断言）
 test/host.mjs         离线自检（宿主半：标签 / 隐性上下文种子（切点 + 收口回合：空 system 头 → 上下文消息 → descriptor；只带用户与助手的原话、8000 字上限、跳过注入上下文）/ 空日志兜底 / 继承切点与 descriptor 顺序 / agents.create 参数 / 探针 / 围栏 / 路由注册与卸载，47 项断言）
 test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选）
@@ -212,5 +213,5 @@ test/capsule.html     真浏览器里跑同一套胶囊断言（51 项，可选�
 - **Markdown 预览的行号**：要精修就得读源文件，而客户端必须声明 `remote` 才能拿到它；声明错会让 client bundle 在不匹配的宿主上**静默失效**（`dsh-quote-annotate` 上游就是这么死的）。所以先不声明——文件仍然打开，只是落在顶部而不是行上。
 - **表格/列表/LaTeX 的结构保真**：链接与行内代码已做；表格要还原成 Markdown 表格，列表要还原成缩进，成本明显更高，留到有人真的需要时再做。
 - **图片/截图引用**：明确不做（理由见「本插件不做的」）。真要做请独立成插件：图片引用要的是另一套胶囊/卡片/附件语义。
-- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 740 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。真机证据把 v5 种子的缺陷钉死了：隐藏子会话（v5，无回合）在真实窗口里跑完了一个回合（6 条助手消息、工具调用、`turn/end` completed），但**第二次发送**时存储层重载日志，报 `stored log corrupt: SessionFormatError: system/message requires a protected first surface head`，客户端收到 `subagent/not-resumable`。原因是会话存储把**第一个 surface 节点**当作受保护的系统头，而 v5 种子的首个 surface 节点是上下文 `user/message`。v6 种子（收口回合，第一条是空 `system/message` 头）已用宿主的 `assertReleasedV4Relationships` 与真 `Session` 构造器验证 **10/10**（含首个回合 append / replace 两种写法）；持久化 worker 的真实读取路径（`verifyJsonlCurrentGeneration`，就是报这条错的那个校验器）也接受了 v6 种子、v6 + 首回合、v6 + 两个回合（第二次发送的场景），并用这条真实 v5 日志复现了原来的 `system/message requires a protected first surface head` 拒绝。随后真机用 v6 种子建出的子会话（12:00）被存储校验器接受，但打开页签时的历史加载仍报 `subagent/not-resumable`——子 agent 当时还被保活，活句柄挡住了宿主的子代理 resume。改为创建后立即释放后，冷开路径合法。**2026-10-29 已在真实桌面窗口复核**：同一条隐藏线程（v6 种子）连发两条，存储层未再报格式错误，`turn 2` 与 `turn 3` 都是 `completed` 且各写入一条 `request/header`；页签由自营 `quote-sidechat` 渲染，输入框可写、引用草稿可落。冷启动（重启后再发）同样按这条路径走，尚无独立复测项。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
+- **真机验证**：这一轮的宿主契约全部来自 `app.asar` 的一手文档，功能路径有 776 项离线断言；隐藏线程的 `agents.create` / 种子格式已在**隔离的 DSH web 实例**（临时 `DSH_HOME`，端口 8791，CLI 0.2.1-rc.3）里确认：宿主半通过 `ctx.inject(["webServer"])` 晚到注册，`POST /ui-quote/api/sidechat.start` 的探针返回 `{"ok":true,"value":{"available":true,"version":1}}`，说明 `agents` 服务与同源围栏都就绪。本轮又在**运行中的桌面端**（link 模式，重启后加载 `lib/index.js`）核对过一次：`/ui-quote/api/*` 下任意路径都先被围栏拦成 `403 {"code":"forbidden"}`，而同样方法打一个不存在的顶层路径是 `404`，说明前缀路由确实挂上了、并且先过围栏。真机证据把 v5 种子的缺陷钉死了：隐藏子会话（v5，无回合）在真实窗口里跑完了一个回合（6 条助手消息、工具调用、`turn/end` completed），但**第二次发送**时存储层重载日志，报 `stored log corrupt: SessionFormatError: system/message requires a protected first surface head`，客户端收到 `subagent/not-resumable`。原因是会话存储把**第一个 surface 节点**当作受保护的系统头，而 v5 种子的首个 surface 节点是上下文 `user/message`。v6 种子（收口回合，第一条是空 `system/message` 头）已用宿主的 `assertReleasedV4Relationships` 与真 `Session` 构造器验证 **10/10**（含首个回合 append / replace 两种写法）；持久化 worker 的真实读取路径（`verifyJsonlCurrentGeneration`，就是报这条错的那个校验器）也接受了 v6 种子、v6 + 首回合、v6 + 两个回合（第二次发送的场景），并用这条真实 v5 日志复现了原来的 `system/message requires a protected first surface head` 拒绝。随后真机用 v6 种子建出的子会话（12:00）被存储校验器接受，但打开页签时的历史加载仍报 `subagent/not-resumable`——子 agent 当时还被保活，活句柄挡住了宿主的子代理 resume。改为创建后立即释放后，冷开路径合法。**2026-10-29 已在真实桌面窗口复核**：同一条隐藏线程（v6 种子）连发两条，存储层未再报格式错误，`turn 2` 与 `turn 3` 都是 `completed` 且各写入一条 `request/header`；页签由自营 `quote-sidechat` 渲染，输入框可写、引用草稿可落。冷启动（重启后再发）同样按这条路径走，尚无独立复测项。真浏览器（1600×2000 视口）同一套断言本轮复核 **51/51**。欢迎页的交互点击被安全闸门拦下，因此下面四条仍需在真实窗口逐项点：聚合条编辑、回合尾的两个按钮、打开文件与行范围标记、JSON 导出。
 - **市场收录与首屏**：README 已有截图、徽章、「30 秒上手」与 24 秒静态轮播 GIF；还差把插件提交到 dsh.market / dsh-plugin.org / dsh.pub / awesome-deepseek-harness —— 这些需要外部账号，是人工动作。

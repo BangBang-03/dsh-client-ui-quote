@@ -1,16 +1,6 @@
 # AGENTS.md
 
-**dsh-client-ui-quote** —— DSH（DeepSeek Harness）的划词引用插件：选中 → 浮层（评论 / 添加到对话 / 侧边对话）→ 原生 `reference-chip` → 发送后胶囊 → 原文高亮、跳回、引用清单、侧边线程。
-
-本页写给要在这个仓库里动手的 agent：**第一节是红线，第二节是路由表**。开工前先读三处：本页、`README.md` 的「功能」表、「已知限制」。分支与发布纪律另有 `../PLUGIN-WORKFLOW.md`。
-
-- 仓库真身在 `C:\Users\15812\Desktop\dsh\dsh-client-ui-quote`；`Desktop\dsh-client-ui-quote` 是指向它的软链。同一棵树，别在两个路径之间复制文件。
-- 分支拓扑：GitHub 只有 **`main` 一个长期分支**（默认分支、开发线、发版线）。产物只有一档：打 `vX.Y.Z` 标签发 npm `latest`；**`main` 的普通 push 只跑测试、不发布**（2026-10-28 起 `lab` 预发布频道已删除，`lab` dist-tag 冻结在 `0.13.1-lab.61`）。
-- 行号会漂。本页括号里的行号只是 2026-10-20 的锚点，**以函数名/常量名为准**（`rg "function jumpToSource" lib/client.js`）。
-- 产品行为不要只看代码猜：README 的功能表是验收口径，改行为要同时改它。
-- 用户说「更新文件 / 更新文档 / 更新日志」时，按 `skills/docs/SKILL.md` 的默认文件集执行，不要反问「改哪几处」。
-
----
+**dsh-client-ui-quote** —— DSH（DeepSeek Harness）的划词引用插件。本页只写两件事：**红线**（违反即回滚）与**路由表**（按改动目标、症状、文件查位置）。产品行为以 `README.md` 的功能表为验收口径，改行为要同时改它。行号会漂，路由表里的行号只是锚点，**以函数名 / 常量名为准**。
 
 ## 一、红线
 
@@ -50,15 +40,13 @@
 
 | # | 红线 | 为什么 | 违规长什么样 |
 | --- | --- | --- | --- |
-| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 740 组离线断言是唯一的回归网；这条线断过一次——README 里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
-| R17 | 数字以实跑为准：check **12** 组 + capsule **518** + panel **163** + host **47** = **740**；`README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处必须同改 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
+| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 776 组离线断言是唯一的回归网；这条线断过一次——文档里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
+| R17 | 数字以实跑为准：check **12** 组 + capsule **554** + panel **163** + host **47** = **776**；**凡写到断言数的文件必须同改**——`README.md`、`docs/README.en.md`、`docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`test/README.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、CHANGELOG 当轮小节；改完用 `grep -rn "离线断言" --include=*.md .` 复核 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
 | R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N` 之类的预发布号（CI 已不再产生，出现即为手误） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
 | R21 | 推送通道：`git` 优先，失败走 REST 兜底，**同一轮别来回切** | REST 重建的提交时区归一到 `+0000`，同内容不同 SHA → 平行提交（`git status` 干净，远端多一条线） | 手动一半 git 一半 REST；分叉后用 force 掩盖 |
 | R22 | 不进仓库：`node_modules/`、`.workbuddy/`、报告与截图工作区（`.dsh-quote-work/`、`PLUGIN-*.md` 都在仓库外）；`package.json` 的 `files` 是 npm 发货白名单，别加工作文件 | 包体、CI 时间、以及「报告被发到 npm」都不该发生 | `git add -A` 把工作稿一起提交；把 `AGENTS.md` 加进 `files` |
-
----
 
 ## 二、路由表
 
@@ -92,7 +80,7 @@
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7404）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138、`ru` 239；`locale/zh.json`、`locale/en.json`、`locale/ru.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 740 + 远端 `main`/标签一致 + 六组自查结论 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 776 + 远端 `main`/标签一致 + 六组自查结论 |
 
 ### 2.2 按症状找位置
 
@@ -124,71 +112,21 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `lib/client.js`（≈9.2k 行） | 客户端全部功能。顺序：locale → 配置 → 常量（线格式/选择器/存储键）→ 选区读取 → 线格式 → 芯片插入 → 胶囊/卡片 → 坐标表 → 高亮 → 草稿条 → 侧聊 → 清单页 → 快捷键 → `apply` |
+| `lib/client.js`（≈9.3k 行） | 客户端全部功能。顺序：locale → 配置 → 常量（线格式/选择器/存储键）→ 选区读取 → 线格式 → 芯片插入 → 胶囊/卡片 → 坐标表 → 高亮 → 草稿条 → 侧聊 → 清单页 → 快捷键 → `apply` |
 | `lib/index.js`（≈0.6k 行） | host 半，只做隐藏侧聊线程：`/ui-quote/api/sidechat.start` 路由（同源围栏）、隐性上下文种子（切点 → `session-context` 消息 → descriptor）、`agents.create`、标题固定与卸载清理。不要再往这里加别的功能 |
 | `cordis.patch.yml` | 组合包层补丁，插入 `ui-quote` loader 条目 |
 | `package.json` | 清单（`dsh.bundle.patch` / `dsh.client.platform` / 四个 `exports` / `icon` / `engines.dsh`）+ `files` 白名单 + 测试脚本 |
 | `icon.svg` | 插件页卡片图标（相对路径、≤ 256 KiB、realpath 必须留在包内） |
-| `locale/zh.json`、`locale/en.json`、`locale/ru.json` | 插件页卡片文案；`en.json` 是扫描锚点 |
-| `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer |
-| `test/capsule.mjs` | 518 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
+| `locale/*.json` | 插件页卡片文案（zh / en / ru）；`en.json` 是扫描锚点 |
+| `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer、截图被 README 引用 |
+| `test/capsule.mjs` | 554 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
 | `test/panel.mjs` | 163 组：清单页（解析、搜索、导出、单条复制 Markdown、读取、注册、审阅、JSON、本机索引、线程回流、底部 Star 链接） |
 | `test/host.mjs` | 47 组：宿主半（标签 / 隐性上下文种子（收口回合 + 空 system 头）/ 截断超长单条消息 / 空日志兜底 / 切点与 descriptor 顺序 / `agents.create` 参数 / 探针 / 围栏 / 路由注册与卸载） |
 | `test/dom.mjs` | 最小 DOM / MutationObserver / Range / localStorage 垫片；新 API 先补这里 |
 | `test/capsule.html` | 真浏览器版（51 项），`file://` 打开，结果写进标题与 `#probe-out` |
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
-| `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 从根 README 移出的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文全文。根 README 只留功能表、已知限制与入口 |
+| `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 根 README 之外的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文版 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
 | `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、**发版前 A–F 六组交付自查**、CHANGELOG/Release 验收；不进 npm 包 |
-| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号四处、断言数（R17）与三语词条（R15）怎么对齐；不进 npm 包 |
-
-### 2.4 命令
-
-```bash
-node --check lib/client.js                 # 语法门（CI 也先跑这个）
-npm test                                   # check + capsule + panel + host，740 组
-node test/check.mjs                        # 只跑清单/契约
-node test/capsule.mjs                      # 只跑发送后链路
-node test/panel.mjs                        # 只跑清单页
-node test/host.mjs                         # 只跑宿主半（隐藏线程创建）
-
-# 真浏览器：直接打开 test/capsule.html（file://），51 项，结果写进标题与 #probe-out
-
-# 本机三档运行（脚本在仓库外的工作区，不进包）
-node .dsh-quote-work/profile-mode.mjs link|stable|status
-
-# 提升与发版（脚本在工作区根 C:\Users\15812\Desktop\dsh）
-pwsh -File C:\Users\15812\Desktop\dsh\promote.ps1 -Repo dsh-client-ui-quote [-Tag vX.Y.Z] [-Channel rest] [-SkipTests]
-# 完整流程与验收见 skills/release/SKILL.md
-```
-
-### 2.5 改完的自检
-
-- [ ] `npm test` 全绿；若新增断言，README 四处 + `docs/design.md` 一处 + CHANGELOG 一处的数字已同步（R17）。
-- [ ] 新行为有断言，且跑在 `test/dom.mjs` 垫片上——没有为了让测试过而放宽期望（R16）。
-- [ ] 旧消息兼容：拿一条旧版线格式样本跑 `quoteBlock` / `splitQuoteRuns` round-trip，`> ❞ …`、`※ │q1:…`、正文自带代码围栏，三者都不串行（R7）。
-- [ ] 宿主缺失路径：在桩里删掉 `betterSidebar` / `webServer` / `agents` / `consumeToken` / `CSS.highlights`，功能降级、不抛错（R13）；宿主半缺 `webServer` 时路由不存在，缺 `agents` 时探针 503。
-- [ ] 隐藏线程回归：`node test/host.mjs` 全绿；真宿主（临时 `DSH_HOME` + web profile）探针返回 `available:true`（R18 的 host 契约出处写进 README）。
-- [ ] 三语词条、`locale/*.json`、`package.json` description、README 功能表同改（R15）。
-- [ ] `git status` 只有预期文件；没有 `.workbuddy/`、没有报告、没有把 `AGENTS.md` 加进 `files`（R22）。
-- [ ] 提交在 `main`，信息形如 `feat(scope): 中文说明` / `fix(scope): …` / `docs: …`；要发版按 `skills/release/SKILL.md` 走 `promote.ps1 -Tag`，**打标签前先把该文件的「发版前交付自查」A–F 六组完整跑一遍**，红项先修（R16、R20、R21）。
-
----
-
-## 三、术语（读代码时对得上）
-
-| 词 | 指什么 |
-| --- | --- |
-| 浮层 / bar | 选区下方那颗菜单与评论框，`#dsh-quote-bar`，单例挂 `document.body` |
-| 芯片 / chip | 草稿里的原生 `reference-chip`，`ref` 里装引用正文，`codec.serialize` 取模型形态 |
-| 线格式 / wire | 发出去的那段纯文本：`> ❝ …` / `> ❞ …` / `> ※ 指令：…` / `> ※ 引自第 N 轮 · 助手 │q1:…` |
-| 胶囊 / capsule | 发送后在 transcript 里画出来的那颗 pill，一颗胶囊同时装引用与评论 |
-| 卡片 / popover | 悬停胶囊或输入框芯片时浮出的全文卡，`#dsh-quote-popover` |
-| 坐标 / ref | 消息行锚点 + 轮次 + 同句序号，编码进线格式尾巴，用于跳回 |
-| 聚合条 / draft bar | 输入框上方的 `引用 ×N`，逐条跳回 / 编辑 / 移除 |
-| 侧线程 / side thread | 挂在右侧栏的独立会话：一条主会话一条线程（早期按引用分线程的记录仍会复用）；引用只写它的草稿，不发送 |
-| 清单 / quote list | 右侧栏的 `引用清单` 页，把引用当对象审阅、导出、批量插入 |
-
----
-
-这份文档只写约束与入口，功能叙事在 `README.md`。改红线要同时更新本页与 README 的「已知限制」——两处对不上时，以 README 的实测记录为准，并把本页改回去。
+| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号、断言数（R17）与三语词条（R15）怎么对齐；不进 npm 包 |
+| 各目录 `README.md` | 目录职责与约定（`lib` / `locale` / `test` / `docs` / `docs/screenshots` / `skills` / `skills/docs` / `skills/release` / `submission` / `.github` / `.github/workflows`）；新增目录必须配一份 |

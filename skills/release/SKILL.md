@@ -38,7 +38,7 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 
 - `AGENTS.md`：R16/R17（测试与断言数）、R20（单 `main`）、R21（推送通道）、R22（不进仓库的文件）。
 - 工作区根 `C:\Users\15812\Desktop\dsh\PLUGIN-WORKFLOW.md`：推送通道、`promote.ps1`、REST 兜底与分叉复盘（顶部的双分支拓扑是历史，以本文件为准）。
-- `package.json`、`CHANGELOG.md`、`README.md` 的「开发与发布」段与 [`docs/release.md`](../../docs/release.md)。
+- `package.json`、`CHANGELOG.md`、`README.md` 的「自检」段与 [`docs/release.md`](../../docs/release.md)。
 - `.github/workflows/publish.yml`：`v*` 标签发 npm `latest` + GitHub Release；`main` push 不发布；`test.yml` 在每次 push/PR 跑 Node 18/20/22。
 
 ## 不可违反
@@ -66,7 +66,7 @@ description: Use when 用户要求推送 main、发版、发布正式版、打 v
 | A4 | 断言没被削弱 | `git diff "$PREV" -- test/` | 没有删断言、没有把期望改成实际值换绿；新增断言能在 diff 里逐条指出（R16） |
 | B1 | 版本五处一致 | `npm pkg get version`；README「稳定版当前」+ 安装示例 `"^X.Y.Z"`；`CHANGELOG.md` 小节；`docs/distribution.md` 版本行 | 同一个 `X.Y.Z` |
 | B2 | CHANGELOG 形状 | `grep -n "^## $V " CHANGELOG.md` | 恰好 `## X.Y.Z — YYYY-MM-DD`；`publish.yml` 按 `## ${VERSION} ` 前缀截取 Release notes |
-| B3 | 断言数全仓无旧值 | `grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa`，再看各处的「N 组 / N 项」 | 除 `CHANGELOG.md` 历史小节外，所有数字 = 本次实跑总数；含 R17 六处 + `test/README.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、本 skill 的写法示例、仓库外 `promote.ps1` 提示文案 |
+| B3 | 断言数全仓无旧值 | `grep -rn "离线断言" --include=*.md . --exclude-dir=.dsh-memory --exclude-dir=.workbuddy --exclude-dir=.mimosa`，再看各处的「N 组 / N 项」 | 除 `CHANGELOG.md` 历史小节外，所有数字 = 本次实跑总数；覆盖 R17 列出的全部文件 + `docs/testing.md`、`docs/release.md`、`docs/distribution.md`、本 skill 的写法示例、仓库外 `promote.ps1` 提示文案 |
 | B4 | 标签空位 | `git tag --list "v$V"`；`git ls-remote --tags origin "refs/tags/v$V*"` | 本地与远端都为空 |
 | C1 | 中英（含 ru）词条 | `node test/check.mjs`；本轮 diff | 词典键一致；R15 的 `zh`/`en`、`locale/*.json`、`package.json` description 成对改 |
 | C2 | 公开 id 没被顺手改名 | `git diff "$PREV" -- lib/ locale/` | `SOURCE_NAME`、命令、tab kind、class 前缀、存储键前缀与 R10/R14 一致 |
@@ -205,7 +205,7 @@ git ls-remote origin refs/heads/main 'refs/tags/vX.Y.Z*'
 - `CHANGELOG.md`：把 `## Unreleased` 下的本轮条目挪进新的 `## X.Y.Z — YYYY-MM-DD` 小节，`Unreleased` 留 `_（下一轮）_`。
 - `README.md` 两处：`稳定版当前 **X.Y.Z**` 1 处，安装示例里的 `"dsh-client-ui-quote": "^X.Y.Z"` 1 处。
 - `docs/distribution.md` 的版本行（它自己标注了「发版时同步」）。
-- 若断言数变化：按 R17 同步 `README.md` 四处（「开发与发布」入口、工程化第 4 条、`npm test` 入口、自检合计）+ `docs/design.md` 一处（真机验证）+ CHANGELOG 一处。
+- 若断言数变化：按 R17 同步所有写到断言数的文档——`README.md`、`docs/README.en.md`、`docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`test/README.md`、`.github/workflows/README.md` 与 CHANGELOG 当轮小节；改完 `grep -rn "离线断言" --include=*.md .` 复核。
 
 ### 2. 测试
 
