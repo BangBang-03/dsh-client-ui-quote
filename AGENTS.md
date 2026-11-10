@@ -40,8 +40,8 @@
 
 | # | 红线 | 为什么 | 违规长什么样 |
 | --- | --- | --- | --- |
-| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 784 组离线断言是唯一的回归网；这条线断过一次——文档里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
-| R17 | 数字以实跑为准：check **12** 组 + capsule **562** + panel **163** + host **47** = **784**；**凡写到断言数的文件必须同改**——`README.md`、`docs/README.en.md`、`docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`test/README.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、CHANGELOG 当轮小节；改完用 `grep -rn "离线断言" --include=*.md .` 复核 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
+| R16 | `npm test` 全绿才算改完；新增行为必须带断言；**不许删断言或放宽断言换绿** | 814 组离线断言是唯一的回归网；这条线断过一次——文档里的断言数曾经三处互相矛盾 | 注释掉失败断言、`try {} catch {}` 吞掉、把期望值改成实际值 |
+| R17 | 数字以实跑为准：check **12** 组 + capsule **578** + panel **174** + host **50** = **814**；**凡写到断言数的文件必须同改**——`README.md`、`docs/README.en.md`、`docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/distribution.md`、`test/README.md`、`CONTRIBUTING.md`、`.github/workflows/README.md`、`.github/pull_request_template.md`、CHANGELOG 当轮小节；改完用 `grep -rn "离线断言" --include=*.md .` 复核 | 断言数是对外承诺的一部分，同类对比也引用它 | 手写一个新数字；只改一处 |
 | R18 | 新增 DOM API 先补 `test/dom.mjs` 垫片；新增宿主契约要在 README「已知限制」写出处（app.asar 或真机实测版本） | 否则 `capsule.mjs` 在 Node 里直接挂；没有出处的契约下个版本就会静默失效 | 用 `TreeWalker`/`CSS.highlights`/`Range` 但不垫片；「应该就是这样」 |
 | R19 | 范围红线：不做图片/截图引用、不做 Topic 系统、不做常显大块引用、不做翻译/改写类选区动作、不做原地编辑已发送消息（DSH 没有 API，只能追加修订） | 主线是「文本引用 + 坐标 + 发送后的管理」；每加一条支线都会冲淡它 | 「顺手」把插件做成笔记/标注平台 |
 | R20 | 分支：**GitHub 只有一个长期分支 `main`**，它同时是默认分支、开发线与发版线；不要新建长期 `lab` 分支，也不要把 `main` 当"待验收区"再往回拷。已推送的 `main` 不 amend / 不 rebase / 不 `push --force`；入库的 `package.json` 不能是 `-lab.N` 之类的预发布号（CI 已不再产生，出现即为手误） | 双分支时代（≤0.12.9）每次发版要按顺序搬三个 ref、维持 ff 祖先关系，而"main 是备份"的理由不成立（同一远端一起丢）；产物身份本来就由标签与 dist-tag 表达，第二个长期分支没承载额外信息 | 重新引入 lab/dev 长期分支；amend 已推的 main；把 `-lab.N` 版本号提交进仓库 |
@@ -57,11 +57,11 @@
 | 要改的东西 | 主入口（行号锚点） | 连带 | 断言 |
 | --- | --- | --- | --- |
 | 浮层菜单 / 评论框 / 提交 | `ensureBar` 4670、`renderMenu` 4702、`renderComment` 4752、`commit` 5059、`close` 5010、`toast` 5037 | `STYLE_TEXT` 546、`applyTheme` 4629、`position` 4840 | capsule「where the selection menu sits」「comment box」 |
-| 选区识别（正文/预览/终端/diff/代码块） | `readSelection` 1198；`previewPathOf` 1095、`diffPathOf` 1129、`chatCodeBlockOf` 1072 | `PREVIEW_SELECTOR` 403、`TERMINAL_SELECTOR` 404、`DIFF_SELECTORS` 411 | capsule「code quotes」「diff selection」 |
+| 选区识别（正文/预览/终端/diff/代码块） | `readSelection` 1198；`previewPathOf` 1095、`diffPathOf` 1129、`chatCodeBlockOf` 1072 | `PREVIEW_SELECTORS` 403、`closestAny`、`TERMINAL_SELECTOR` 404、`DIFF_SELECTORS` 411 | capsule「code quotes」「diff selection」 |
 | 芯片插入（原生 → 事件 → 文本兜底） | `ensureSource` 1844、`insertionFace` 1923、`insertChip` 1972 | `chipRef` 1751、`chipLabel` 1759、`SOURCE_NAME` 453 | check「reference source」、capsule 的芯片插入段 |
 | 线格式（写入 / 回读） | `quoteBlock` 1578、`splitQuoteRuns` 1626 | `QUOTE_MARK` 316、`COMMENT_MARK` 325、`REPLY_MARK` 336、`REF_PREFIX` 353、`escapeBodyLine` 1327 | capsule「the wire line」「marker-shaped body lines」 |
 | 坐标（生成 / 解码 / 落库 / 迁移） | `encodeQuoteRef` 1493、`decodeQuoteRef` 1519、`saveSource` 2836、`sourceFor` 2892 | `REF_LINE` 360、`SOURCE_KEY` 494、`migrateSources` 2774 | capsule「the same sentence from two rows」「migration」「two windows」 |
-| 发送后胶囊 | `capsuleFor` 2164、`isQuoteRun` 2129、`enhance` 4157、`installCapsules` 4292、`rescanCapsules`（install / 窗口唤醒重扫） | `CAPSULE_STYLE_TEXT` 596、`onCapsuleMutations` 4214、`onCapsuleWake` | capsule 的胶囊段（多引用/重渲染/消息删除/卸载/窗口唤醒重扫） |
+| 发送后胶囊 | `capsuleFor` 2171、`isQuoteRun` 2129、`isHostQuote` / `splitDecodedQuote`（官方 `message-quotes` 的 `[data-quote-preview]`）、`enhance` 4157、`installCapsules` 4292、`rescanCapsules`（install / 窗口唤醒重扫） | `CAPSULE_STYLE_TEXT` 596、`onCapsuleMutations` 4214、`onCapsuleWake` | capsule 的胶囊段（多引用/重渲染/消息删除/卸载/窗口唤醒重扫、宿主解码引用/原生引用） |
 | 原文高亮 + 序号 | `paintAnchors` 4007、`rangeForQuote` 3957、`quoteHighlightSupported` 3982、`clearQuoteHighlight` 3997、`clearSpentSources`（回合尾 `data-dshq-turn` 后标 `spent`）、`retractChipSource` / `restoreChipSource` / `setChipRetracted`、`capsuleJumpKeys` / `refInTranscript`（迟到的转正与发送缝隙）、`quoteTextFor` / `fullQuoteKeysOf` / `rememberQuoteText`（完整原文按 ref + 原文作键）、`sourceWordingOf` / `sourceWordingMatches`（同 ref 多句只处理目标那句）、`onVisibilityMutations`（隐藏页签/侧栏重新出现时补画） | `QUOTE_HIGHLIGHT`（`dshq-quote`）、`SOURCE_HIGHLIGHT` 4876、`ANCHOR_LIMIT` 2325、`saveSource` 的 `chip` / `spent` 标记、`promoteSource` / `dropSourceMarks`、`capsuleOnSourcePage`、`keepHighlight` 配置 | capsule「source-side highlight helpers」「草稿芯片删掉后标记收回」「回合结束收回」「胶囊已在页面时迟到的转正自愈」「多对话 / 多页签」「同一行多句草稿引用」+ `test/dom.mjs` 的 Range |
 | 悬停卡片（胶囊 + 输入框芯片） | `ensurePopover`、`fillPopover`、`placePopover`、`wireChips` | `chipInfoFor`、`CHIP_LIMIT`、`quoteRowMarkdown`（卡片的「复制为 Markdown」载荷） | capsule「the hover card」「the composer chip」 |
 | 跳回原文 | `jumpToSource` 3442、`searchSourceRow` 3360、`alignRow` 3283、`landRow` 3308 | `JUMP_*` 442-445、`markJumpLost` 3416 | capsule「jump」整套 |
@@ -75,21 +75,22 @@
 | 清单导出 / 单条复制 | `quoteListMarkdown`、`quoteRowMarkdown`（单条，复制按钮的载荷）、`quoteListJson`、`downloadText` | `MARKDOWN_MIME`、`wireSourceLabel` | panel「Markdown export」「one quote, copied as Markdown」 |
 | 审阅工作台（状态/标签/批量） | `quoteMetaFor` 3115、`setQuoteStatus` 3142、`markRowsResolved` 3152、`addQuoteTag` 3171 | `QUOTE_META_KEY` 516、`REVIEW_STATUSES` 3069 | panel「the review workbench」 |
 | 侧边线程回流 | `loadThreadSummary` 6993、`bringThreadBack` 7006、`exportThread` 7028、`loadThreadList` 6957 | `THREAD_LIMIT` 536、`threadConclusion` 6093 | panel「side thread」 |
-| 快捷键 | `registerShortcut` 7175、`registerPlaceShortcut` 7204 | `shortcutDefaults` 7165 | capsule 键位段、panel「shortcut」 |
+| 快捷键 | `registerShortcut` 7175、`registerPlaceShortcut` 7204 | `shortcutDefaults` 7171 | capsule 键位段、panel「shortcut」 |
 | 配置开关 / 调试探针 | `sanitizeConfig` 249、`config` 273、`setConfig` 287、`installProbe` 7221、`failureSnapshot` 1804 | `CONFIG_KEY` 226、`CONFIG_RANGES` 243 | capsule 的配置段（默认值/清洗/落库）+ 探针段 |
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7404）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138、`ru` 239；`locale/zh.json`、`locale/en.json`、`locale/ru.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 784 + 远端 `main`/标签一致 + 六组自查结论 |
+| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 814 + 远端 `main`/标签一致 + 六组自查结论 |
 
 ### 2.2 按症状找位置
 
 | 症状 | 先看哪里 | 常见真因 |
 | --- | --- | --- |
-| 选中文字不出浮层 | `readSelection`、`attachListeners` 5744、`refresh` 5668 | 选区不在会话正文/预览/终端/diff 里；`minChars`；该会话没注册 `inputActions` |
+| 选中文字不出浮层 | `readSelection`、`attachListeners` 5744、`refresh` 5718 | 选区不在会话正文/预览/终端/diff 里；`minChars`；该会话没注册 `inputActions` |
 | 浮层出现但插入失败 | `insertionFace` → `insertChip` → `insertPayload` | `inputTriggers` 或 `conversation` 不可见（退回纯文本引用块）；芯片写入被宿主拒绝 |
 | 插入/删除/侧聊失败，说不清停在哪 | `probe().lastFailure`（`failureSnapshot` 1804） | `stage` 只有 source / insert / remove / sidechat；`detail` 是那一环的原因，不记正文 |
 | 胶囊不出现 / 出现两颗 | `isQuoteRun`、`enhance`、`onCapsuleMutations`、`capsuleFor` | 宿主改了消息 DOM 形状；文本没变却重建；`run` 账本没对上 |
+| 官方「引用文本」的引用被二次包装 / 出现重复胶囊 | `isHostQuote`、`splitDecodedQuote`、`enhance` | DSH 0.2.2 `message-quotes` 把 blockquote 解码进 `[data-quote-preview]`；只替换带 `❝` 的，原生引用必须原样留给宿主 |
 | 胶囊重复或消息删了还在 | `collectRuns`、`dropCapsule` | React 复用了 run 节点，账本按 `Map<run, …>` 记 |
 | 跳不回去 | `coordinateOf`、`sourceFor`、`rowFor`、`walkForRow` | 坐标没进消息文本；行被虚拟列表藏着；跨消息选出的引用**故意没有坐标**（见 `readSelection`），不是 bug |
 | 高亮只亮前 120 字 | `rangeForQuote`、`fullQuoteByRef` | 胶囊还没渲染，手里只有身份键 |
@@ -122,9 +123,9 @@
 | `icon.svg` | 插件页卡片图标（相对路径、≤ 256 KiB、realpath 必须留在包内） |
 | `locale/*.json` | 插件页卡片文案（zh / en / ru）；`en.json` 是扫描锚点 |
 | `test/check.mjs` | 12 组：manifest、导出、图标、词典、槽位注册、`codec.serialize`、无强制 peer、截图被 README 引用 |
-| `test/capsule.mjs` | 562 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
-| `test/panel.mjs` | 163 组：清单页（解析、搜索、导出、单条复制 Markdown、读取、注册、审阅、JSON、本机索引、线程回流、底部 Star 链接） |
-| `test/host.mjs` | 47 组：宿主半（标签 / 隐性上下文种子（收口回合 + 空 system 头）/ 截断超长单条消息 / 空日志兜底 / 切点与 descriptor 顺序 / `agents.create` 参数 / 探针 / 围栏 / 路由注册与卸载） |
+| `test/capsule.mjs` | 578 组：输入框 → 发送后（线格式、胶囊、卡片、跳回、复制为 Markdown、高亮、草稿条、隐藏侧聊 / fork / better（含侧聊草稿的芯片注入）、徽章、diff） |
+| `test/panel.mjs` | 174 组：清单页（解析、搜索、导出、单条复制 Markdown、读取、注册、审阅、JSON、本机索引、线程回流、底部 Star 链接） |
+| `test/host.mjs` | 50 组：宿主半（标签 / 隐性上下文种子（收口回合 + 空 system 头）/ 截断超长单条消息 / 空日志兜底 / 切点与 descriptor 顺序 / `agents.create` 参数 / 探针 / 围栏 / 路由注册与卸载） |
 | `test/dom.mjs` | 最小 DOM / MutationObserver / Range / localStorage 垫片；新 API 先补这里 |
 | `test/capsule.html` | 真浏览器版（51 项），`file://` 打开，结果写进标题与 `#probe-out` |
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |

@@ -8,6 +8,6 @@
 
 ### 怎么验证的
 
-> 跑了 `node --check lib/client.js` / `npm test`（784 组）/ 真浏览器 `test/capsule.html`（51 项）？
+> 跑了 `node --check lib/client.js` / `npm test`（814 组）/ 真浏览器 `test/capsule.html`（51 项）？
 > 桌面端还是 web、哪一版 DSH、有没有用隔离的 `DSH_HOME`？
 > 自查：没删断言、没放宽期望；断言数变化已同步所有写到断言数的文档（README、`docs/README.en.md`、`docs/design.md`、`docs/testing.md`、`test/README.md`、CHANGELOG）。填完请把这几行引导删掉。

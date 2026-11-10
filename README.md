@@ -67,7 +67,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | --- | --- |
 | `lib/` | 插件两个出口：`client.js` 承载客户端全部功能，`index.js` 是宿主半、只做隐藏侧聊线程。见 [`lib/README.md`](lib/README.md)。 |
 | `locale/` | 插件页卡片的 zh / en / ru 元数据；界面词条在 `client.js` 的词典里。见 [`locale/README.md`](locale/README.md)。 |
-| `test/` | 四套离线断言（784 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
+| `test/` | 四套离线断言（814 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
 | `docs/` | 设计、自检、发布、市场材料与英文版。见 [`docs/README.md`](docs/README.md)。 |
 | `docs/screenshots/` | 本页「界面」一节用到的截图与轮播 GIF。见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。 |
 | `skills/` | 仓库内 agent 流程（文档同步 / 发版），不随 npm 包发布。见 [`skills/README.md`](skills/README.md)。 |
@@ -83,7 +83,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | --- | --- | --- |
 | `minChars` | `1` | 选区短于这个字数就不弹浮层。 |
 | `maxQuoteChars` | `4000` | 引用超长时截断并提示；`0` 表示不限。 |
-| `replyByDefault` | `false` | 「让模型逐条回应」是否默认勾上。 |
+| `replyByDefault` | `false` | 「让模型逐条回应」的起始状态；勾选/取消会记住，下一引用沿用。 |
 | `attribution` | `true` | 是否把可读来源头（`引自第 N 轮 · 助手`）写进线格式。 |
 | `highlight` | `true` | 是否绘制原文侧高亮。 |
 | `keepHighlight` | `false` | 回合结束后是否保留高亮与序号（坐标始终保留）。 |
@@ -96,15 +96,29 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，784 组
+npm test          # check + capsule + panel + host，814 组
 ```
 
-合计 **784 组**（check 12 + capsule 562 + panel 163 + host 47），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **814 组**（check 12 + capsule 578 + panel 174 + host 50），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+
+## 兼容性
+
+| 运行面 | 版本 | 约定与适配 |
+| --- | --- | --- |
+| DSH 宿主 | `>=0.2.0-rc.2`（0.2.2-rc.1 实测复核） | 只有下限、不写上界；每个宿主契约都按「探测 → 缺失即降级」处理，不假设存在 |
+| Node（宿主半 + 离线断言） | `>=18`；CI 跑 18 / 20 / 22 | 宿主半只用 Node 内置模块与 `ctx.get`；`AbortSignal.timeout` 缺失时退化为无超时，仍能建线程；插件本身零运行期依赖 |
+| 渲染引擎 | DSH 自带 Chromium（Electron 桌面端 / web profile） | 语言基准是 ES2020（`?.`、`??`），**刻意不用** `structuredClone`、`Array.prototype.at`、`Object.hasOwn`、`String.replaceAll`、`findLast` 等更新 API |
+| CSS 特性 | `color-mix()` 需 Chromium 111+；`:has()` 需 105+ | 两者只影响观感：`color-mix` 前面都留了 `rgba()` 兜底；`:has()` 只用于侧聊页空态显隐，缺失时最多多一层空态文字，不影响引用功能 |
+| Custom Highlight API | `CSS.highlights` 需 Chromium 105+ | 缺失时原文高亮退回浮层矩形 + 序号，坐标与跳回不受影响（`quoteHighlightSupported` 探测） |
+| 文本编码 | UTF-8 | 线格式坐标是 base64url（无空白、不破坏 blockquote）；**CRLF 消息按 LF 解析**，Windows 粘贴的 `\r\n` 不会污染引用正文 |
+| 文档形态 | 有 `<html>` 即可 | 没有 `<head>` / `<body>` 的文档（早期启动、非 HTML 宿主）会挂到根元素上，不再抛错 |
+| 本机存储 | `localStorage` | 被禁用时不记忆坐标、审阅状态与芯片索引，当页功能照常；内容不出本机 |
 
 ## 已知限制
 
 - **DSH 兼容是开区间**：`engines.dsh` 为 `>=0.2.0-rc.2`，只有下限（0.2.2-rc.1 复核通过）。宿主改内部接口时表现为静默降级，升级后请跑 `npm test` 与一次侧聊探针；**不要写上界**，否则下一次 rc 会被 DSH 直接禁用。
 - **依赖宿主内部契约**（app.asar 0.2.1-rc.3 首次实测、0.2.2-rc.1 复核）：客户端依赖 `conversation.input.overlay`、`inputTriggers.registerSource`、`insertReference` / `consumeToken`、scoped `slash/input-insert-reference`、`sessions.fork` / `sessions.retain`、`sidebarRightTabs` / `sidebarRight.openResource`、`reference-chip`、`conversation.chat.turnTail`；宿主半依赖 `webServer.register` / `connection.requestRejection` / `agents.create` / `subagent/descriptor` v3。缺哪一项就按回退链降级，不会让插件整体挂掉。
+- **与官方 `dsh-message-quotes` 的关系**：DSH 0.2.2 自带「引用文本」选区和 blockquote 展示。官方引用由宿主渲染，本插件不二次包装；我们自己发出的引用（带 `❝`）在官方解码后的 `[data-quote-preview]` 里仍会被识别成胶囊。官方那条只带原文、不带坐标，因此不参与原文高亮与跳回。选区上两个入口并存：官方是单一纯引用，我们的浮层带评论 / 添加到对话 / 侧边对话与坐标；目前没有把两个入口合并成一套 UI。
 - **隐藏线程的种子形状是硬契约**：一个收口回合（`turn/start` → `step/start` → 空 `system/message` 头 → 隐性上下文 → `step/end` → `turn/end`）+ `subagent/descriptor`；第一个 surface 节点必须是 system 头，descriptor 必须排在继承切点之后，否则历史打不开（`subagent/not-resumable`）。客户端用形状版本戳只复用自己建过的线程，旧线程点一次即重建。
 - **「改这条引用」是追加，不是原地编辑**：DSH 的 transcript 只追加、没有编辑 API；修订发出一条新引用，旧胶囊挂 `已修订`（本机 `localStorage`，按 `ref + 原文` 归一键，上限 60 条）。
 - **线格式只增不改**：`> ❝ …` / `> ❞ …` / `> ※ 指令：…` / `> ※ 引自第 N 轮 · 助手 │q1:…`；标记形状的正文会转义，旧消息没有转义层仍按旧规则读。代码引用靠首行围栏识别，收尾围栏必须成对。

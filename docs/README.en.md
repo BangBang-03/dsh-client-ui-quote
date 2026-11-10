@@ -64,7 +64,7 @@ For development use `dsh plugin --profile desktop add link:<clone-path>` so a re
 | --- | --- |
 | `lib/` | The two entry points: `client.js` holds every client feature, `index.js` is the host half that only creates hidden side threads. See [`../lib/README.md`](../lib/README.md). |
 | `locale/` | Plugin-card metadata for zh / en / ru; in-plugin strings live in the dictionaries inside `client.js`. See [`../locale/README.md`](../locale/README.md). |
-| `test/` | Four offline suites (784 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
+| `test/` | Four offline suites (814 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
 | `docs/` | Design, testing, release, distribution and this English page. See [`README.md`](README.md). |
 | `docs/screenshots/` | Screenshots and the carousel GIF used above. See [`screenshots/README.md`](screenshots/README.md). |
 | `skills/` | Agent workflows kept in the repo (docs sync / release); not published to npm. See [`../skills/README.md`](../skills/README.md). |
@@ -80,7 +80,7 @@ Switches live in local `localStorage` under `dsh-client-ui-quote:v1:config`; key
 | --- | --- | --- |
 | `minChars` | `1` | Selections shorter than this do not open the bar. |
 | `maxQuoteChars` | `4000` | Truncate longer quotes with a notice; `0` means no limit. |
-| `replyByDefault` | `false` | Whether **Ask for per-quote replies** starts checked. |
+| `replyByDefault` | `false` | Starting state of **Ask for per-quote replies**; the last toggle is remembered for the next quote. |
 | `attribution` | `true` | Whether the readable source head (`from turn N · assistant`) goes into the wire format. |
 | `highlight` | `true` | Draw the source-side highlight. |
 | `keepHighlight` | `false` | Keep the highlight and ordinal after the turn's reply completes (coordinates always survive). |
@@ -93,15 +93,29 @@ Debug handle `window.__dshQuote`: `config()`, `setConfig({...})`, `state()` and 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host, 784 assertions
+npm test          # check + capsule + panel + host, 814 assertions
 ```
 
-**784 assertions** (check 12 + capsule 562 + panel 163 + host 47) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
+**814 assertions** (check 12 + capsule 578 + panel 174 + host 50) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
+
+## Compatibility
+
+| Surface | Version | Contract and adaptation |
+| --- | --- | --- |
+| DSH host | `>=0.2.0-rc.2` (re-checked on 0.2.2-rc.1) | Lower bound only, no upper bound; every host contract is probed and degrades when missing |
+| Node (host half + offline suites) | `>=18`; CI runs 18 / 20 / 22 | Node built-ins and `ctx.get` only; a missing `AbortSignal.timeout` degrades to "no timeout" and still creates the thread; zero runtime dependencies |
+| Rendering engine | The Chromium DSH ships (Electron desktop / web profile) | ES2020 baseline (`?.`, `??`); deliberately **no** `structuredClone`, `Array.prototype.at`, `Object.hasOwn`, `String.replaceAll`, `findLast` |
+| CSS features | `color-mix()` needs Chromium 111+; `:has()` needs 105+ | Cosmetic only: every `color-mix` has an `rgba()` fallback, and `:has()` only hides the side-chat empty state |
+| Custom Highlight API | `CSS.highlights` needs Chromium 105+ | Without it the source highlight falls back to overlay rectangles plus ordinals; coordinates and jump-back are unaffected |
+| Text encoding | UTF-8 | Wire coordinates are base64url; **CRLF messages are parsed as LF**, so a `\r\n` paste never pollutes the quote body |
+| Document shape | Anything with `<html>` | A document without `<head>` / `<body>` gets the nodes on its root element instead of throwing |
+| Local storage | `localStorage` | When blocked, coordinates / review state / chip index are not remembered; the current page keeps working |
 
 ## Known limitations
 
 - **DSH compatibility is an open range**: `engines.dsh` is `>=0.2.0-rc.2`, a lower bound only (re-checked on 0.2.2-rc.1). When the host changes internal interfaces the plugin degrades silently — after an upgrade run `npm test` and one side-chat probe. **Never add an upper bound**; the next rc would disable the plugin outright.
 - **Host internal contracts** (first measured on app.asar 0.2.1-rc.3, re-checked on 0.2.2-rc.1): the client relies on `conversation.input.overlay`, `inputTriggers.registerSource`, `insertReference` / `consumeToken`, scoped `slash/input-insert-reference`, `sessions.fork` / `sessions.retain`, `sidebarRightTabs` / `sidebarRight.openResource`, `reference-chip` and `conversation.chat.turnTail`; the host half relies on `webServer.register` / `connection.requestRejection` / `agents.create` / `subagent/descriptor` v3. Anything missing degrades along the fallback chain instead of breaking the plugin.
+- **Relationship with the official `dsh-message-quotes`**: DSH 0.2.2 ships a native **Quote text** selection action and blockquote presentation. Native quotes stay owned by the host — the plugin never wraps them twice; our own quotes (with `❝`) are still recognised as capsules inside the host's decoded `[data-quote-preview]`. A native quote carries no coordinate, so it does not take part in source highlights or jump-back. Both selection entry points can appear: the host offers a plain quote, while our bar adds comment / add-to-chat / side-chat and coordinates. They are not merged into one UI.
 - **The hidden-thread seed shape is a hard contract**: one closed turn (`turn/start` → `step/start` → empty `system/message` head → implicit context → `step/end` → `turn/end`) plus `subagent/descriptor`; the first surface node must be the system head and the descriptor must come after the inheritance cut, or history cannot load (`subagent/not-resumable`). A shape version stamp keeps the client reusing only threads it created.
 - **Revise is append-only**: DSH's transcript cannot be edited in place, so revising sends a new quote and marks the old capsule **Revised** (local `localStorage`, keyed by `ref + quote text`, cap 60).
 - **The wire format only grows**: `> ❝ …` / `> ❞ …` / `> ※ 指令：…` / `> ※ 引自第 N 轮 · 助手 │q1:…`. Marker-shaped body lines are escaped; old messages without the escape layer still parse. Code quotes are recognised by the opening fence, which must be paired with a closing one.

@@ -678,6 +678,29 @@ testing.rememberChip("第二处引用", "第二处评论", "session-1");
 dom.document.deliver();
 await wait(120);
 check("the second chip is hooked as well", chipTwo.getAttribute("data-dshq-chip") === "1", JSON.stringify(chipTwo.getAttribute("data-dshq-chip")));
+
+	// A lone chip makes its editor's textContent equal the chip label. The
+	// editor must not be mistaken for the chip (or one quote counts twice).
+	const nestedCard = dom.document.createElement("div");
+	nestedCard.setAttribute("data-composer-card", "");
+	const nestedEditor = dom.document.createElement("div");
+	nestedEditor.setAttribute("data-composer-input", "");
+	const nestedChip = dom.document.createElement("span");
+	nestedChip.textContent = testing.chipLabel("嵌套在编辑器里的引用", "");
+	nestedEditor.append(nestedChip);
+	nestedCard.append(nestedEditor);
+	dom.document.body.append(nestedCard);
+	testing.rememberChip("嵌套在编辑器里的引用", "", "session-nested");
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"the composer editor is not mistaken for the chip",
+		nestedEditor.getAttribute("data-dshq-chip") === null && nestedChip.getAttribute("data-dshq-chip") === "1",
+		JSON.stringify([nestedEditor.getAttribute("data-dshq-chip"), nestedChip.getAttribute("data-dshq-chip")])
+	);
+	nestedCard.remove();
+	testing.syncDraftBars();
+
 chipTwo.dispatch("mouseenter", {});
 check("the second chip shows its own quote", textIn(card5, ".dshq-pop-quote")[0] === "第二处引用", JSON.stringify(textIn(card5, ".dshq-pop-quote")));
 chipElement.dispatch("mouseenter", {});
@@ -1721,6 +1744,46 @@ try {
 }
 
 /* ------------------------------------------------------------------ *
+ * 截断 — the sent copy may be shortened, the coordinate must not be
+ * ------------------------------------------------------------------ */
+
+{
+	const overlay = registered.find((entry) => entry.spec.name === "conversation.input.overlay");
+	const longQuote = "这是一段超过六个字的引用原文";
+	const chips = [];
+	shells.set("session-trunc", {
+		insertReference(attachment, span) {
+			chips.push({ attachment, span });
+			return true;
+		}
+	});
+	if (overlay !== undefined) {
+		overlay.Component({ sessionId: "session-trunc", inputActions: { captureInsertion: () => ({ draftRev: 9 }) } });
+	}
+	testing.setConfig({ maxQuoteChars: 6 });
+	testing.openCommentFor(longQuote, "session-trunc", { attr: "data-chat-anchor-key", key: "row-trunc", turn: "7", role: "u", origin: "preview" }, null);
+	const bar = dom.document.getElementById("dsh-quote-bar");
+	const comment = bar?.querySelector(".dshq-comment-input");
+	comment.value = "截断评论";
+	comment.dispatch("input", {});
+	bar.dispatch("click", { target: bar.querySelector('[data-action="confirm"]') });
+	const coordinate = testing.sourceFor(longQuote);
+	const label = testing.chipLabel(longQuote.slice(0, 6) + "\n…", "截断评论");
+	const info = testing.chipInfoFor({ textContent: label });
+	check(
+		"a truncated quote still keeps its source coordinate",
+		chips.length === 1 && coordinate !== null && coordinate.key === "row-trunc",
+		JSON.stringify({ chips: chips.length, coordinate })
+	);
+	check(
+		"a truncated quote keeps the origin it came from",
+		info !== null && info.origin === "preview",
+		JSON.stringify(info === null ? null : info.origin)
+	);
+	testing.setConfig({ maxQuoteChars: 4000 });
+}
+
+/* ------------------------------------------------------------------ *
  * 代码胶囊 — a code quote renders as a monospace pill whose card keeps
  * the code's own spacing (the fence never reaches the screen).
  * ------------------------------------------------------------------ */
@@ -2184,6 +2247,26 @@ try {
 	await wait(120);
 	check("a reply without a preceding quote is not badged", bareParagraph.querySelectorAll(".dshq-ref").length === 0, bareParagraph.querySelectorAll(".dshq-ref").length + " badge(s)");
 
+	// R3: a reader's own 「引用1」 is part of their draft. Only the assistant's
+	// reply may be split, even when a quoted message sits right before it.
+	const readerRole = dom.document.createElement("p");
+	readerRole.setAttribute("data-chat-role", "user");
+	readerRole.textContent = "我自己写的「引用1」别动";
+	const readerFlow = dom.document.createElement("p");
+	readerFlow.setAttribute("data-chat-flow-kind", "user");
+	readerFlow.textContent = "这里也有「引用2」";
+	badgeHost.append(readerRole, readerFlow);
+	dom.document.deliver();
+	await wait(120);
+	check(
+		"a reader's own quote labels are never split",
+		readerRole.querySelectorAll(".dshq-ref").length === 0 &&
+			readerFlow.querySelectorAll(".dshq-ref").length === 0 &&
+			readerRole.textContent === "我自己写的「引用1」别动" &&
+			readerFlow.textContent === "这里也有「引用2」",
+		JSON.stringify([readerRole.textContent, readerFlow.textContent])
+	);
+
 	// The badge reuses the hover card, quote and comment in full.
 	const firstBadge = badges()[0];
 	firstBadge.rect = { left: 80, top: 300, width: 64, height: 20 };
@@ -2291,6 +2374,18 @@ try {
 		toggleInsertions.length === 2 && String(toggleInsertions[1]?.ref ?? "").includes("※ 指令："),
 		JSON.stringify(String(toggleInsertions[1]?.ref ?? "").trim().slice(-40))
 	);
+
+	// The toggle is sticky: the last explicit choice is the next quote's start.
+	testing.startRevision("一处引用", "", "session-toggle", null, false);
+	const bar3 = dom.document.getElementById("dsh-quote-bar");
+	const replyCheck3 = bar3?.querySelector(".dshq-reply-check");
+	check("an on choice sticks for the next quote", replyCheck3?.checked === true, String(replyCheck3?.checked));
+	replyCheck3.checked = false;
+	replyCheck3.dispatch("change", {});
+	testing.startRevision("一处引用", "", "session-toggle", null, false);
+	const bar4 = dom.document.getElementById("dsh-quote-bar");
+	const replyCheck4 = bar4?.querySelector(".dshq-reply-check");
+	check("an off choice sticks for the next quote too", replyCheck4?.checked === false, String(replyCheck4?.checked));
 }
 
 /* ------------------------------------------------------------------ *
@@ -3716,6 +3811,19 @@ try {
 		JSON.stringify(englishSegments)
 	);
 
+	// The dictionary writes the instruction in Russian too; the strip rule used
+	// to know only Chinese and English, so the line leaked into the capsule.
+	const russianInstruction = "Инструкция: пронумеруй блоки цитат этого сообщения по порядку.";
+	const russianSegments = testing.splitQuoteRuns(testing.quoteBlock("俄语正文", "俄语评论", false, { reply: true, replyInstruction: russianInstruction }));
+	check(
+		"the Russian instruction never reaches the capsule",
+		russianSegments?.length === 1 &&
+			russianSegments[0].quote === "俄语正文" &&
+			russianSegments[0].comment === "俄语评论" &&
+			JSON.stringify(russianSegments).includes("Инструкция") === false,
+		JSON.stringify(russianSegments)
+	);
+
 	// An English reply's 「Quote 1」 becomes a badge just like 「引用1」 does.
 	const enHost = dom.document.createElement("div");
 	enHost.setAttribute("data-conversation-content", "");
@@ -3912,6 +4020,24 @@ try {
  * 引用本轮 — the turn tail quotes a whole turn
  * ------------------------------------------------------------------ */
 
+// Drafts can hold several quote chips. The next one must land after the
+// last existing chip, or quoting three parts one by one leaves them 3-2-1.
+// occurrence offsets are draft-text offsets; each chip is one placeholder
+// in the detect text, so the last chip's end is its placeholder + 1.
+const twoChips = {
+	draft: "> ❝ 一\n\n> ❝ 二\n\n尾巴",
+	occurrences: [
+		{ offset: 0, length: 7 },
+		{ offset: 7, length: 7 }
+	]
+};
+check(
+	"the next quote lands after the last quote chip",
+	testing.quoteAppendOffset(twoChips) === 2 &&
+		testing.quoteAppendOffset({ draft: "普通文字", occurrences: [] }) === null,
+	JSON.stringify(testing.quoteAppendOffset(twoChips))
+);
+
 {
 	const pane = dom.document.createElement("div");
 	pane.setAttribute("data-conversation-content", "");
@@ -3972,6 +4098,25 @@ try {
 	pane.append(reasonedRow, processOnly);
 	check("a nested process block is cut out of the answer", testing.turnTextAt(reasonedRow, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(reasonedRow, 6, "assistant").text));
 	check("a process-only row is never quoted", testing.turnTextAt(processOnly, 6, "assistant").text === "回答正文", JSON.stringify(testing.turnTextAt(processOnly, 6, "assistant").text));
+
+	// A completed turn wraps its scaffolding in a process group. The group
+	// wrapper is skipped above, but its member rows are still rows and used
+	// to be read as answer text — the quote then carries the process, in the
+	// group's own render order, instead of the answer.
+	const processGroup = dom.document.createElement("div");
+	processGroup.setAttribute("data-chat-turn", "80");
+	processGroup.setAttribute("data-step-process", "true");
+	const processMember = dom.document.createElement("div");
+	processMember.setAttribute("data-chat-turn", "80");
+	processMember.setAttribute("data-chat-flow-kind", "assistant-step");
+	processMember.textContent = "过程步骤";
+	processGroup.append(processMember);
+	const finalAnswer = dom.document.createElement("div");
+	finalAnswer.setAttribute("data-chat-turn", "80");
+	finalAnswer.setAttribute("data-chat-flow-kind", "assistant-step");
+	finalAnswer.textContent = "最终回答";
+	pane.append(processGroup, finalAnswer);
+	check("a row nested inside a process group is not quoted", testing.turnTextAt(finalAnswer, 80, "assistant").text === "最终回答", JSON.stringify(testing.turnTextAt(finalAnswer, 80, "assistant").text));
 
 	// Some hosts give reasoning its own kind, and render the label inline when it
 	// is expanded. Neither shape belongs in a quoted turn.
@@ -4689,6 +4834,121 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	);
 	check("the retirement is not repeated on the next pass", testing.clearSpentSources() === false, String(testing.clearSpentSources()));
 	root.remove();
+}
+
+/* ------------------------------------------------------------------ *
+ * Windows 换行 + 「原文侧高亮」开关
+ * ------------------------------------------------------------------ */
+
+{
+	// 从 Windows 程序里粘进输入框的文字带着 CRLF，宿主也可能原样存下来。旧解析
+	// 只按 \n 切行，\r 就留在引用正文里：胶囊显示它、Markdown 导出带着它，而
+	// `rangeForQuote` 拿去原文行里找时永远对不上——高亮和跳回因此一起静默失效。
+	const crlfWire = "> ❝ 第一行\r\n> 第二行\r\n> ❞ 我的评论\r\n";
+	const crlfSegments = testing.splitQuoteRuns(crlfWire);
+	check(
+		"a CRLF message parses back without the carriage returns",
+		crlfSegments?.[0]?.quote === "第一行\n第二行" && crlfSegments?.[0]?.comment === "我的评论",
+		JSON.stringify(crlfSegments)
+	);
+	const crlfRef = { v: 1, s: "session-crlf", a: "data-chat-anchor-key", k: "row-crlf", t: "3", n: 1 };
+	const crlfWithRef = testing.quoteBlock("正文", "", false, { ref: crlfRef }).replace(/\n/gu, "\r\n");
+	check(
+		"a CRLF message still hands its coordinate back",
+		testing.splitQuoteRuns(crlfWithRef)?.[0]?.ref?.k === "row-crlf",
+		JSON.stringify(testing.splitQuoteRuns(crlfWithRef)?.[0]?.ref)
+	);
+
+	// `highlight: false` 的意思是原文上不留标记。旧代码只在「没有任何文件行范围」
+	// 时才整块退出：读者一旦打开过引用所在的文件（`openedRange` 非空），开关关掉
+	// 也照样画矩形，读起来就像「这个开关没用」。
+	const pane = dom.document.createElement("div");
+	pane.setAttribute("data-conversation-content", "");
+	pane.setAttribute("data-conversation-session", "session-switch");
+	const row = dom.document.createElement("div");
+	row.setAttribute("data-chat-anchor-key", "row-switch");
+	row.setAttribute("data-chat-turn", "4");
+	row.textContent = "前文 开关关掉就不该落色的句子 后文";
+	pane.append(row);
+	dom.document.body.append(pane);
+	const switchQuote = "开关关掉就不该落色的句子";
+	testing.saveSource(switchQuote, "session-switch", { attr: "data-chat-anchor-key", key: "row-switch", turn: "4" });
+	const savedCss = globalThis.CSS;
+	testing.setConfig({ highlight: false });
+	testing.setOpenedRange({ path: "src/app.ts", line: 1, end: 3 });
+	// 没有 Highlight API 才会走矩形叠加层，正是旧代码仍然落笔的那条路径。
+	globalThis.CSS = undefined;
+	testing.paintAnchors();
+	const layer = dom.document.querySelector(".dshq-anchor-layer");
+	check(
+		"turning the source highlight off paints nothing",
+		layer?.querySelectorAll(".dshq-anchor-rect").length === 0 && layer?.style?.display === "none",
+		JSON.stringify({ rects: layer?.querySelectorAll(".dshq-anchor-rect").length, display: layer?.style?.display })
+	);
+	globalThis.CSS = savedCss;
+	testing.setConfig({ highlight: true });
+	testing.setOpenedRange(null);
+	testing.paintAnchors();
+	check(
+		"turning it back on repaints the sentence",
+		(highlightRegistry.get("dshq-quote")?.ranges?.length ?? 0) >= 1,
+		JSON.stringify({ ranges: highlightRegistry.get("dshq-quote")?.ranges?.length })
+	);
+	pane.remove();
+	testing.paintAnchors();
+}
+
+/* ------------------------------------------------------------------ *
+ * 复查修正 — 前导空行标题、截断坐标、侧聊重探门控
+ * ------------------------------------------------------------------ */
+
+{
+	// A code / preview / diff selection often starts with blank lines. All
+	// three side-chat backends name the thread from this title (and the fork
+	// path persists it), so selecting a blank first line must not yield "".
+	const titled = [
+		testing.sideChatTitle("\n真实标题"),
+		testing.sideChatTitle("   \n  \n另一句"),
+		testing.sideChatTitle("\r\nWindows 前导空行")
+	];
+	check(
+		"a side-chat title skips leading blank lines",
+		titled[0] === "真实标题" && titled[1] === "另一句" && titled[2] === "Windows 前导空行",
+		JSON.stringify(titled)
+	);
+
+	// A quote that travels truncated is keyed in the source table by the FULL
+	// selection (that is what makes the highlight findable). When the wire ref
+	// is gone the lookup comes in with the SENT wording, so both keys resolve.
+	const longQuote = "截断之后仍然要能跳回原文的引用语句。".repeat(12);
+	const sentQuote = longQuote.slice(0, 40) + "\n…";
+	const lookupSession = "session-truncated-lookup";
+	const stored = testing.saveSource(longQuote, lookupSession, { attr: "data-chat-anchor-key", key: "row-truncated", turn: "5" }, { chip: true, sentQuote });
+	const found = testing.sourceFor(sentQuote);
+	const candidates = testing.sourceCandidatesFor(sentQuote, lookupSession, null);
+	check(
+		"a truncated quote still finds its coordinate without a wire ref",
+		stored !== null && found !== null && found.key === "row-truncated" &&
+			candidates.some((entry) => entry.key === "row-truncated"),
+		JSON.stringify({ found, candidates })
+	);
+
+	// With no native or better backend, a failed built-in probe used to hide
+	// the side-chat row for good, making the 15s re-probe unreachable.
+	const priorState = testing.builtinSideChatState();
+	const priorFork = sessionsStub.fork;
+	sessionsStub.fork = undefined;
+	testing.setBuiltinSideChatState("unavailable");
+	const retryOpen = testing.builtinRetryOpen();
+	const backend = testing.sideChatBackend();
+	const available = testing.sideChatAvailable();
+	sessionsStub.fork = priorFork;
+	testing.setBuiltinSideChatState(priorState);
+	check(
+		"an expired built-in probe keeps the side-chat row reachable",
+		retryOpen === true && backend === "builtin" && available === true,
+		JSON.stringify({ retryOpen, backend, available })
+	);
 }
 
 console.log(

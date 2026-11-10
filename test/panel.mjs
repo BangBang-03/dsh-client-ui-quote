@@ -196,6 +196,38 @@ check("the event's seq and time are kept", rows[0].seq === 9 && rows[0].time ===
 check("a message with no quote is not a row", rows.every((row) => row.quote !== "没有引用的普通消息"));
 check("garbage entries never throw", testing.quoteRowsFromEntries([null, 7, { type: "event" }, { type: "event", event: {} }]).length === 0);
 
+// The host half's own seed stamps events with epoch milliseconds, not ISO
+// strings; the list and the export must still show a time for those logs.
+const epochRows = testing.quoteRowsFromEntries([{
+	type: "event",
+	event: { type: "user/message", seq: 10, time: 1700000000000, data: { id: "m-epoch", content: [{ type: "text", text: "> ❝ 带时间戳的引用" }] } }
+}]);
+check(
+	"an epoch-millisecond event time is kept and formatted",
+	epochRows[0]?.time === 1700000000000 && testing.formatQuoteTime(1700000000000) !== "",
+	JSON.stringify({ time: epochRows[0]?.time, formatted: testing.formatQuoteTime(1700000000000) })
+);
+
+// One message can carry more than one quote block. Messages are newest-first,
+// but the blocks inside a message must stay in the order they were written.
+const twoInOne = testing.quoteRowsFromEntries([{
+	type: "event",
+	event: {
+		type: "user/message",
+		seq: 30,
+		time: "",
+		data: { id: "m-30", content: [{ type: "text", text: "> ❝ 第一批引用\n> ❞ 评论一\n\n中间\n\n> ❝ 第二批引用\n> ❞ 评论二" }] }
+	}
+}]);
+check("one message keeps its quote blocks in source order", twoInOne.length === 2 && twoInOne[0].quote === "第一批引用" && twoInOne[1].quote === "第二批引用", JSON.stringify(twoInOne.map((row) => row.quote)));
+
+// Two long quotes in one message share id/seq and a long prefix; a 40-char
+// key merged them, so ticking one ticked both and the local index lost one.
+const longPrefix = "非常长的同一段前缀".repeat(6);
+const keyLeft = { id: "m-key", seq: 31, quote: longPrefix + "甲", comment: "", ref: null };
+const keyRight = { id: "m-key", seq: 31, quote: longPrefix + "乙", comment: "", ref: null };
+check("long quotes in one message keep distinct row keys", testing.quoteRowKey(keyLeft) !== testing.quoteRowKey(keyRight), JSON.stringify([testing.quoteRowKey(keyLeft).length, testing.quoteRowKey(keyRight).length]));
+
 // ---- search ----------------------------------------------------------------
 const all = testing.quoteRowsFromEntries(entries);
 check("an empty query keeps every row", testing.filterQuoteRows(all, "  ").length === 2);
@@ -274,7 +306,7 @@ sessionFixture = {
 		getSnapshot: () => ({ hasMore: true })
 	}
 };
-const read = await testing.readQuoteRows("session-far"); console.error("DEBUG read=", JSON.stringify(read)); console.error("DEBUG services=", typeof sessions.retain);
+const read = await testing.readQuoteRows("session-far");
 check("the log is read through a retained reference", read.ok === true && read.rows.length === 2, JSON.stringify(read.rows.length));
 check("the reference is released after the read", releases.length === 1 && releases[0].source === "quoteList", JSON.stringify(releases));
 check("the list knows there is more history", read.hasMore === true);
@@ -306,6 +338,22 @@ check("a user message keeps its text on data", messages[0].text.includes("这个
 check("an assistant message keeps its text on data.message", messages[1].text === "因为它要处理空输入。", JSON.stringify(messages[1].text));
 check("tool results are not messages", messages.every((message) => message.role === "user" || message.role === "assistant"));
 check("seq and time ride along", messages[3].seq === 5 && messages[3].time === "2026-10-10T12:03:00.000Z");
+
+// The hidden thread's own seed is a user/message tagged session-context. It
+// is background, not a question the reader asked; counting it made 带回写进
+// the parent transcript and the footer report it as the thread's question.
+const injectedMessages = testing.sessionMessagesFromEntries([
+	{ type: "event", event: { type: "user/message", seq: 0, time: 1, data: { id: "seed", source: { kind: "session-context" }, content: [{ type: "text", text: "以下是主会话里已经发生的对话片段" }] } } },
+	{ type: "event", event: { type: "user/message", seq: 1, time: 2, data: { id: "real", source: { kind: "user" }, content: [{ type: "text", text: "真正的问题" }] } } },
+	{ type: "event", event: { type: "assistant/message", seq: 2, time: 3, data: { message: { content: [{ type: "text", text: "真正的回答" }] } } } }
+]);
+check(
+	"injected context is not a thread message",
+	injectedMessages.length === 2 &&
+		injectedMessages[0].text === "真正的问题" &&
+		testing.threadConclusion(injectedMessages, 4000).question === "真正的问题",
+	JSON.stringify(injectedMessages)
+);
 
 const conclusion = testing.threadConclusion(messages, 4000);
 check("the conclusion is the last question", conclusion.question === "那改成分支呢？", JSON.stringify(conclusion.question));
@@ -375,7 +423,27 @@ check("and the file is typed as Markdown", String(blobs[0]?.options?.type).start
 // ---- export -----------------------------------------------------------------
 const saved = testing.downloadText(dom.document, "quotes-x.md", "# 引用清单\n");
 check("the export turns into a download", saved === true && clicks[clicks.length - 1]?.name === "quotes-x.md", JSON.stringify(clicks));
-check("the download carries a blob url, not the file itself", String(clicks[clicks.length - 1]?.href).startsWith("blob:") || String(clicks[clicks.length - 1]?.href).startsWith("data:"), JSON.stringify(String(clicks[clicks.length - 1]?.href).slice(0, 24)));
+check("the download carries a blob url, not the file itself", String(clicks[clicks.length - 1]?.href).startsWith("blob:"), JSON.stringify(String(clicks[clicks.length - 1]?.href).slice(0, 24)));
+
+// A .json download must not be typed as Markdown: the extension is the only
+// hint the shared save face passes through.
+const jsonBlobs = [];
+const RealBlobForJson = globalThis.Blob;
+const realCreateObjectUrlForJson = URL.createObjectURL;
+globalThis.Blob = class {
+	constructor(parts, options) {
+		jsonBlobs.push({ parts, options });
+	}
+};
+URL.createObjectURL = () => "blob:json-test";
+const savedJson = testing.downloadText(dom.document, "quotes-x.json", "{}");
+globalThis.Blob = RealBlobForJson;
+URL.createObjectURL = realCreateObjectUrlForJson;
+check(
+	"the JSON export is typed as JSON",
+	savedJson === true && String(jsonBlobs[0]?.options?.type).startsWith("application/json"),
+	JSON.stringify(jsonBlobs[0]?.options?.type)
+);
 
 // ---- the page type the host is handed ---------------------------------------
 const page = pageTypes.find((definition) => definition.kind === "quote-list");
@@ -697,6 +765,47 @@ check(
 	JSON.stringify(insertedAttachments.map(({ attachment }) => attachment.label))
 );
 check("the page reports the inserted count", String(toastNode()?.textContent).includes("已插入 2 条引用"), JSON.stringify(toastNode()?.textContent));
+check(
+	"multi-insert keeps the rows in the order they were picked",
+	String(insertedAttachments[0]?.attachment?.label ?? "").includes("后来引用的那一句") &&
+		String(insertedAttachments[1]?.attachment?.label ?? "").includes("第一段引用"),
+	JSON.stringify(insertedAttachments.map(({ attachment }) => attachment.label))
+);
+
+// Batch insertion with wording already in the draft: the first chip goes to
+// the top, but later rows must follow it, not reverse the picked order.
+let orderDraft = "用户自己的文字";
+let orderOccurrences = [];
+const orderInserted = [];
+shells.set("session-order", {
+	state: {
+		getSnapshot: () => ({ draft: orderDraft, occurrences: orderOccurrences.map((entry) => ({ ...entry })) })
+	},
+	actions: {
+		captureInsertion: () => ({ draftRev: 1 }),
+		insertText: () => true,
+		setDraft: () => true
+	},
+	insertReference(attachment, span) {
+		orderInserted.push(attachment);
+		const ref = String(attachment.ref ?? "");
+		const at = orderOccurrences.reduce((sum, entry) => sum + entry.length, 0);
+		const offset = span.start === 0 ? 0 : at;
+		orderDraft = orderDraft.slice(0, offset) + ref + orderDraft.slice(offset);
+		orderOccurrences = orderOccurrences.map((entry) => (entry.offset >= offset ? { ...entry, offset: entry.offset + ref.length } : entry));
+		orderOccurrences.push({ offset, length: ref.length });
+		return true;
+	}
+});
+testing.insertQuoteRows("session-order", [
+	{ quote: "第一段", comment: "", ref: null },
+	{ quote: "第二段", comment: "", ref: null }
+]);
+check(
+	"batch insert keeps order when the draft already has wording",
+	orderInserted.length === 2 && String(orderInserted[0]?.label ?? "").includes("第一段") && String(orderInserted[1]?.label ?? "").includes("第二段"),
+	JSON.stringify(orderInserted.map((attachment) => attachment.label))
+);
 
 // With no chip pipeline, the same action falls back to one text payload.
 shells.set("session-text", {
@@ -727,19 +836,51 @@ const revRefB = { v: 1, s: "session-review", a: "data-chat-anchor-key", k: "row-
 const revRowA = { quote: "审阅的第一条", comment: "", ref: revRefA };
 const revRowB = { quote: "审阅的第一条", comment: "", ref: revRefB };
 const revRowPlain = { quote: "审阅的无坐标一条", comment: "", ref: null };
+// Two different sentences selected from one message share the same ref; the
+// wording is what keeps their review state apart.
+const revRowA2 = { quote: "同一个坐标里的另一句", comment: "", ref: revRefA };
 
 check("same wording behind two refs keeps two meta keys", testing.quoteMetaKeyOf(revRowA) !== testing.quoteMetaKeyOf(revRowB) && testing.quoteMetaKeyOf(revRowA) !== testing.quoteMetaKeyOf(revRowPlain), JSON.stringify([testing.quoteMetaKeyOf(revRowA), testing.quoteMetaKeyOf(revRowB)]));
+check("different wording behind one ref keeps two meta keys", testing.quoteMetaKeyOf(revRowA) !== testing.quoteMetaKeyOf(revRowA2), JSON.stringify([testing.quoteMetaKeyOf(revRowA), testing.quoteMetaKeyOf(revRowA2)]));
 check("a fresh row reads open with no tags", (() => {
 	const meta = testing.quoteMetaFor(revRowA);
 	return meta.status === "open" && meta.tags.length === 0;
 })());
 check("an unknown status is refused", testing.setQuoteStatus(revRowA, "done") === false && testing.quoteMetaFor(revRowA).status === "open");
-check("marking one ref resolved leaves the twin open", testing.setQuoteStatus(revRowA, "resolved") === true && testing.quoteMetaFor(revRowA).status === "resolved" && testing.quoteMetaFor(revRowB).status === "open", JSON.stringify(testing.quoteMetaFor(revRowB)));
+check(
+	"marking one ref resolved leaves its twin and its sibling sentence open",
+	testing.setQuoteStatus(revRowA, "resolved") === true &&
+		testing.quoteMetaFor(revRowA).status === "resolved" &&
+		testing.quoteMetaFor(revRowB).status === "open" &&
+		testing.quoteMetaFor(revRowA2).status === "open",
+	JSON.stringify([testing.quoteMetaFor(revRowB), testing.quoteMetaFor(revRowA2)])
+);
 check(
 	"the review marks persist for the next page",
 	JSON.parse(localStorage.getItem("dsh-client-ui-quote:v1:quote-meta"))[testing.quoteMetaKeyOf(revRowA)]?.status === "resolved"
 );
 check("toggling back to open works", testing.setQuoteStatus(revRowA, "open") === true && testing.quoteMetaFor(revRowA).status === "open");
+
+// 0.14.x keyed review state by the reference alone; the ref+wording key came
+// later. The list page renders from a snapshot of the store, so it must read
+// the old key too — otherwise every resolved row of an upgraded install showed
+// as open until the reader happened to toggle one (toggling migrates the key).
+{
+	const legacyRow = { quote: "升级前就标过已解决的一条", comment: "", ref: { v: 1, s: "session-legacy", a: "data-chat-anchor-key", k: "row-legacy", t: "2", n: 1 } };
+	testing.writeQuoteMeta("ref:" + testing.refTextKeyOf(legacyRow.ref), { status: "resolved", tags: ["旧标签"], at: 1 });
+	const shownLegacy = testing.quoteMetaShown(testing.quoteMetaSnapshot(), legacyRow);
+	check(
+		"a ref-only review key still shows as resolved",
+		shownLegacy.status === "resolved" && shownLegacy.tags.join(",") === "旧标签",
+		JSON.stringify(shownLegacy)
+	);
+	testing.writeQuoteMeta(testing.quoteMetaKeyOf(legacyRow), { status: "open", tags: [], at: 2 });
+	check(
+		"the ref+wording key wins once it exists",
+		testing.quoteMetaShown(testing.quoteMetaSnapshot(), legacyRow).status === "open",
+		JSON.stringify(testing.quoteMetaShown(testing.quoteMetaSnapshot(), legacyRow))
+	);
+}
 
 const resolvedCount = testing.markRowsResolved([revRowB, revRowPlain]);
 check("batch resolve marks every row and is idempotent", resolvedCount === 2 && testing.markRowsResolved([revRowB]) === 0, JSON.stringify(resolvedCount));
@@ -881,6 +1022,15 @@ check("the page offers 标记已解决 and starts disabled", resolveButton !== n
 		"and its review state",
 		json.quotes[0].status === "open" && Array.isArray(json.quotes[0].tags) && json.quotes[0].tags.length === 0,
 		JSON.stringify({ status: json.quotes[0].status, tags: json.quotes[0].tags })
+	);
+	// The host's own seed times its events in epoch milliseconds, and the log
+	// reader keeps that number — the export used to drop the timestamp entirely
+	// for those rows (`typeof time === "string"` only).
+	const numeric = JSON.parse(testing.quoteListJson([{ ...jsonRows[0], time: 1700000000000 }], "session-far", "引用清单"));
+	check(
+		"a millisecond event time is exported as ISO",
+		numeric.quotes[0].time === new Date(1700000000000).toISOString(),
+		JSON.stringify(numeric.quotes[0].time)
 	);
 
 	// The local copy: a quote the event log no longer holds still shows up.

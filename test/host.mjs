@@ -458,6 +458,63 @@ try {
 }
 check("a host without the web server is a no-op, not a throw", threw === false);
 
+// ---- review fixes: null fence, one settle, retry after a refused registration ----
+const allowedNull = response();
+await handleSideChatRequest(makeCtx({ connection: { requestRejection: () => null } }).ctx, request("POST", "/ui-quote/api/sidechat.start", { probe: true }), allowedNull, new Map());
+check("a null rejection means the request is allowed", allowedNull.status === 200 && JSON.parse(allowedNull.body).ok === true, String(allowedNull.status));
+
+// An oversized body rejects and destroys the socket; the `end` / `error` that
+// follow must not turn the refusal into a second (or a successful) response.
+{
+	const { EventEmitter } = await import("node:events");
+	const oversized = new EventEmitter();
+	oversized.method = "POST";
+	oversized.url = "/ui-quote/api/sidechat.start";
+	let heads = 0;
+	let ends = 0;
+	let status = 0;
+	const counting = {
+		writeHead(value) { heads += 1; status = value; },
+		end() { ends += 1; }
+	};
+	const pending = handleSideChatRequest(http.ctx, oversized, counting, new Map());
+	oversized.emit("data", Buffer.alloc(64 * 1024 + 1));
+	oversized.emit("end");
+	oversized.emit("error", new Error("socket closed"));
+	await pending;
+	check("an oversized body settles the request once", heads === 1 && ends === 1 && status === 413, JSON.stringify({ heads, ends, status }));
+}
+
+// The same page can inject a late web server twice. A registration that threw
+// the first time must not be written off for the rest of the page.
+
+{
+	let attempts = 0;
+	const retryRoutes = [];
+	const retryCtx = {
+		effect(fn) { return fn(); },
+		get(name) {
+			if (name === "webServer") {
+				return {
+					register(route) {
+						attempts += 1;
+						if (attempts === 1) throw new Error("prefix taken");
+						retryRoutes.push(route);
+						return () => {};
+					}
+				};
+			}
+			return undefined;
+		},
+		inject(names, fn) {
+			fn(retryCtx);
+			fn(retryCtx);
+		}
+	};
+	apply(retryCtx);
+	check("a refused route registration is retried on the next injection", attempts === 2 && retryRoutes.length === 1, JSON.stringify({ attempts, routes: retryRoutes.length }));
+}
+
 console.log(
 	failures.length === 0
 		? "\ndsh-client-ui-quote host: " + passed + " checks passed"

@@ -8,7 +8,7 @@
 git clone https://github.com/BangBang-03/dsh-client-ui-quote.git
 cd dsh-client-ui-quote
 node --check lib/client.js
-npm test          # 784 组离线断言，必须全绿
+npm test          # 814 组离线断言，必须全绿
 ```
 
 没有写权限？不要直接 clone 上游后 push（会被拒），走下一节的 fork 流程。

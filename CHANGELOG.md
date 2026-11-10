@@ -2,14 +2,61 @@
 
 ## Unreleased
 
+### Changed
+
+- **解析层合一**：两个引用解析器（`splitQuoteRuns` / `splitDecodedQuote`）各写一遍的「剥代码围栏」收成 `unfenceQuote`，「用 ``` 还是 ~~~」收成 `fenceFor`（写侧、两个 Markdown 导出、侧聊问题共用），行尾归一化收成 `withLf`（**只用于解析侧**；写入侧 `blockLines` 仍按 `\r?\n` 切行，裸 `\r` 不变成新的一行）。
+- **样式表安装合一**：`ensureStyle` / `ensureCapsuleStyle` / `installPanelStyle` / `installSideChatStyle` 四份「查 id → 建 style → 挂 head → 返回拆卸器」合成 `ensureStyleNode` / `installStyleNode`。
+- **浮动节点挂载点合一**：六处 `body ?? documentElement` 判断收成 `hostRootOf`——其中 `ensureBar` / `toast` 原本根本没有兜底。
+- **评论框状态装配合一**：`openCommentFor` / `startRevision` / `startDraftEdit` 三份逐字相同的状态赋值收成 `beginCommentBox`。
+- **侧聊去重合一**：三个后端各写一遍的「同会话只跑一次」收成 `oncePerSession`；`inputShell` 与 `inputShellFor` 两份近似实现合成一份（前者少了 `input.for(scope)` 退路）。
+- **小件**：`quoteMetaShown`（清单页对快照的纯查询）、`draftSnapshot` / `draftOccurrences`（草稿快照与 occurrence 校验各写两遍）、`legacyCandidateOf`（v1 坐标读两遍）、`anchorRectMark`、`disposeAll`、`quoteTabService` 走 `serviceOf`、`sideChatTitle` 复用 `firstLineOf` 但先经 `blockLines` 去首尾空行、`tryBetter`（侧聊的 better 回退两次查找）与清单两个导出按钮共用 `exportName` / `exportButton`；顺手修掉 `state` 对象的错位缩进、列 0 的注释与重复 JSDoc。两个入口文件现在没有重复的 5 行代码块。
+
+### Added
+
+- **「让模型逐条回应」的勾选会记住**：之前每次打开评论框都回到 `replyByDefault`；现在勾选/取消会写回配置，下一次引用、改引用、编辑引用都沿用上一次的选择，刷新后仍保留。新增 2 组断言。
+
 ### Fixed
+
+- **英文 / 俄文界面下「插入失败」提示仍是中文**：`commit()` 先 `close()`（它把 `state.sessionId` 清空）再 `toast(translate("failed"))`，模块级翻译器只能回落中文。现在按进入时的 session 翻译。
+- **带 CRLF 的消息解析出多余 `\r`**：`splitQuoteRuns` 只按 `\n` 切行，Windows 粘贴或宿主原样存储的 `\r\n` 会把 `\r` 留在引用正文里——胶囊显示它、Markdown 导出带着它，`rangeForQuote` 拿去原文里找永远对不上，原文高亮与跳回因此静默失效。现在两个解析器共用 `withLf` 归一化（旧消息只含 `\n`，解析结果不变）。新增 2 组断言。
+- **`highlight: false` 时仍然画原文标记**：开关只在「没有任何文件行范围」时整块退出；读者打开过引用所在的文件（`openedRange` 非空）之后，关掉开关照样落矩形，读起来像「这个开关没用」。现在开关关闭即清空叠加层。新增 2 组断言。
+- **升级后清单里的「已解决」显示成未解决**：清单页从 store 快照渲染，只按 `ref+原文` 键查；0.14.x 写的 `ref:` 旧键要等读者手动切一次状态才迁移。现在渲染路径也读旧键。新增 2 组断言。
+- **毫秒时间戳的引用在 JSON 导出里丢时间**：`quoteListJson` 只收字符串时间，宿主种子用的 epoch 毫秒被写成空串。现在统一成 ISO。新增 1 组断言。
+- **内置侧聊的「15 秒后重试」从未生效**：`openSideChat` 拿缓存的 `builtinSideChatState !== "unavailable"` 当闸门，首次探针失败后整页都不再尝试，`SIDECHAT_RETRY_MS` 那条重试路径不可达。现在过期状态会重新探一次；浮层门控 `sideChatBackend()` 与 `openSideChat` 共用 `builtinRetryOpen()`，且只在 native / better 都缺失时才放行，不抢既有的 native 回退。
+- **多选插入读取草稿快照没有兜底**：`insertQuoteRows` 直接 `shell.state.getSnapshot()`，宿主在点击与读取之间拆掉会话作用域就整段抛出。现在与 `insertChip` 共用 `draftSnapshot`。
+- **宿主半：一次注册失败就永久放弃路由**：`installed` 在 `webServer.register` 之前置位，注册抛错后再注入也不会重试。现在只有真正注册成功才算装上。
+- **宿主半：请求体超限后仍可能被当成正常读取**：`readJsonBody` 在 reject 之后还会响应后续 `end` / `error`，超限请求可能继续入队。现在一次请求只结算一次。
+- **宿主半：`requestRejection` 返回 `null` 被当成拒绝**：围栏的「放行」既有 `undefined` 也可能是 `null`，后者会让整条路由恒 403。现在两者都算放行。
+
+- **连续引用多个片段时，草稿里的引用顺序倒置**：每次插入都落到草稿最上方（`start: 0`），同一轮的三段引用会变成 3-2-1；现在先从 shell 的 `occurrences` 算出最后一颗引用芯片之后的 detect 坐标（`quoteAppendOffset`），新引用接在它后面，插入后光标回到末尾，下一次继续往后接。新增 1 组断言；多选批量插入也按选择顺序。
+- **引用清单把同一条消息里的多个引用块也倒序了**：`quoteRowsFromEntries` 原来直接 `rows.reverse()`，消息之间「新的在上」是对的，但同一条消息里的多个 `> ❝ …` 块也被一起倒过来；现在按消息分组后再倒序，消息内部保持原文顺序。新增 1 组断言。
+- **回合尾引用把 process 组里的子行当成回答读进来**：宿主把工具/推理步骤包在 `data-step-process` 组里，组本身会被跳过，但组内子行也带 `data-chat-turn`；现在 `turnTextAt` 跳过任何位于 process 组内的行。新增 1 组断言。
+- **回复徽章会切用户自己写的「引用N」**（R3）：徽章扫描原本只看文本形状，用户消息后若有引用胶囊，用户自己写的「引用1」也会被拆成可跳转徽章。现在先按行的 role / flow kind 排除读者文字，只切助手回复；徽章点击也带上自己的 ref，同一句两次引用不再落到第一处。新增 1 组断言。
+- **输入框里只有一颗芯片时，编辑器被当成芯片**：`wireChips` 用 `textContent` 认芯片，空草稿只剩一颗芯片时编辑器文本与标签相同，整块编辑器被挂上悬停卡片、聚合条还会显示 ×2。现在跳过包含编辑器 / 可编辑区的祖先节点。新增 1 组断言。
+- **俄语界面下逐条回应指令漏进胶囊**：剥离规则只认「指令 / Instruction」，俄语 `Инструкция:` 留在引用或评论里。现在三处共用一条可扩展规则；中英文旧消息的解析保持不变。新增 1 组断言。
+- **超长引用被截断后丢失原文坐标**：`commit` 用截断后的文本写 source 表，`maxQuoteChars` 较小时高亮与跳回失效；现在坐标仍按完整选区保存，发送内容照旧截断。同时补上 chip 的 `origin` 传递与坐标表 `origin` 的落库回读，刷新后来源类型不再丢。新增 2 组断言。**复查补充**：完整选区作键会让「消息文本里没有 `│q1:`（被剥离、跨窗口、损坏）」时的无-ref 查表找不到坐标，现在同一条 source 表项额外记 `sentQuote`（发送措辞的键），`sourceFor` / `sourceCandidatesFor` / `clearSpentSources` 同时匹配两种措辞。
+- **审阅状态只按 ref 归并**：同一条消息里的不同句子共用坐标，标记一句会把另一句也标成已解决。现在归一键是 `ref + 原文`，旧 `ref:` 键在首次读取时迁移，不丢已存状态。新增 1 组断言。
+- **注入的会话上下文被当成线程消息**：隐藏线程种子的 `session-context` user/message 会出现在线程问题、带回与导出里。现在只接受显式 `source.kind="user"` 的 user/message（无 source 的旧日志照常）。新增 1 组断言。
+- **JSON 导出被标成 Markdown**：`.json` 下载现在使用 `application/json;charset=utf-8`；同时移除 Blob 不可用时拼接 `data:` 大文件的兜底（R11），只走 Blob URL。新增 1 组断言。
+- **清单行身份与本地索引**：行键包含完整 ref、原文与评论，长前缀相同的两条引用不再合并；本机索引按 seq 保留较新条目，并让最近使用的会话排到 LRU 尾部。新增 1 组断言。
+- **兼容性与生命周期细节**：事件时间同时接受 ISO 字符串与毫秒时间戳；`closestAny` 取最近祖先而不是按选择器顺序；预览选区选择器改为数组，避免离线 DOM 不支持逗号选择器；芯片删除的 Backspace 只投到同一张 composer 卡片；剪贴板 `writeText` 的异步拒绝不再成为 unhandled rejection；卸载时清掉 toast 计时器。新增 1 组断言。
+- **删除死代码 / 死配置**：`sideChatBoundary`、`prefillDraft` 的 boundary 分支、`textPointAt`、未使用的 `state.style/toast`、重复的 JSDoc 与不可达的 `mark === -1` 分支；`ensureSource` 统一走 `serviceOf`。
 
 - **用多个对话/多个页签后，切回之前对话的原文高亮与序号可能不再出现**：`paintAnchors` 会跳过宿主当前看不见的转写（隐藏页签、收起的右侧栏），这是正确的；但重新显示页签只是 `hidden` / `aria-hidden` 属性变化，不是 childList 变更，旧代码因此不会重新调度绘制，原句上的高亮与序号要等下一次滚动或消息变更才回来。现在新增一个专门的可见性观察器，只在 `hidden` / `aria-hidden` 变化且目标包含会话转写时触发一次锚点重画；被遮住的页签也会在收起时立刻撤掉浮层上的序号，不再留在另一个对话上。`test/dom.mjs` 的 MutationObserver 垫片同步支持属性记录与 `attributeFilter`。新增 3 组断言：「可见时画出高亮与序号」「隐藏后撤回」「再显示时无需滚动即补画」。
 - **同一行里的多条草稿引用互相顶掉高亮**：从同一条消息里先后选三句加进草稿，三句共用同一个 `│q1:` 坐标（`n` 只区分同一句的第几次出现，每句都是 1），而完整原文的缓存只按 ref 作键——记住第三句时把前两句的完整原文覆盖掉，下一次重画就让三句都用第三句去 `rangeForQuote`，前两句的高亮与序号因此提前消失（消息还没发出去）。现在完整原文按「ref + 这句原文」缓存，并同时兼容 chip 的 plain 形态与消息的 wire 形态；`quoteTextFor` 仍保留只给 ref 的旧读法。新增 1 组断言：「同一行的三句草稿引用保持三个不同的高亮区间」。
 
+### 复查补充（提交前一轮独立复查）
+
+- **前导空行让侧聊线程标题变空**：`sideChatTitle` 合并进 `firstLineOf` 后只取 `split("\n")[0]`，丢了 `blockLines` 剥首尾空行的能力；代码块 / 预览 / diff 选区常以空行开头，三个后端（fork 的 `sessions.rename` 且空标题被记住、隐藏线程种子、better 的 `Side: ` 标签）都会拿到空标题。现在先经 `blockLines` 再截断。新增 1 组断言。
+- **截断引用在 wire ref 缺失时坐标查表失效**：见上条「超长引用」的复查补充。新增 1 组断言（用解析出的截断 `quote`、无 ref 查 `sourceFor` / `sourceCandidatesFor`）。
+- **宿主半三处修复缺回归网**：`test/host.mjs` 补 3 组断言——围栏返回 `null` 应放行、超限请求体只结算一次（413）、注册抛错后同页再次注入能重试成功。
+- **侧聊重探对浮层入口仍不可达**：见上条「15 秒后重试」的复查补充。新增 1 组断言（临时禁用 `sessions.fork` 构造无其它后端，断言浮层行可见且 `builtinRetryOpen()` 为真）。
+- **裸 `\r` 归一化改变了写入侧**：`blockLines` 恢复 `split(/\r?\n/)`，`withLf` 只留给解析侧，写入的线格式与 0.14.3 逐字一致（600 组差分探针复核）。
+- **断言分项口径**：把 `highlight: false` 一条的「新增 1 组」订正为 2 组，并在下方「断言」小节同时给出实跑数与净增数。
+
 ### 断言
 
-离线断言 **784 组**（check 12 + capsule 562 + panel 163 + host 47）；`npm test` 全绿。
+离线断言 **814 组**（check 12 + capsule 578 + panel 174 + host 50）；`npm test` 全绿。相对 0.14.3（784 组）净增 30 组：capsule +16 / panel +11 / host +3。Unreleased 各条按「新增」流水口径逐条标注，与净增口径的差额来自 2 组被改写替换的断言与部分条目的声明误差；数字一律以 `npm test` 实跑为准。
 
 ### Docs
 
