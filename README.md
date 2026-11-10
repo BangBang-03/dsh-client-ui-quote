@@ -51,13 +51,13 @@
 
 ## 安装
 
-要求 DSH ≥ 0.2.0-rc.2 的 **web / 桌面**客户端（`engines.dsh` 只有下限、没有上限，0.2.2-rc.1 已复核）。稳定版当前 **0.14.3**。
+要求 DSH ≥ 0.2.0-rc.2 的 **web / 桌面**客户端（`engines.dsh` 只有下限、没有上限，0.2.2-rc.1 已复核）。稳定版当前 **0.14.4**。
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
 ```
 
-开发时用 `dsh plugin --profile desktop add link:<clone-path>`，改完刷新即生效；日常运行请用 npm 包。手工注册时把 `"dsh-client-ui-quote": "^0.14.3"` 写进 profile 的 `dependencies`、`dsh.profile.bundles` 追加同名条目再重启（包自带 `cordis.patch.yml`，不用手写 loader）；卸载就是移除这两处。完整流程见 [`docs/release.md`](docs/release.md)。
+开发时用 `dsh plugin --profile desktop add link:<clone-path>`，改完刷新即生效；日常运行请用 npm 包。手工注册时把 `"dsh-client-ui-quote": "^0.14.4"` 写进 profile 的 `dependencies`、`dsh.profile.bundles` 追加同名条目再重启（包自带 `cordis.patch.yml`，不用手写 loader）；卸载就是移除这两处。完整流程见 [`docs/release.md`](docs/release.md)。
 
 ## 目录结构
 

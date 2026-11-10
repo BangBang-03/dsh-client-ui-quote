@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+_（下一轮）_
+
+## 0.14.4 — 2026-11-10
+
 ### Changed
 
 - **解析层合一**：两个引用解析器（`splitQuoteRuns` / `splitDecodedQuote`）各写一遍的「剥代码围栏」收成 `unfenceQuote`，「用 ``` 还是 ~~~」收成 `fenceFor`（写侧、两个 Markdown 导出、侧聊问题共用），行尾归一化收成 `withLf`（**只用于解析侧**；写入侧 `blockLines` 仍按 `\r?\n` 切行，裸 `\r` 不变成新的一行）。

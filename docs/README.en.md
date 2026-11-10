@@ -50,7 +50,7 @@ Asset notes: [`screenshots/README.md`](screenshots/README.md).
 
 ## Install
 
-Requires a **DSH ≥ 0.2.0-rc.2 web or desktop client** (`engines.dsh` is a lower bound only, re-checked on 0.2.2-rc.1). Current stable: **0.14.3**.
+Requires a **DSH ≥ 0.2.0-rc.2 web or desktop client** (`engines.dsh` is a lower bound only, re-checked on 0.2.2-rc.1). Current stable: **0.14.4**.
 
 ```bash
 dsh plugin --profile desktop add dsh-client-ui-quote
