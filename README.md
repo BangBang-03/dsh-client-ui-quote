@@ -67,7 +67,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | --- | --- |
 | `lib/` | 插件两个出口：`client.js` 承载客户端全部功能，`index.js` 是宿主半、只做隐藏侧聊线程。见 [`lib/README.md`](lib/README.md)。 |
 | `locale/` | 插件页卡片的 zh / en / ru 元数据；界面词条在 `client.js` 的词典里。见 [`locale/README.md`](locale/README.md)。 |
-| `test/` | 四套离线断言（814 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
+| `test/` | 四套离线断言（821 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
 | `docs/` | 设计、自检、发布、市场材料与英文版。见 [`docs/README.md`](docs/README.md)。 |
 | `docs/screenshots/` | 本页「界面」一节用到的截图与轮播 GIF。见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。 |
 | `skills/` | 仓库内 agent 流程（文档同步 / 发版），不随 npm 包发布。见 [`skills/README.md`](skills/README.md)。 |
@@ -96,10 +96,10 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host，814 组
+npm test          # check + capsule + panel + host，821 组
 ```
 
-合计 **814 组**（check 12 + capsule 578 + panel 174 + host 50），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
+合计 **821 组**（check 12 + capsule 582 + panel 176 + host 51），`npm test` 全绿；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍。真浏览器版 `test/capsule.html` 共 51 项。四套断言各自覆盖什么、怎么跑、坑在哪，见 [`docs/testing.md`](docs/testing.md)。
 
 ## 兼容性
 
@@ -108,8 +108,9 @@ npm test          # check + capsule + panel + host，814 组
 | DSH 宿主 | `>=0.2.0-rc.2`（0.2.2-rc.1 实测复核） | 只有下限、不写上界；每个宿主契约都按「探测 → 缺失即降级」处理，不假设存在 |
 | Node（宿主半 + 离线断言） | `>=18`；CI 跑 18 / 20 / 22 | 宿主半只用 Node 内置模块与 `ctx.get`；`AbortSignal.timeout` 缺失时退化为无超时，仍能建线程；插件本身零运行期依赖 |
 | 渲染引擎 | DSH 自带 Chromium（Electron 桌面端 / web profile） | 语言基准是 ES2020（`?.`、`??`），**刻意不用** `structuredClone`、`Array.prototype.at`、`Object.hasOwn`、`String.replaceAll`、`findLast` 等更新 API |
-| CSS 特性 | `color-mix()` 需 Chromium 111+；`:has()` 需 105+ | 两者只影响观感：`color-mix` 前面都留了 `rgba()` 兜底；`:has()` 只用于侧聊页空态显隐，缺失时最多多一层空态文字，不影响引用功能 |
+| CSS 特性 | `color-mix()` 需 Chromium 111+；`:has()` 需 105+ | 两者只影响观感：样式表里**每一处** `color-mix()` 前面都留了 `rgba()` 兜底；`:has()` 只用于侧聊页空态显隐，缺失时最多多一层空态文字，不影响引用功能 |
 | Custom Highlight API | `CSS.highlights` 需 Chromium 105+ | 缺失时原文高亮退回浮层矩形 + 序号，坐标与跳回不受影响（`quoteHighlightSupported` 探测） |
+| 宿主日志字段 | DSH `>=0.2.0-rc.2` | `user/message` 的 `source.kind` 只用来识别注入上下文；**缺失时按读者原话读取**，客户端清单 / 线程回流与宿主半采用同一口径 |
 | 文本编码 | UTF-8 | 线格式坐标是 base64url（无空白、不破坏 blockquote）；**CRLF 消息按 LF 解析**，Windows 粘贴的 `\r\n` 不会污染引用正文 |
 | 文档形态 | 有 `<html>` 即可 | 没有 `<head>` / `<body>` 的文档（早期启动、非 HTML 宿主）会挂到根元素上，不再抛错 |
 | 本机存储 | `localStorage` | 被禁用时不记忆坐标、审阅状态与芯片索引，当页功能照常；内容不出本机 |

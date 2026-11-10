@@ -64,7 +64,7 @@ For development use `dsh plugin --profile desktop add link:<clone-path>` so a re
 | --- | --- |
 | `lib/` | The two entry points: `client.js` holds every client feature, `index.js` is the host half that only creates hidden side threads. See [`../lib/README.md`](../lib/README.md). |
 | `locale/` | Plugin-card metadata for zh / en / ru; in-plugin strings live in the dictionaries inside `client.js`. See [`../locale/README.md`](../locale/README.md). |
-| `test/` | Four offline suites (814 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
+| `test/` | Four offline suites (821 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
 | `docs/` | Design, testing, release, distribution and this English page. See [`README.md`](README.md). |
 | `docs/screenshots/` | Screenshots and the carousel GIF used above. See [`screenshots/README.md`](screenshots/README.md). |
 | `skills/` | Agent workflows kept in the repo (docs sync / release); not published to npm. See [`../skills/README.md`](../skills/README.md). |
@@ -93,10 +93,10 @@ Debug handle `window.__dshQuote`: `config()`, `setConfig({...})`, `state()` and 
 
 ```bash
 node --check lib/client.js
-npm test          # check + capsule + panel + host, 814 assertions
+npm test          # check + capsule + panel + host, 821 assertions
 ```
 
-**814 assertions** (check 12 + capsule 578 + panel 174 + host 50) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
+**821 assertions** (check 12 + capsule 582 + panel 176 + host 51) must be green; `.github/workflows/test.yml` runs them on Node 18 / 20 / 22 for every push and PR, and the real-browser page `test/capsule.html` has 51 more. Details in [`testing.md`](testing.md).
 
 ## Compatibility
 

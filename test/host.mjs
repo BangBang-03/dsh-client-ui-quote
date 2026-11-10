@@ -122,6 +122,14 @@ check(
 	!contextText.includes("Current runtime context") && !contextText.includes("read"),
 	contextText.slice(0, 240)
 );
+// Hosts differ on whether a typed user message carries a `source`; the client
+// reader already treats a missing one as the reader's own, so the host half
+// must not drop the whole transcript over it.
+check(
+	"a user message without a source kind still rides into the context",
+	transcriptOf([{ type: "user/message", seq: 1, time: 1, data: { id: "m-plain", content: [{ type: "text", text: "没有 source 的旧日志" }] } }], 400) === "用户：没有 source 的旧日志",
+	JSON.stringify(transcriptOf([{ type: "user/message", seq: 1, time: 1, data: { id: "m-plain", content: [{ type: "text", text: "没有 source 的旧日志" }] } }], 400))
+);
 check(
 	"the transcript is capped from the newest end",
 	(() => {

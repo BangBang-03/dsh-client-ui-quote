@@ -324,6 +324,18 @@ sessionFixture = null;
 const noBinding = await testing.readQuoteRows("session-far");
 check("a session that resolves no binding is reported", noBinding.ok === false && noBinding.reason === "no-session", JSON.stringify(noBinding.reason));
 
+// A failed "load older" must not erase what the reader is looking at: the
+// data layer hands back the local copy instead of an empty failure.
+testing.rememberIndexedQuotes("session-index", [
+	{ id: "local-1", seq: 3, time: "", quote: "只在本机索引里的引用", comment: "", code: false, fence: "", ref: null }
+]);
+const keptLocal = await testing.loadOlderQuotes("session-index");
+check(
+	"a page that cannot be read keeps the local list",
+	keptLocal.ok === true && keptLocal.rows.some((row) => row.quote === "只在本机索引里的引用"),
+	JSON.stringify(keptLocal)
+);
+
 // ---- the side thread the session opened ------------------------------------
 const threadEntries = [
 	{ type: "event", event: { type: "user/message", seq: 1, time: "2026-10-10T12:00:00.000Z", data: { id: "t-1", content: [{ type: "text", text: "> 被引用的原文\n\n这个函数为什么这么写？" }] } } },
@@ -1043,6 +1055,19 @@ check("the page offers 标记已解决 and starts disabled", resolveButton !== n
 	);
 	const mergedTwice = testing.mergeIndexedQuotes("session-far", jsonRows);
 	check("and the log's own rows are not duplicated", mergedTwice.length === 1, JSON.stringify(mergedTwice.length));
+
+	// A legacy/corrupt store shaped like an array used to be accepted, and
+	// property writes on an array never serialize — every later quote vanished.
+	globalThis.localStorage.setItem("dsh-client-ui-quote:v1:quote-index", "[]");
+	testing.rememberIndexedQuotes("session-array", [
+		{ id: "array-1", seq: 1, time: "", quote: "数组形态索引也要能写", comment: "", code: false, fence: "", ref: null }
+	]);
+	const arrayIndex = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v1:quote-index"));
+	check(
+		"an array-shaped local index is replaced instead of swallowing writes",
+		Array.isArray(arrayIndex) === false && Array.isArray(arrayIndex["session-array"]),
+		JSON.stringify(arrayIndex)
+	);
 }
 
 console.log(

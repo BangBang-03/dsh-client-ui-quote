@@ -36,7 +36,7 @@ description: Use when 用户说「更新文件」「更新文档」「更新日�
 
 - **平时**：写进 `## Unreleased`，用小节区分：`### Added` / `### Fixed` / `### Changed` / `### Docs`。每条写**发生了什么、影响谁**，不写 commit hash。
 - **发版时**：把 `## Unreleased` 下这一轮的内容挪成 `## X.Y.Z — YYYY-MM-DD`，`Unreleased` 留 `_（下一轮）_`。`publish.yml` 会用 `## ${VERSION} ` 前缀截取这一段当 GitHub Release notes，所以**标题格式不能改**。
-- 断言数那一条单独成行（R17 要求），格式：`离线断言 **814 组**（check 12 + capsule 578 + panel 174 + host 50）；新增 N 组：…`（数字以 `npm test` 实跑为准，别照抄这行）。
+- 断言数那一条单独成行（R17 要求），格式：`离线断言 **821 组**（check 12 + capsule 582 + panel 176 + host 51）；新增 N 组：…`（数字以 `npm test` 实跑为准，别照抄这行）。
 - 修外部贡献者的东西：点名 `@用户名` 与 PR 编号。
 
 ## 4. 自检

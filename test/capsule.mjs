@@ -1424,9 +1424,12 @@ try {
 	check("an over-long quote is capped", testing.sourceKeyOf("字".repeat(400)).length === 120);
 	check("an unknown quote has no source", testing.sourceFor("从没选过的句子") === null);
 
-	testing.saveSource("被引用的那一段原文", "session-q", { attr: "data-chat-anchor-key", key: "row-1", turn: "3" });
+	testing.saveSource("被引用的那一段原文", "session-q", { attr: "data-chat-anchor-key", key: "row-1", turn: "3", role: "a" });
 	const stored = testing.sourceFor("被引用的那一段原文");
 	check("the quote finds its row again", stored?.key === "row-1" && stored?.turn === "3", JSON.stringify(stored));
+	// The role is part of the coordinate: a revision of a pre-ref quote used
+	// to lose "· 助手" because `sourceFor` dropped it on the way through.
+	check("the coordinate keeps its readable role", stored?.role === "a", JSON.stringify(stored?.role));
 	const persisted = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source"));
 	const persistedBin = persisted?.["session-q::3"];
 	check("the coordinate is persisted as a v2 candidate array", Array.isArray(persistedBin) && persistedBin[0]?.key === "row-1", JSON.stringify(persistedBin));
@@ -2606,6 +2609,33 @@ try {
 		"a dead end says so instead of doing nothing",
 		String(toastNode?.textContent) === "插入失败，请重试",
 		JSON.stringify(toastNode?.textContent)
+	);
+
+	// 4a. A composer face exists, but BOTH insert paths refuse. The coordinate
+	// was saved before the attempt; painting it now would leave a highlight for
+	// a quote that never reached the draft. A later chip that lands lifts it.
+	const failPane = pane("session-insert-fail", "插入失败也不该留下高亮");
+	failPane.run.parentNode.setAttribute("data-chat-anchor-key", "row-insert-fail");
+	failPane.run.parentNode.setAttribute("data-chat-turn", "21");
+	let acceptInsert = false;
+	shells.set("session-insert-fail", { insertReference() { return acceptInsert; } });
+	if (overlay !== undefined) {
+		overlay.Component({ sessionId: "session-insert-fail", inputActions: { captureInsertion: () => ({ draftRev: 1 }), insertText: () => false } });
+	}
+	selectIn(failPane.run, "插入失败也不该留下高亮");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	const failedTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const failedEntry = Object.values(failedTable).flat().find((entry) => entry?.key === "row-insert-fail");
+	const orphanHidden = failedEntry?.draft === true && failedEntry?.chip === true;
+	acceptInsert = true;
+	selectIn(failPane.run, "插入失败也不该留下高亮");
+	barOf().dispatch("click", { target: barOf().querySelector('[data-action="add"]') });
+	const retriedTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const retriedEntry = Object.values(retriedTable).flat().find((entry) => entry?.key === "row-insert-fail");
+	check(
+		"a quote that never landed keeps no mark, and a retry that lands restores it",
+		orphanHidden && retriedEntry?.chip === true && retriedEntry?.draft !== true,
+		JSON.stringify({ failed: failedEntry, retried: retriedEntry })
 	);
 
 	// 5. Disposal is honest: the effect takes its listeners with it, and
@@ -4237,6 +4267,20 @@ check(
 		retired === true && retiredEntry?.spent === true,
 		JSON.stringify({ retired, candidate: retiredEntry })
 	);
+
+	// `keepHighlight` is retroactive: a mark retired while the switch was off
+	// comes back when the reader turns it on, and turning it off retires it
+	// again on the next pass.
+	testing.setConfig({ keepHighlight: true });
+	testing.paintAnchors();
+	const revivedTable = JSON.parse(globalThis.localStorage.getItem("dsh-client-ui-quote:v2:quote-source") ?? "{}");
+	const revivedEntry = Object.values(revivedTable).flat().find((entry) => entry?.key === "row-turn-a" && entry?.turn === "3");
+	check(
+		"keepHighlight lifts a mark retired by an earlier pass",
+		revivedEntry !== undefined && revivedEntry.spent !== true,
+		JSON.stringify(revivedEntry)
+	);
+	testing.setConfig({ keepHighlight: false });
 	pane.remove();
 }
 
@@ -4621,6 +4665,23 @@ for (const effect of effects.slice().reverse()) effect.dispose?.();
 	check("the bar starts with fixed coordinates", style.includes("left:0;top:0"), String(style.includes("left:0;top:0")));
 	check("a long comment box scrolls instead of clipping", style.includes("overflow-y:auto"), String(style.includes("overflow-y:auto")));
 	check("the host's scrolling is never disabled", style.includes("overflow:hidden!important") === false, String(style.includes("overflow:hidden!important")));
+	// Compatibility: `color-mix()` needs Chromium 111+. Every use in these two
+	// sheets keeps an rgba fallback declaration in front of it, so an older
+	// engine loses only the tint, never the surface itself.
+	const keepsFallback = (text) => {
+		let at = text.indexOf("color-mix(");
+		while (at !== -1) {
+			const before = text.slice(Math.max(0, at - 260), at);
+			if (!before.includes("rgba(")) return false;
+			at = text.indexOf("color-mix(", at + 1);
+		}
+		return true;
+	};
+	check(
+		"every color-mix keeps an rgba fallback",
+		keepsFallback(style) && keepsFallback(testing.capsuleStyleText()),
+		JSON.stringify({ bar: keepsFallback(style), capsule: keepsFallback(testing.capsuleStyleText()) })
+	);
 
 	// issue #10-7: the host settings modal's backdrop is z-index 1000, so every
 	// one of our floating layers has to stay under it (and above the composer,

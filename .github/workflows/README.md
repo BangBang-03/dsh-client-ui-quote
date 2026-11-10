@@ -6,7 +6,7 @@
 
 - 触发：所有 `push` 与 `pull_request`。
 - 矩阵：Node 18 / 20 / 22（对应 `engines.node >= 18`）。
-- 步骤：`node --check lib/client.js` → `npm test`（814 组离线断言）；插件没有运行期依赖，所以不跑 install。
+- 步骤：`node --check lib/client.js` → `npm test`（821 组离线断言）；插件没有运行期依赖，所以不跑 install。
 - 首次贡献者的 PR 可能停在 `action_required`，需要维护者在 Actions 页点一次 **Approve and run workflows**。
 
 ## `publish.yml`

@@ -143,4 +143,4 @@ https://github.com/BangBang-03/dsh-client-ui-quote/tree/main/docs/screenshots �
 
 ## 已复核
 
-`npm test` **814 组**离线断言（check 12 + capsule 578 + panel 174 + host 50）；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm 包均加载成功，`__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见、`probe().nativeSideChat === true`；`npm pack --dry-run` 包含 README、四张截图、GIF 与 `docs/*.md`（`submission/`、`skills/` 与工作稿不进包）。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。
+`npm test` **821 组**离线断言（check 12 + capsule 582 + panel 176 + host 51）；真浏览器（1600×2000 视口）51/51；隔离 DSH web 实例中工作区 link 与 npm 包均加载成功，`__dshQuote` 可用、`conversation` / `inputTriggers` / `sidebarRight` / `sidebarRightTabs` 可见、`probe().nativeSideChat === true`；`npm pack --dry-run` 包含 README、四张截图、GIF 与 `docs/*.md`（`submission/`、`skills/` 与工作稿不进包）。真实窗口的四条交互路径仍需人工点击（聚合条编辑、回合尾按钮、打开文件与行范围、JSON 导出）。
