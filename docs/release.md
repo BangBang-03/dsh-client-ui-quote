@@ -1,6 +1,6 @@
 # 开发与发布
 
-> 拓扑与纪律的权威版本是 [`skills/release/SKILL.md`](../skills/release/SKILL.md)；这里是给用户和贡献者看的运行方式与推送通道。
+> 拓扑与纪律的权威版本是 [`AGENTS.md`](../AGENTS.md) 的 R20 / R21；发布流水线见 [`.github/workflows/publish.yml`](../.github/workflows/publish.yml)。这里是给用户和贡献者看的运行方式与推送通道。
 
 ## 运行方式：`link` / stable 两种
 
@@ -11,11 +11,11 @@
 
 本机切换档位（这台开发机专用的辅助脚本，不在仓库里）：`node .dsh-quote-work/profile-mode.mjs link|stable|status`。换完在窗口里 `Ctrl+Shift+R` 生效；只有宿主半有改动时才需要重启桌面端。
 
-断言入口只有一个：`npm test`（821 项：check 12 + capsule 582 + panel 176 + host 51）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。发版前还要按 [`skills/release/SKILL.md`](../skills/release/SKILL.md) 的「发版前交付自查」A–F 六组完整跑一遍（门禁与断言、版本与数字、文案与契约、包内容、线格式与降级、发布面），自查不过不发版。
+断言入口只有一个：`npm test`（821 项：check 12 + capsule 582 + panel 176 + host 51）；`.github/workflows/test.yml` 在每次 push / PR 上用 Node 18/20/22 各跑一遍，`publish.yml` 里 `prepublishOnly` 再跑一次才发。发版前还要完整跑一遍六组交付自查（门禁与断言、版本与数字、文案与契约、包内容、线格式与降级、发布面），自查不过不发版。
 
 **推送通道**：`git push` 优先，但本机 `github.com:443` **时通时不通**（2026-10-19 实测：短时可用、随后连续超时，每次失败等约 21 秒）。日常用工作区根的 `promote.ps1`：先试 git，失败自动转 REST 兜底（`.dsh-quote-work/publish-release.mjs`、`.dsh-quote-work/push-branch.mjs`，`-Channel rest` 可跳过探测），并核对远端 SHA。**别混用两条通道**：REST 重建的提交时区归一到 `+0000`，内容相同但 SHA 不同，同一分支混推会分叉（`git status` 看着干净，远端却多一条平行提交）；恢复就先 `git fetch`、确认 `git diff <本地> <远端>` 为空，再把本地线 reset 到远端。
 
-一键执行：`pwsh -File promote.ps1 -Repo dsh-client-ui-quote -Tag vX.Y.Z`（测试 → 推 `main` → 打标签 → 核对远端三个 ref）。仓库内的 `skills/release/SKILL.md` 把「推 main / 发版 / 失败处理 / 验收」固化成逐步清单，日常以这份为准；工作区根的 `PLUGIN-WORKFLOW.md` 保留推送通道与事故复盘（里面的双分支拓扑是 0.12.9 之前的历史）。
+一键执行：`pwsh -File promote.ps1 -Repo dsh-client-ui-quote -Tag vX.Y.Z`（测试 → 推 `main` → 打标签 → 核对远端三个 ref）。日常以本文档与 [`AGENTS.md`](../AGENTS.md) 的 R20 / R21 为准；工作区根的 `PLUGIN-WORKFLOW.md` 保留推送通道与事故复盘（里面的双分支拓扑是 0.12.9 之前的历史）。
 
 **发布运维备忘**（给未来的自己）：
 

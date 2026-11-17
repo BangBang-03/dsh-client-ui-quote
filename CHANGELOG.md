@@ -93,7 +93,7 @@ _（下一轮）_
 - **记录型 turn 让回合结束收回失效**（PR #4 后续）：槽位自己的 `data-dshq-turn` 仍写 `String(turn)`，记录型宿主得到 `[object Object]`；`clearSpentSources` 拿它和胶囊的真实 turn 匹配，永远匹配不上，回复结束后原文高亮与序号不收回。现在 `turnNumberOf()` 先读记录里的 `turn` / `id` / `seq`，再回退到所在行的 `data-chat-turn`，`turnTextAt` 与 `clearSpentSources` 共用同一个解析。新增 2 组断言。
 - **用户提问里以「思考 …」开头的段落被当成推理删掉**（PR #4 后续）：段落级兜底只在 `role === "assistant"` 时启用；用户自己的话一个字不动，答案里的推理段落仍会过滤。新增 1 组断言。
 - **过程块文本与答案重复时会把答案剪掉**（PR #4 后续）：原来用 `body.replace(inner, "")` 删过程块，同名片段出现在答案里时会先删答案、留下过程副本。现在逐个子节点遍历并跳过 `data-step-process` 子树，只移除脚手架。新增 1 组断言。
-- **未处理项**：issue #6（图片附件随引用）涉及范围红线 R19，留待确认，本轮未动。
+- **未处理项**：issue #6（图片附件随引用）涉及范围红线 R19，当轮留待确认，本轮未动；后于 2026-11-17 完成评估，技术通路可行但附件语义链路与「文本引用 + 坐标」定位冲突，已按 `not planned` 婉拒（[#6 评论](https://github.com/BangBang-03/dsh-client-ui-quote/issues/6#issuecomment-6951248903)）。
 
 ### 断言
 

@@ -15,4 +15,4 @@ GitHub 侧配置：CI / 发布工作流、PR 模板、issue 表单与标签清�
 
 **标签要先建**：`labels.yml` 只是清单，标签本身要在仓库 Settings → Labels 建出来（或接 label-sync 同步）；不存在的标签不会被 issue 表单自动应用。
 
-工作流细节见 [`workflows/README.md`](workflows/README.md)。发布需要仓库 Secret `NPM_TOKEN`（npm Automation token），缺失时工作流直接失败。分支与发版纪律见 [`../AGENTS.md`](../AGENTS.md) 的 R20 / R21 与 [`../skills/release/SKILL.md`](../skills/release/SKILL.md)（工作区根的 `PLUGIN-WORKFLOW.md` 只在本机，不在仓库里）。
+工作流细节见 [`workflows/README.md`](workflows/README.md)。发布需要仓库 Secret `NPM_TOKEN`（npm Automation token），缺失时工作流直接失败。分支与发版纪律见 [`../AGENTS.md`](../AGENTS.md) 的 R20 / R21 与 [`../docs/release.md`](../docs/release.md)（工作区根的 `PLUGIN-WORKFLOW.md` 只在本机，不在仓库里）。

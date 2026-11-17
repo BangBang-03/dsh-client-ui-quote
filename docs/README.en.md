@@ -67,7 +67,6 @@ For development use `dsh plugin --profile desktop add link:<clone-path>` so a re
 | `test/` | Four offline suites (821 assertions), the DOM shim and the real-browser page. See [`../test/README.md`](../test/README.md). |
 | `docs/` | Design, testing, release, distribution and this English page. See [`README.md`](README.md). |
 | `docs/screenshots/` | Screenshots and the carousel GIF used above. See [`screenshots/README.md`](screenshots/README.md). |
-| `skills/` | Agent workflows kept in the repo (docs sync / release); not published to npm. See [`../skills/README.md`](../skills/README.md). |
 | `submission/` | Marketplace submission metadata. See [`../submission/README.md`](../submission/README.md). |
 | `.github/` | CI / publish workflows and the PR template. See [`../.github/README.md`](../.github/README.md). |
 | Root | `package.json` (manifest + `files` whitelist), `cordis.patch.yml` (bundle patch), `icon.svg`, `AGENTS.md` (red lines + routing tables), `CONTRIBUTING.md`, `CHANGELOG.md`. |

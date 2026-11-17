@@ -52,7 +52,7 @@
 
 ### 2.1 按改动目标找位置
 
-代码改动的主入口都在 `lib/client.js`；推送/发版流程在 `skills/release/SKILL.md`。「连带」是要一起看的东西，「断言」是必须仍然通过的那一组。
+代码改动的主入口都在 `lib/client.js`；推送/发版流程在 `docs/release.md`。「连带」是要一起看的东西，「断言」是必须仍然通过的那一组。
 
 | 要改的东西 | 主入口（行号锚点） | 连带 | 断言 |
 | --- | --- | --- | --- |
@@ -80,7 +80,7 @@
 | 装配与槽位注册 | `apply` 7265、`QuoteSelection` 5820、`inject` 7156 | 晚到服务用 `ctx.inject([...])`（7404）；**不要**改 bundle 的 `inject` 数组除非真加了必需服务 | check 全篇（槽位/词典/渲染 null） |
 | 词条 / 插件页文案 | `zh` 54、`en` 138、`ru` 239；`locale/zh.json`、`locale/en.json`、`locale/ru.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
-| 推送 / 发版流程 | `skills/release/SKILL.md` | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该 skill 的**发版前交付自查 A–F**；分支与通道见 R20/R21 | `npm test` 821 + 远端 `main`/标签一致 + 六组自查结论 |
+| 推送 / 发版流程 | `docs/release.md`（`link` / `stable`、推送通道、发布运维） | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该文档的**发版前六组交付自查**；分支与通道见 R20/R21 | `npm test` 821 + 远端 `main`/标签一致 + 六组自查结论 |
 
 ### 2.2 按症状找位置
 
@@ -110,7 +110,7 @@
 | 线程在 better-sidebar 与我们的清单里重复 | `SIDECHAT_LABEL_PREFIX`、`knownSideThreadIds`、`targetOfThread` | 两边共享 `Side: ` 持久约定，这是有意为之；不是两套数据互相覆盖 |
 | 非中文界面混中文 | `zh`/`en`/`ru` 词典成对检查、`translateFor` 2119 | 只加了一边；导出函数里写死中文 |
 | `npm test` 挂了 | 先看是哪一套：check / capsule / panel | 新增 DOM API 没垫片；新增词条没进三份字典；manifest 字段动了 |
-| 推 main / 发版 / 标签或 publish CI 失败 | `skills/release/SKILL.md`、工作区根 `promote.ps1`、`.github/workflows/publish.yml` | 版本未 bump、标签已存在、未跟踪工作稿阻塞、git 与 REST 混用、CHANGELOG 小节缺失 |
+| 推 main / 发版 / 标签或 publish CI 失败 | `docs/release.md`、工作区根 `promote.ps1`、`.github/workflows/publish.yml` | 版本未 bump、标签已存在、未跟踪工作稿阻塞、git 与 REST 混用、CHANGELOG 小节缺失 |
 
 ### 2.3 文件地图
 
@@ -131,6 +131,4 @@
 | `docs/screenshots/*` | README 用的四张截图 + 24 秒轮播 GIF（静态合成） |
 | `docs/design.md`、`docs/testing.md`、`docs/release.md`、`docs/README.en.md` | 根 README 之外的深度内容：设计原理与同类对照、自检细节、开发与发布/推送通道、英文版 |
 | `docs/distribution.md`、`submission/*.yml` | 市场提交材料；投稿是人工动作，需要仓库所有者账号 |
-| `skills/release/SKILL.md` | 推送与发版流程：推 `main`（只跑测试）、标签发版、`promote.ps1 -Tag`、**发版前 A–F 六组交付自查**、CHANGELOG/Release 验收；不进 npm 包 |
-| `skills/docs/SKILL.md` | 文档同步：用户一句「更新文件 / 更新日志」时要动哪些文件，版本号、断言数（R17）与三语词条（R15）怎么对齐；不进 npm 包 |
-| 各目录 `README.md` | 目录职责与约定（`lib` / `locale` / `test` / `docs` / `docs/screenshots` / `skills` / `skills/docs` / `skills/release` / `submission` / `.github` / `.github/workflows`）；新增目录必须配一份 |
+| 各目录 `README.md` | 目录职责与约定（`lib` / `locale` / `test` / `docs` / `docs/screenshots` / `submission` / `.github` / `.github/workflows`）；新增目录必须配一份 |

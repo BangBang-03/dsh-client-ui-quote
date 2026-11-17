@@ -70,7 +70,6 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | `test/` | 四套离线断言（821 组）、DOM 垫片与真浏览器版。见 [`test/README.md`](test/README.md)。 |
 | `docs/` | 设计、自检、发布、市场材料与英文版。见 [`docs/README.md`](docs/README.md)。 |
 | `docs/screenshots/` | 本页「界面」一节用到的截图与轮播 GIF。见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。 |
-| `skills/` | 仓库内 agent 流程（文档同步 / 发版），不随 npm 包发布。见 [`skills/README.md`](skills/README.md)。 |
 | `submission/` | 插件市场投稿条目。见 [`submission/README.md`](submission/README.md)。 |
 | `.github/` | CI / 发布工作流与 PR 模板。见 [`.github/README.md`](.github/README.md)。 |
 | 根目录 | `package.json`（清单 + `files` 白名单）、`cordis.patch.yml`（组合包补丁）、`icon.svg`、`AGENTS.md`（红线 + 路由表）、`CONTRIBUTING.md`、`CHANGELOG.md`。 |

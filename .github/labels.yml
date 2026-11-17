@@ -20,7 +20,7 @@
   description: "lib/index.js：隐藏侧聊线程与本地路由"
 - name: "area:docs"
   color: 0e8a16
-  description: README、docs、skills、locale 文案
+  description: README、docs、locale 文案
 - name: blocked
   color: b60205
   description: 等待上游 / 宿主修复或外部依赖
