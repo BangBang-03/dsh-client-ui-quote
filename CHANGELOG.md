@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-_（下一轮）_
+### Docs
+
+- **`skills/` 移除收尾**：`skills/release/SKILL.md` 里的「发版前交付自查」A–F 完整细则（含一键自查脚本与留痕要求）已迁入 `docs/release.md` 的「发版前交付自查（闸门）」；仓库内对 `skills/` 的流程引用全部改指 `docs/release.md` / `AGENTS.md`（R20/R21），该目录不再进仓库与 npm 包。插件行为与离线断言数不变（821）。
 
 ## 0.14.4 — 2026-11-10
 
