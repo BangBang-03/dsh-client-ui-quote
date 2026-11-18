@@ -69,7 +69,7 @@ For development use `dsh plugin --profile desktop add link:<clone-path>` so a re
 | `docs/screenshots/` | Screenshots and the carousel GIF used above. See [`screenshots/README.md`](screenshots/README.md). |
 | `submission/` | Marketplace submission metadata. See [`../submission/README.md`](../submission/README.md). |
 | `.github/` | CI / publish workflows and the PR template. See [`../.github/README.md`](../.github/README.md). |
-| Root | `package.json` (manifest + `files` whitelist), `cordis.patch.yml` (bundle patch), `icon.svg`, `AGENTS.md` (red lines + routing tables), `CONTRIBUTING.md`, `CHANGELOG.md`. |
+| Root | `package.json` (manifest + `files` whitelist), `cordis.patch.yml` (bundle patch), `icon.svg`, `AGENTS.md` (red lines + routing tables + docs-sync file set), `CONTRIBUTING.md`, `CHANGELOG.md`. |
 
 ## Configuration
 

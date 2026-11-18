@@ -48,6 +48,29 @@
 | R21 | 推送通道：`git` 优先，失败走 REST 兜底，**同一轮别来回切** | REST 重建的提交时区归一到 `+0000`，同内容不同 SHA → 平行提交（`git status` 干净，远端多一条线） | 手动一半 git 一半 REST；分叉后用 force 掩盖 |
 | R22 | 不进仓库：`node_modules/`、`.workbuddy/`、报告与截图工作区（`.dsh-quote-work/`、`PLUGIN-*.md` 都在仓库外）；`package.json` 的 `files` 是 npm 发货白名单，别加工作文件 | 包体、CI 时间、以及「报告被发到 npm」都不该发生 | `git add -A` 把工作稿一起提交；把 `AGENTS.md` 加进 `files` |
 
+### 1.5 文档同步（原 `skills/docs/SKILL.md`）
+
+用户说「**更新文件 / 更新文档**」= 按下面的默认文件集逐处检查；说「**更新日志**」= 只处理 `CHANGELOG.md`。不要再问「改哪几处」；只有会改变红线本身时才回问。
+
+| 文件 | 管什么 | 什么时候必须动 |
+| --- | --- | --- |
+| `README.md` | 落地页：功能一览（验收口径）、安装、目录结构、自检、已知限制 | 行为、版本、已知限制、目录结构、断言数变了 |
+| `AGENTS.md` | 红线与路由表 | 红线、文件/脚本、断言数（R16/R17）、分支或发版流程变了 |
+| `CHANGELOG.md` | Release notes 的唯一来源 | 每个用户可见改动；发版时把 `## Unreleased` 变成正式小节 |
+| `test/README.md` | 四套断言各自覆盖什么 | 断言数、套件职责变了 |
+| `docs/design.md` | 工作原理、同类对照、`package.json` 声明、结构、下一步 | 架构/取舍变了；R17 的「真机验证」在这里 |
+| `docs/testing.md` | 断言细节、真浏览器版 51 项 | 测试策略或套件变了 |
+| `docs/release.md` | link / stable、推送通道、发布运维、发版前交付自查 A–F | 发布流程、分支拓扑、npm 通道、自查清单变了 |
+| `docs/README.en.md` | 英文全文 | 英文卖点或功能列表变了 |
+| `docs/distribution.md`、`submission/` | 渠道状态、投稿文案与市场条目 | 版本、功能亮点、渠道规则变了 |
+| `CONTRIBUTING.md` | 外部贡献者的最短路径 | 断言数、PR 规则、CI 门槛变了 |
+
+三条强制同步：版本号四处逐字一致（`package.json` / README 稳定版当前 + 安装示例 / CHANGELOG 小节 / `docs/distribution.md`）；断言数按 R17（数字必须来自 `npm test` 实跑，发版前全仓搜旧值，见 `docs/release.md` 的 B3）；文案按 R15 三语成对。
+
+「更新日志」平时进 `## Unreleased` 的 `Added` / `Fixed` / `Changed` / `Docs`，发版时挪成 `## X.Y.Z — YYYY-MM-DD`（`publish.yml` 按 `## ${VERSION} ` 截取 Release notes）；每条写发生了什么、影响谁，不写 commit hash。
+
+改完回复里列出改了哪些、没改哪些及原因；`docs/screenshots/*` 每个文件都必须被根 README 引用（check.mjs 有断言）。工作稿不进仓库（R22）；第三方仓库、外部账号与对外投稿先问再做。
+
 ## 二、路由表
 
 ### 2.1 按改动目标找位置
@@ -81,6 +104,7 @@
 | 词条 / 插件页文案 | `zh` 54、`en` 138、`ru` 239；`locale/zh.json`、`locale/en.json`、`locale/ru.json`；`package.json` description | README 功能表与首屏 | check「dictionaries」「locale metadata」 |
 | 清单与打包契约 | `package.json`（`files` / `exports` / `dsh` / `icon` / `engines`）、`cordis.patch.yml`、`icon.svg` | `docs/design.md`「声明（package.json）」 | check「manifest」「bundle patch」「exports」「icon」 |
 | 推送 / 发版流程 | `docs/release.md`（`link` / `stable`、推送通道、发布运维） | 工作区根 `promote.ps1`、`.github/workflows/publish.yml`、该文档的**发版前六组交付自查**；分支与通道见 R20/R21 | `npm test` 821 + 远端 `main`/标签一致 + 六组自查结论 |
+| 文档同步（「更新文件 / 更新文档 / 更新日志」） | §1.5 的默认文件集 | R15/R16/R17、`docs/release.md` 的 B3 | `npm test` 821 + `git show --stat HEAD` 的文件集合 |
 
 ### 2.2 按症状找位置
 

@@ -4,7 +4,7 @@
 
 ### Docs
 
-- **`skills/` 移除收尾**：`skills/release/SKILL.md` 里的「发版前交付自查」A–F 完整细则（含一键自查脚本与留痕要求）已迁入 `docs/release.md` 的「发版前交付自查（闸门）」；仓库内对 `skills/` 的流程引用全部改指 `docs/release.md` / `AGENTS.md`（R20/R21），该目录不再进仓库与 npm 包。插件行为与离线断言数不变（821）。
+- **`skills/` 移除收尾**：`skills/release/SKILL.md` 里的「发版前交付自查」A–F 完整细则（含一键自查脚本与留痕要求）已迁入 `docs/release.md` 的「发版前交付自查（闸门）」；`skills/docs/SKILL.md` 的「更新文件 / 更新日志」默认文件集与三条强制同步已迁入 `AGENTS.md` §1.5，并在路由表加了对应入口。仓库内对 `skills/` 的流程引用全部改指 `docs/release.md` / `AGENTS.md`（R20/R21），该目录不再进仓库与 npm 包。插件行为与离线断言数不变（821）。
 
 ## 0.14.4 — 2026-11-10
 

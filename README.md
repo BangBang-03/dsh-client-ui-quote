@@ -72,7 +72,7 @@ dsh plugin --profile desktop add dsh-client-ui-quote
 | `docs/screenshots/` | 本页「界面」一节用到的截图与轮播 GIF。见 [`docs/screenshots/README.md`](docs/screenshots/README.md)。 |
 | `submission/` | 插件市场投稿条目。见 [`submission/README.md`](submission/README.md)。 |
 | `.github/` | CI / 发布工作流与 PR 模板。见 [`.github/README.md`](.github/README.md)。 |
-| 根目录 | `package.json`（清单 + `files` 白名单）、`cordis.patch.yml`（组合包补丁）、`icon.svg`、`AGENTS.md`（红线 + 路由表）、`CONTRIBUTING.md`、`CHANGELOG.md`。 |
+| 根目录 | `package.json`（清单 + `files` 白名单）、`cordis.patch.yml`（组合包补丁）、`icon.svg`、`AGENTS.md`（红线 + 路由表 + 文档同步）、`CONTRIBUTING.md`、`CHANGELOG.md`。 |
 
 ## 配置
 
